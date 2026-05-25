@@ -71,7 +71,9 @@ npm run build             # dist/
 npx wrangler deploy       # Cloudflare Workers + Static Assets
 ```
 
-**Deploy target**: Cloudflare Workers (toolkit default for academic preset). Public site will land at `ssm-foundations.<account>.workers.dev` until a custom domain is wired.
+**Deploy target**: Cloudflare Workers + Static Assets, auto-deployed on push to `main` via Cloudflare Workers Builds. Public URL: **https://ssm-foundations.brandon-behring.dev** (subdomain). The legacy workers.dev preview remains live at `https://ssm-foundations.brandon-m-behring.workers.dev`.
+
+**Deployment URL convention**: each book/project under `brandon-behring.dev` follows the per-project-subdomain pattern. See [the Subdomain convention in brandon-behring.dev/README.md](https://github.com/brandon-behring/brandon-behring.dev#subdomain-convention) for the slug rule, click-path, and registry.
 
 ---
 
