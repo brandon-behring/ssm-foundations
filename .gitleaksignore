@@ -1,0 +1,6 @@
+# Bibkeys follow the convention <firstauthor><year><firstword> which
+# matches the gitleaks generic-api-key entropy heuristic. They are not
+# secrets; they are bibliography keys. Allowlist matched fingerprints below.
+src/content/chapters/ch02-stability-theory.mdx:generic-api-key:87
+src/content/chapters/ch02-stability-theory.mdx:generic-api-key:109
+src/content/chapters/ch02-stability-theory.mdx:generic-api-key:127
