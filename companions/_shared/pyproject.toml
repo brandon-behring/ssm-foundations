@@ -1,0 +1,39 @@
+[project]
+name = "ssm-foundations-companions"
+version = "0.1.0"
+description = "Companion-code dependencies for ssm-foundations Ch 1-17 (Python/JAX)."
+readme = "../README.md"
+requires-python = ">=3.11"
+dependencies = [
+    "matplotlib>=3.9.0",
+    "numpy>=1.26.0",
+    "scipy>=1.14.0",
+    # JAX is needed for Ch 1's matrix_exponential demo and any chapter that
+    # uses jit/vmap. We pin to CPU build for cross-platform deterministic
+    # smoke tests; GPU users can install jax[cuda12_pip] separately.
+    "jax>=0.4.30",
+    "jaxlib>=0.4.30",
+]
+
+[project.optional-dependencies]
+dev = [
+    "black>=24.0",
+    "ruff>=0.5",
+    "mypy>=1.10",
+]
+
+[tool.black]
+line-length = 100
+target-version = ["py311", "py312", "py313"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "N", "UP", "B", "SIM"]
+ignore = ["E501"]  # line length handled by black
+
+[tool.mypy]
+python_version = "3.11"
+strict = true

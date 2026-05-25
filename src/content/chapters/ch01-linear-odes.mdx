@@ -2,20 +2,364 @@
 week: 1
 part: foundations
 title: Linear ODEs as state-space systems
-status: scaffolded
-description: Continuous-time linear systems h'(t) = Ah(t) + Bu(t); connection to coupled-oscillator and vortex-dynamics dynamical systems.
+status: implemented
+description: Continuous-time linear systems, the matrix exponential as fundamental solution, the damped oscillator as canonical example, and the eigenvalue classification of phase portraits.
 ---
 
+{/*
+  Math notation used in this chapter (all auto-loaded via ssmMacros):
+    \statevec  = h     (state vector)
+    \statemat  = A     (dynamics matrix)
+    \inputmat  = B     (input matrix)
+    \outputmat = C     (output matrix)
+    \stepsize  = Δ     (discretization step)
+    \lyapexp   = λ     (Lyapunov exponent — used in Ch 2)
+    \jacobian  = J     (Jacobian)
+    \ddt       = d/dt
+    \R, \C, \N, \Z — number sets
+    \norm{x}, \abs{x}, \tr, \rank, \diag — operators
+*/}
+
 import NoteBox from '@brandon_m_behring/book-scaffold-astro/components/NoteBox.astro';
+import Theorem from '@brandon_m_behring/book-scaffold-astro/components/Theorem.astro';
+import Cite from '@brandon_m_behring/book-scaffold-astro/components/Cite.astro';
+import MarginNote from '@brandon_m_behring/book-scaffold-astro/components/MarginNote.astro';
+import Figure from '@brandon_m_behring/book-scaffold-astro/components/Figure.astro';
 
 # Linear ODEs as state-space systems
 
-<NoteBox title="Scaffolded">
-Authoring in progress (2026-05-24). Foundation chapter for the C1 symplectic-integrator pilot.
+<NoteBox title="Chapter 1 — at a glance">
+**Goal**: introduce the continuous-time linear system $\ddt \statevec(t) = \statemat \statevec(t) + \inputmat u(t)$ as the mathematical object every later chapter discretizes, analyses, or generalizes. By the end you can write a state-space model from an ODE, compute its fundamental solution, classify its qualitative behavior from $\statemat$'s eigenvalues, and read a phase portrait.
+
+**Reading time**: ~30 minutes prose; 60–90 minutes with the companions and exercises.
+
+**Key insight**: every structured state-space model in this book — S4, S4D, Mamba, the delta-rule lineage, hybrids — is a *discrete realization* of a continuous linear system. Understanding the continuous object first means you can switch between the recurrent, convolutional, and frequency-domain views without re-deriving each one.
 </NoteBox>
 
-This chapter introduces continuous-time linear systems as the mathematical foundation for everything that follows. The state-space form $\dot{h}(t) = Ah(t) + Bu(t)$ recurs throughout the curriculum — as the continuous source of S4 (Ch 8), as the continuous limit of selective SSMs (Ch 9), and as the object whose structure preservation drives the C1 pilot (Ch 6 + research).
+## 1.1 What is a state-space system?
 
-Foundation for: C1 symplectic pilot, B two-timescale benchmarks.
+A **linear state-space system** is the pair of equations
 
-Source weeks in [post_transformers/roadmap.md](https://github.com/brandon-behring/post_transformers/blob/main/roadmap.md): W04 (HiPPO + S4 continuous-time), W05 (S4D stability), W06 (S5 + Julia ODE verification).
+$$
+\ddt \statevec(t) = \statemat \statevec(t) + \inputmat u(t), \qquad y(t) = \outputmat \statevec(t) + \feedmat u(t),
+$$
+
+where $\statevec(t) \in \R^N$ is the **state** at time $t \ge 0$, $u(t) \in \R^D$ is the **input** signal, $y(t) \in \R^M$ is the **output**, and the four matrices $(\statemat, \inputmat, \outputmat, \feedmat)$ are real-valued with shapes $N \times N$, $N \times D$, $M \times N$, $M \times D$. The first equation is the **state equation** — a first-order linear ODE describing how the state evolves. The second is the **output equation** — a static linear readout. The integer $N$ is the **state dimension**; it controls how much history the model can carry forward.
+
+The pair is "linear" because both equations are linear in $\statevec$ and $u$ separately. It is "state-space" because $\statevec(t)$ summarizes everything the system needs from the past in order to predict the future given future inputs — a property called the **Markov property of state**. Given the present state and the input from now onward, the system's entire future is determined.
+
+<MarginNote>Strictly, this is the *time-invariant* case ($\statemat$, $\inputmat$, $\outputmat$, $\feedmat$ are constants). Time-varying state-space systems allow $\statemat(t)$, $\inputmat(t)$, $\outputmat(t)$, $\feedmat(t)$; Mamba's selective scan (Ch 9) is the canonical ML example.</MarginNote>
+
+A few conventions before going further. We treat $\statevec(t)$ as a column vector and apply $\statemat$ on the left: $\statemat \statevec$, not $\statevec \statemat$. We absorb the feedthrough term $\feedmat u(t)$ into the output equation only — it appears nowhere in the state dynamics — and we will often set $\feedmat = 0$ in examples to keep notation light. When the input is absent ($u \equiv 0$), the state equation reduces to
+
+$$
+\ddt \statevec(t) = \statemat \statevec(t),
+$$
+
+the **homogeneous linear ODE**, whose solution is the focus of §1.2.
+
+### Why this object
+
+Three reasons the state-space form is the right starting point for a book on sequence-model architectures:
+
+1. **It separates dynamics from input.** Whatever the input signal looks like, the dynamics matrix $\statemat$ alone determines the system's long-run behavior — its stability, oscillation frequencies, and decay rates. Most of the analysis in Chapter 2 looks only at $\statemat$.
+2. **It generalizes immediately.** Replacing the scalar derivative $\ddt$ with a finite difference yields a discrete recurrence (Chapter 4); replacing $\R$ with $\C$ admits oscillatory modes (Chapter 6, Chapter 10); replacing the constant $\statemat$ with an input-dependent $\statemat(u_t)$ yields the selective-SSM family (Chapter 9). Each generalization preserves the state-space skeleton.
+3. **It's the form in which continuous-time models *are* discretized.** Every SSM derivation in the literature starts from a continuous state equation and applies a numerical integration scheme to get a discrete recurrence. If you don't know the continuous object, the discrete one is opaque.
+
+## 1.2 The matrix exponential and fundamental solutions
+
+The homogeneous ODE $\ddt \statevec = \statemat \statevec$ with initial condition $\statevec(0) = \statevec_0$ has a unique solution for every $\statevec_0 \in \R^N$ — and that solution is
+
+$$
+\statevec(t) = e^{\statemat t} \statevec_0,
+$$
+
+where $e^{\statemat t}$ is the **matrix exponential** of $\statemat t$, defined by the same series as the scalar exponential:
+
+<Theorem id="ch01:def:matexp" type="definition">
+For any square matrix $M \in \R^{N \times N}$, the **matrix exponential** is
+$$
+e^M := \sum_{k=0}^{\infty} \frac{M^k}{k!} = I + M + \tfrac{1}{2} M^2 + \tfrac{1}{6} M^3 + \cdots
+$$
+The series converges absolutely for every $M$ (the entrywise $\ell^1$-norm of the partial sums is bounded by $e^{\norm{M}}$), so $e^M$ is always well-defined.
+</Theorem>
+
+The fundamental solution property — that $t \mapsto e^{\statemat t} \statevec_0$ solves the homogeneous ODE — is verified by differentiating the series term-by-term and using $\frac{d}{dt} \frac{(\statemat t)^k}{k!} = \frac{\statemat^k t^{k-1}}{(k-1)!}$. The resulting derivative is $\statemat \cdot e^{\statemat t} \statevec_0$, which matches $\statemat \statevec(t)$. Existence and uniqueness for the inhomogeneous case ($u \not\equiv 0$) follow the **variation of parameters** formula
+
+$$
+\statevec(t) = e^{\statemat t} \statevec_0 + \int_0^t e^{\statemat (t-s)} \inputmat u(s) \, ds,
+$$
+
+an integral that recurs (in discretized form) as the convolution kernel of every LTI SSM in Chapter 8.
+
+<MarginNote>For a textbook treatment of existence + uniqueness see Hairer–Nørsett–Wanner <Cite key="hairer1993ordinary" />. The Lipschitz constant is $\norm{\statemat}$; bounded ⇒ no finite-time blow-up.</MarginNote>
+
+### Eigenvalue structure determines everything
+
+The matrix exponential's behavior is governed entirely by the eigenvalues of $\statemat$. If $\statemat$ is diagonalizable, $\statemat = V \Lambda V^{-1}$ with $\Lambda = \diag(\lambda_1, \ldots, \lambda_N)$, then
+
+$$
+e^{\statemat t} = V \, e^{\Lambda t} \, V^{-1} = V \, \diag(e^{\lambda_1 t}, \ldots, e^{\lambda_N t}) \, V^{-1}.
+$$
+
+So $e^{\statemat t}$ acts on the eigenbasis as independent scalar exponentials. The real parts of $\lambda_i$ control decay or growth: $\Re(\lambda_i) < 0$ means $e^{\lambda_i t} \to 0$; $\Re(\lambda_i) > 0$ means blow-up. The imaginary parts control oscillation frequency. Three regimes recur throughout the book:
+
+1. **All eigenvalues with negative real part** — the system is **asymptotically stable**: every trajectory $\statevec(t) \to 0$ as $t \to \infty$. This is the regime in which a recurrence "forgets" its initial state, and it is the design target for the $\statemat$ matrices of S4, Mamba, and friends.
+2. **At least one eigenvalue with positive real part** — the system is **unstable**: some initial conditions blow up. A trained SSM whose $\statemat$ drifts into this regime is the dominant numerical failure mode (Chapter 5).
+3. **Purely imaginary eigenvalues** — the system is **marginally stable** and oscillates without decay. These are the energy-preserving modes of Hamiltonian systems and are the natural home of symplectic discretization (Chapter 6).
+
+When $\statemat$ is not diagonalizable — when it has repeated eigenvalues with deficient eigenspaces — the matrix exponential picks up polynomial-in-$t$ factors on top of the $e^{\lambda_i t}$ terms. The Jordan normal form (Chapter 3, §3.1) gives the precise statement. In practice almost every $\statemat$ arising from random initialization or from physical systems is diagonalizable, and the polynomial-factor case shows up only at codimension-one boundaries in parameter space.
+
+## 1.3 The damped harmonic oscillator
+
+The canonical small example. A unit mass on a spring with stiffness $k > 0$ and damping coefficient $c > 0$, displacement $q(t)$, evolves according to Newton's second law,
+
+$$
+\ddot q(t) + c \, \dot q(t) + k \, q(t) = 0.
+$$
+
+This is a second-order scalar ODE, not first-order, so it does not yet fit the state-space template. We **lift** it by treating velocity as an extra state coordinate: let $\statevec(t) = (q(t), \dot q(t))^\top \in \R^2$. Then $\ddt \statevec = \statemat \statevec$ with
+
+$$
+\statemat = \begin{pmatrix} 0 & 1 \\ -k & -c \end{pmatrix}.
+$$
+
+This lifting trick — **introduce auxiliary states to reduce ODE order to one** — is the same procedure by which every higher-order ODE becomes a first-order state-space system, and it foreshadows how implicit higher-order schemes (Chapter 6) work internally.
+
+The eigenvalues of $\statemat$ are the roots of the characteristic polynomial $\lambda^2 + c \lambda + k = 0$:
+
+$$
+\lambda_\pm = -\frac{c}{2} \pm \frac{1}{2}\sqrt{c^2 - 4k}.
+$$
+
+Three sub-cases follow from the sign of the discriminant $c^2 - 4k$:
+
+- **Overdamped** ($c^2 > 4k$): two real negative eigenvalues. Both modes decay monotonically; the displacement approaches zero without oscillation.
+- **Critically damped** ($c^2 = 4k$): a repeated negative eigenvalue $\lambda = -c/2$. The matrix $\statemat$ is in this case *not* diagonalizable, and the solution contains a $t \cdot e^{\lambda t}$ term.
+- **Underdamped** ($c^2 < 4k$): a complex-conjugate eigenpair $\lambda_\pm = -c/2 \pm i\omega$, with $\omega = \tfrac{1}{2}\sqrt{4k - c^2}$. Trajectories spiral toward the origin: oscillation at angular frequency $\omega$ with envelope decaying as $e^{-ct/2}$.
+
+The **total energy** $E(t) = \tfrac{1}{2}(\dot q^2 + k q^2)$ is a useful diagnostic. Its time derivative is $\dot E = -c \dot q^2 \le 0$, i.e. energy decreases monotonically whenever $\dot q \ne 0$. Both stationary and oscillating trajectories satisfy this. The companion `damped_oscillator.py` simulates the underdamped regime and plots $E(t)$ alongside the trajectory; the energy curve gives an at-a-glance check that the numerical integration preserves the dissipation structure of the continuous system.
+
+<Figure src="/figures/ch01/energy_decay.png" alt="Energy decay of the damped harmonic oscillator over time, plotted on linear and log scales." caption="Energy E(t) of the underdamped oscillator (k=4, c=0.2) decaying exponentially in time. Left: linear scale, showing the envelope shape. Right: log scale, where the constant slope confirms the exponential decay rate of c/2 in the energy norm. Produced by companions/ch01/jax/damped_oscillator.py." />
+
+## 1.4 Coupled systems and the Jacobian
+
+The damped oscillator is a 2-dimensional toy. Real systems — and trained SSMs — live in much higher dimensions, and they typically arise from coupling many simpler subsystems. The bookkeeping is straightforward once you accept that the state vector $\statevec$ stacks all subsystem states and $\statemat$ encodes both intra-subsystem dynamics and inter-subsystem coupling.
+
+A useful larger example is a **ring of coupled oscillators**: $n$ identical damped oscillators arranged on a circle, each coupled to its two nearest neighbors by springs of stiffness $\kappa$. The displacements $q_1, \ldots, q_n$ and velocities $\dot q_1, \ldots, \dot q_n$ stack into a state vector $\statevec \in \R^{2n}$. The $\statemat$ matrix has a $2 \times 2$ block-diagonal structure for the per-oscillator dynamics, plus an off-diagonal coupling pattern that links each oscillator's velocity equation to its neighbors' positions:
+
+$$
+\ddot q_i = -k q_i - c \dot q_i + \kappa (q_{i-1} - 2 q_i + q_{i+1}), \qquad i = 1, \ldots, n,
+$$
+
+with indices taken mod $n$. The bracketed term $q_{i-1} - 2 q_i + q_{i+1}$ is the **discrete Laplacian** of $q$ around the ring; it's the same discretization of $\partial^2/\partial x^2$ you would use in a finite-difference method for the wave equation.
+
+The $2n \times 2n$ Jacobian matrix $\jacobian$ — which for a linear system is just $\statemat$ — has eigenvalues that are easy to compute analytically because of the ring's circulant structure. They come in complex-conjugate pairs
+
+$$
+\lambda_\pm^{(m)} = -\frac{c}{2} \pm i \sqrt{k + 2\kappa(1 - \cos(2\pi m/n)) - c^2/4}, \qquad m = 0, 1, \ldots, n-1,
+$$
+
+(for the underdamped regime). Each $m$ indexes a **standing wave mode** on the ring with wavenumber $2\pi m / n$; the $m=0$ mode is uniform translation (no spatial structure), $m = n/2$ (when $n$ is even) is the maximally-oscillating mode where adjacent oscillators move in antiphase. The companion `coupled_oscillators.py` constructs $\statemat$ for $n = 8$ and visualizes the eigenvalues in the complex plane.
+
+<Figure src="/figures/ch01/jacobian_eigenvalues.png" alt="Eigenvalues of the coupled-oscillator Jacobian in the complex plane, showing two arcs corresponding to the underdamped modes." caption="Eigenvalues of the ring-of-oscillators Jacobian for n=8, k=4, c=0.2, κ=1. All 16 eigenvalues sit in the left half-plane (asymptotically stable) and arrange into two arcs corresponding to the two underdamped families. The arc curvature reflects the dispersion relation ω(m) of the spatial Laplacian. Produced by companions/ch01/jax/coupled_oscillators.py." />
+
+The key qualitative lesson: **once you have the right state-space lift, even a system with rich spatial structure reduces to "compute eigenvalues of $\statemat$, classify by real and imaginary parts."** The eigenvalue distribution of a trained SSM's $\statemat$ — pre-training, mid-training, and converged — is one of the most informative diagnostics you can compute (Chapter 2, §2.2; Chapter 5).
+
+### The Jacobian beyond linear systems
+
+For a *nonlinear* system $\ddt \statevec = f(\statevec)$, the Jacobian $\jacobian(\statevec) = \partial f / \partial \statevec$ is the matrix of partial derivatives at $\statevec$. The linearization $\ddt \delta\statevec = \jacobian(\statevec^*) \delta\statevec$ around a fixed point $\statevec^*$ (where $f(\statevec^*) = 0$) describes how small perturbations $\delta\statevec$ evolve. The eigenvalues of $\jacobian(\statevec^*)$ then determine local stability of $\statevec^*$ by the same classification as in §1.2.
+
+Trained recurrent networks — including SSMs in inference mode — are formally nonlinear (the state update is `state = f(state, input)` where `f` includes the input-dependent matrices). The linearization-around-a-state gives a *local* state-space system at each time step, and tracking how that local $\statemat$ varies along a trajectory is the foundation of the Lyapunov-exponent analysis in Chapter 2.
+
+## 1.5 Phase portraits and the eigenvalue classification
+
+A **phase portrait** is the geometric picture of all trajectories of an autonomous system in state space, drawn as oriented curves. For 2-dimensional linear systems $\ddt \statevec = \statemat \statevec$ on $\R^2$, the topology of the portrait is determined entirely by the trace $\tr(\statemat)$ and the determinant $\det(\statemat)$ — equivalently, by the eigenvalues — and the standard classification gives six qualitative behaviors:
+
+| Region in $(\tr, \det)$-plane | Eigenvalues | Phase portrait |
+|---|---|---|
+| $\det > 0$, $\tr^2 - 4\det > 0$, $\tr < 0$ | Real negative | Stable node |
+| $\det > 0$, $\tr^2 - 4\det > 0$, $\tr > 0$ | Real positive | Unstable node |
+| $\det > 0$, $\tr^2 - 4\det < 0$, $\tr < 0$ | Complex conjugate, $\Re < 0$ | Stable spiral |
+| $\det > 0$, $\tr^2 - 4\det < 0$, $\tr > 0$ | Complex conjugate, $\Re > 0$ | Unstable spiral |
+| $\det > 0$, $\tr = 0$ | Pure imaginary | Center (closed orbits) |
+| $\det < 0$ | Real, opposite signs | Saddle |
+
+The damped oscillator's three sub-cases (over/critical/under-damped) realize three of these: stable node, stable degenerate node, stable spiral. The undamped limit $c \to 0$ slides the eigenvalues onto the imaginary axis, turning the spiral into a center; this is the Hamiltonian limit where energy is conserved exactly.
+
+<MarginNote>The full classification including degenerate cases is in any introductory ODE text — Strogatz's *Nonlinear Dynamics and Chaos* §5.2 is the standard pedagogical reference.</MarginNote>
+
+For higher-dimensional systems the topology is richer (think: 3-D systems can have spirals around line-shaped invariant manifolds), but the *building blocks* are the same: each pair of complex-conjugate eigenvalues contributes a 2-D spiral subspace, each real eigenvalue contributes a 1-D direction of decay or growth. This decomposition by invariant subspaces — equivalently, by the Jordan blocks of $\statemat$ — is the geometric content of the matrix exponential's eigenvalue structure (§1.2).
+
+## 1.6 A preview of frequency response
+
+The variation-of-parameters formula
+
+$$
+\statevec(t) = e^{\statemat t} \statevec_0 + \int_0^t e^{\statemat (t-s)} \inputmat u(s) \, ds
+$$
+
+expresses the state as a convolution of the input with the kernel $K(t) := e^{\statemat t} \inputmat$. The output $y(t) = \outputmat \statevec(t)$ (taking $\feedmat = 0$) is therefore
+
+$$
+y(t) = \outputmat e^{\statemat t} \statevec_0 + \int_0^t \outputmat e^{\statemat (t-s)} \inputmat \, u(s) \, ds.
+$$
+
+The function $h(t) := \outputmat e^{\statemat t} \inputmat$ for $t \ge 0$ (and zero otherwise) is the **impulse response** of the system: the output you would observe if the input were a Dirac delta $u(t) = \delta(t)$.
+
+Taking the Laplace transform turns convolution into multiplication. With $\widehat y(s) := \int_0^\infty y(t) e^{-st} dt$ and similarly for $\widehat u$, you get
+
+$$
+\widehat y(s) = H(s) \, \widehat u(s) + \text{(initial-condition terms)},
+$$
+
+where $H(s) := \outputmat (s I - \statemat)^{-1} \inputmat$ is the **transfer function**. The eigenvalues of $\statemat$ — already shown to govern $e^{\statemat t}$ — appear as the **poles** of $H(s)$, since $(sI - \statemat)^{-1}$ blows up exactly when $s$ equals an eigenvalue of $\statemat$. The poles' location in the complex $s$-plane mirrors the eigenvalue classification of §1.5: left-half-plane poles ⇔ stable system; right-half-plane poles ⇔ unstable; imaginary-axis poles ⇔ marginally stable / oscillatory.
+
+This connection is the bridge to Chapter 8, where you'll see that the S4 layer's *convolutional view* is literally a numerical evaluation of the impulse response $h(t)$ at uniformly spaced time points, and to Chapter 11, where the spectral structure of long convolution kernels (Hyena, RetNet) is analyzed via the same transfer-function framing.
+
+## 1.7 What's next
+
+The next two chapters develop the analytical machinery that this chapter has only sketched. Chapter 2 makes the eigenvalue-stability story rigorous (Lyapunov, A-stability, BIBO) and adds the QR-based computational method for tracking eigenvalue trajectories during training. Chapter 3 introduces the structured-matrix vocabulary (Toeplitz, semiseparable, Vandermonde, Cauchy) needed to discuss the kernel constructions of S4 and friends. Chapters 4–6 then take the continuous state-space system here and discretize it — first crudely (ZOH, bilinear), then with full numerical-analysis machinery (Butcher tableau, A-stability), then via implicit and structure-preserving methods (Gauss–Legendre, symplectic integrators), which is where the active research pilot's anchor (the C1 pilot) lives.
+
+You can also profitably jump ahead: Chapter 8's LTI SSM presentation reuses everything in this chapter and is self-contained for readers who want to see the SSM application before working through the full math foundation.
+
+## 1.8 Exercises
+
+Seven problems mixing computation and theory. Short/numerical exercises (1–4) have inline collapsible solutions; long/proof exercises (5–7) have full worked solutions in §1.9.
+
+### Exercise 1.1 (computation)
+
+Compute the matrix exponential of $\statemat = \begin{pmatrix} 0 & 1 \\ -1 & 0 \end{pmatrix}$ by hand, term-by-term, and verify it equals the rotation matrix $R(t) = \begin{pmatrix} \cos t & \sin t \\ -\sin t & \cos t \end{pmatrix}$.
+
+<details>
+<summary>Solution</summary>
+
+Compute powers: $\statemat^2 = \begin{pmatrix} -1 & 0 \\ 0 & -1 \end{pmatrix} = -I$, so $\statemat^3 = -\statemat$, $\statemat^4 = I$, and the pattern repeats with period 4. Splitting the series by parity:
+
+$$
+e^{\statemat t} = \sum_{k} \frac{(\statemat t)^k}{k!} = I \sum_{k} \frac{(-1)^k t^{2k}}{(2k)!} + \statemat \sum_k \frac{(-1)^k t^{2k+1}}{(2k+1)!} = I \cos t + \statemat \sin t,
+$$
+
+which expands to $\begin{pmatrix} \cos t & \sin t \\ -\sin t & \cos t \end{pmatrix} = R(t)$. ∎
+</details>
+
+### Exercise 1.2 (computation)
+
+For the damped oscillator $\ddot q + c\dot q + k q = 0$ with $k = 1$ and $c = 0.5$, classify the damping regime and find the eigenvalues of $\statemat$.
+
+<details>
+<summary>Solution</summary>
+
+Discriminant: $c^2 - 4k = 0.25 - 4 = -3.75 < 0$, so the system is **underdamped**. Eigenvalues: $\lambda_\pm = -0.25 \pm i \tfrac{1}{2}\sqrt{3.75} \approx -0.25 \pm 0.968 i$. The trajectory spirals toward the origin with envelope decay rate $0.25$ and angular frequency $\approx 0.968$.
+</details>
+
+### Exercise 1.3 (computation)
+
+Lift the third-order ODE $q''' + 2 q'' + q = u(t)$ into a 3-dimensional state-space system $\ddt \statevec = \statemat \statevec + \inputmat u$. Write $\statemat$ and $\inputmat$ explicitly.
+
+<details>
+<summary>Solution</summary>
+
+Let $\statevec = (q, q', q'')^\top$. Then $\dot \statevec = (q', q'', q''')^\top$, and from the ODE $q''' = -2 q'' - q + u$, so
+
+$$
+\statemat = \begin{pmatrix} 0 & 1 & 0 \\ 0 & 0 & 1 \\ -1 & 0 & -2 \end{pmatrix}, \qquad
+\inputmat = \begin{pmatrix} 0 \\ 0 \\ 1 \end{pmatrix}.
+$$
+
+The bottom row encodes the ODE's coefficient signature; the upper-triangular ones implement the bookkeeping $q' \mapsto q', q'' \mapsto q''$. This is the **companion form** of the ODE.
+</details>
+
+### Exercise 1.4 (computation)
+
+For the ring of $n = 4$ identical damped oscillators with $k = 1$, $c = 0$, $\kappa = 0.5$ (no damping, symmetric coupling), use the formula in §1.4 to find the eigenvalues of $\statemat$ analytically. Confirm they lie on the imaginary axis (since $c = 0$) and verify by running `companions/ch01/jax/coupled_oscillators.py` with $n = 4$.
+
+<details>
+<summary>Solution</summary>
+
+With $c = 0$, $\lambda_\pm^{(m)} = \pm i\sqrt{k + 2\kappa(1 - \cos(2\pi m/n))}$ for $m = 0, 1, 2, 3$. Numerically:
+- $m = 0$: $\lambda_\pm = \pm i\sqrt{1} = \pm i$
+- $m = 1$: $\lambda_\pm = \pm i\sqrt{1 + 2 \cdot 0.5 \cdot 1} = \pm i\sqrt{2}$
+- $m = 2$: $\lambda_\pm = \pm i\sqrt{1 + 2 \cdot 0.5 \cdot 2} = \pm i\sqrt{3}$
+- $m = 3$: same as $m = 1$ by symmetry ⇒ $\pm i\sqrt{2}$
+
+All 8 eigenvalues are pure imaginary (centers), as expected for an undamped conservative system. The numerical verification reproduces these (modulo double-precision noise).
+</details>
+
+### Exercise 1.5 (theory) — solution in §1.9
+
+Prove that the matrix-exponential series $\sum_k M^k/k!$ converges absolutely (entrywise) for every square matrix $M$, with bound $\norm{e^M}_F \le e^{\norm{M}_F}$ where $\norm{\cdot}_F$ is the Frobenius norm.
+
+### Exercise 1.6 (theory) — solution in §1.9
+
+Show that if $\statemat$ is skew-symmetric ($\statemat^\top = -\statemat$), then $e^{\statemat t}$ is orthogonal for every $t \in \R$ (that is, $(e^{\statemat t})^\top e^{\statemat t} = I$). Use this to give a geometric reason why the rotation matrix of Exercise 1.1 is orthogonal.
+
+### Exercise 1.7 (theory) — solution in §1.9
+
+Prove the **variation of parameters** formula: the unique solution of $\ddt \statevec = \statemat \statevec + \inputmat u(t)$ with $\statevec(0) = \statevec_0$ is
+
+$$
+\statevec(t) = e^{\statemat t} \statevec_0 + \int_0^t e^{\statemat (t-s)} \inputmat u(s) \, ds.
+$$
+
+## 1.9 Full solutions to theory exercises
+
+### Solution to Exercise 1.5
+
+Let $\norm{\cdot}_F$ denote the Frobenius norm, which satisfies the sub-multiplicative property $\norm{AB}_F \le \norm{A}_F \norm{B}_F$. Then $\norm{M^k}_F \le \norm{M}_F^k$ by induction. Therefore
+
+$$
+\left\| \sum_{k=0}^{K} \frac{M^k}{k!} \right\|_F \le \sum_{k=0}^K \frac{\norm{M^k}_F}{k!} \le \sum_{k=0}^K \frac{\norm{M}_F^k}{k!} \to e^{\norm{M}_F} \quad \text{as } K \to \infty.
+$$
+
+The partial sums are entrywise bounded by terms of a convergent scalar series, so each matrix entry is Cauchy in $K$ and converges. The limit is what we call $e^M$. The bound $\norm{e^M}_F \le e^{\norm{M}_F}$ follows by passing to the limit. ∎
+
+### Solution to Exercise 1.6
+
+We have $\ddt e^{\statemat t} = \statemat e^{\statemat t}$ and $\ddt (e^{\statemat t})^\top = (e^{\statemat t})^\top \statemat^\top$. Let $Q(t) := (e^{\statemat t})^\top e^{\statemat t}$. Then
+
+$$
+\ddt Q = (e^{\statemat t})^\top \statemat^\top e^{\statemat t} + (e^{\statemat t})^\top \statemat e^{\statemat t} = (e^{\statemat t})^\top (\statemat^\top + \statemat) e^{\statemat t} = 0,
+$$
+
+since $\statemat^\top + \statemat = 0$ by skew-symmetry. So $Q(t) = Q(0) = I$ for all $t$, i.e. $e^{\statemat t}$ is orthogonal.
+
+Geometric interpretation: the rotation matrix $R(t)$ of Exercise 1.1 was generated by $\statemat = \begin{pmatrix} 0 & 1 \\ -1 & 0 \end{pmatrix}$, which is skew-symmetric. So $R(t)$ is orthogonal — which we already knew, but this derivation pins down *why*: orthogonality follows structurally from skew-symmetry of the generator, not from any property of the cos/sin functions. ∎
+
+### Solution to Exercise 1.7
+
+Define $\statevec(t)$ by the formula on the right-hand side. We verify (a) the initial condition and (b) the ODE.
+
+**Initial condition.** At $t = 0$ the integral vanishes (zero-length interval) and $e^{\statemat \cdot 0} = I$, so $\statevec(0) = \statevec_0$. ✓
+
+**ODE.** Differentiate using the product rule on the integral (Leibniz's rule for differentiating under the integral sign):
+
+$$
+\begin{aligned}
+\ddt \statevec(t) &= \ddt\left[ e^{\statemat t} \statevec_0 \right] + \ddt \int_0^t e^{\statemat (t-s)} \inputmat u(s) ds \\
+&= \statemat e^{\statemat t} \statevec_0 + \left[ e^{\statemat(t-t)} \inputmat u(t) + \int_0^t \frac{\partial}{\partial t} e^{\statemat(t-s)} \inputmat u(s) ds \right] \\
+&= \statemat e^{\statemat t} \statevec_0 + \inputmat u(t) + \statemat \int_0^t e^{\statemat(t-s)} \inputmat u(s) ds \\
+&= \statemat \left( e^{\statemat t} \statevec_0 + \int_0^t e^{\statemat(t-s)} \inputmat u(s) ds \right) + \inputmat u(t) \\
+&= \statemat \statevec(t) + \inputmat u(t). \quad \checkmark
+\end{aligned}
+$$
+
+Uniqueness follows from the classical Picard–Lindelöf theorem applied to the right-hand side $f(\statevec, t) = \statemat \statevec + \inputmat u(t)$, which is Lipschitz in $\statevec$ uniformly in $t$ with constant $\norm{\statemat}$ (see Hairer–Nørsett–Wanner <Cite key="hairer1993ordinary" /> for the standard proof). ∎
+
+## 1.10 Companion code
+
+Three runnable companions in `companions/ch01/jax/`:
+
+- `damped_oscillator.py` — simulates the underdamped oscillator, plots energy decay (Figure 1.1)
+- `coupled_oscillators.py` — constructs the ring-Laplacian state matrix, plots eigenvalue spectrum (Figure 1.2)
+- `matrix_exponential.py` — compares `scipy.linalg.expm` against truncated series sums; the truncated series catastrophically diverges for matrices with large spectral radius (auxiliary, used by Exercise 1.5)
+
+All companions import their plotting style from `companions/_shared/plot_utils.py`. To run from the repo root:
+
+```bash
+PYTHONPATH=. python companions/ch01/jax/damped_oscillator.py
+PYTHONPATH=. python companions/ch01/jax/coupled_oscillators.py
+PYTHONPATH=. python companions/ch01/jax/matrix_exponential.py
+```
+
+Figures are written to `public/figures/ch01/` and referenced from the `<Figure>` components above.

@@ -1,0 +1,71 @@
+# post_transformers_mpl.mplstyle
+#
+# Shared matplotlib style for all guide notebook figures.
+# Enforces the Paul Tol High Contrast 3-color palette to match the
+# callout-box colors defined in guides/shared/ssm-guide-preamble.sty
+# and documented in guides/README.md (Callout Box Reference).
+#
+# The three palette entries are CVD-safe and distinguishable in
+# grayscale print. Use as the default color cycle; for additional
+# emphasis colors, extend via matplotlib.colors.to_rgba() with CVD-
+# friendly additions and document in the chapter's commit message.
+#
+# Usage (first code cell of every notebook):
+#
+#     import matplotlib.pyplot as plt
+#     from pathlib import Path
+#     plt.style.use(str(Path.cwd().parent / "notebooks" / "post_transformers_mpl.mplstyle"))
+#
+# See guides/STANDARDS.md §7 for the full figure-palette policy.
+
+# --- Color cycle (Paul Tol High Contrast) ---
+#   #004488  navy        (Accent        — informational / primary)
+#   #DDAA33  gold        (Neutral       — secondary / results)
+#   #BB5566  dusty rose  (Alert         — limitations / counter)
+axes.prop_cycle: cycler('color', ['004488', 'DDAA33', 'BB5566'])
+
+# --- Grid (subtle, doesn't compete with data) ---
+axes.grid:           True
+axes.grid.axis:      both
+axes.grid.which:     major
+axes.axisbelow:      True
+grid.alpha:          0.3
+grid.linestyle:      -
+grid.linewidth:      0.5
+
+# --- Typography (matches guide body font) ---
+font.family:         sans-serif
+font.sans-serif:     Roboto, DejaVu Sans, sans-serif
+font.size:           11
+axes.titlesize:      12
+axes.labelsize:      11
+xtick.labelsize:     10
+ytick.labelsize:     10
+legend.fontsize:     10
+
+# --- Axes & spines (clean; no top/right spines for uncluttered plots) ---
+axes.linewidth:      0.8
+axes.edgecolor:      333333
+axes.spines.top:     False
+axes.spines.right:   False
+
+# --- Ticks ---
+xtick.direction:     out
+ytick.direction:     out
+xtick.major.size:    4
+ytick.major.size:    4
+xtick.major.width:   0.8
+ytick.major.width:   0.8
+
+# --- Legends ---
+legend.frameon:      False
+legend.handlelength: 1.5
+
+# --- Figure + saving (high DPI for guide inclusion) ---
+figure.figsize:      6.0, 4.0
+figure.dpi:          120
+figure.facecolor:    white
+savefig.dpi:         300
+savefig.bbox:        tight
+savefig.pad_inches:  0.05
+savefig.facecolor:   white

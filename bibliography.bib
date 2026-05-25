@@ -1,14 +1,128 @@
-% bibliography.bib — BibTeX source for <Cite> components.
-% Run `npm run build:bib` to generate src/data/references.json.
+% bibliography.bib — references cited in ssm-foundations chapters.
 %
-% Replace the placeholder below with your first real reference (or remove
-% it once you have actual bibliography entries). See
-% https://github.com/brandon-behring/book-scaffold-astro/blob/main/package/recipes/02-bibliography-pipeline.md
-% for the supported BibTeX entry shapes.
+% Bibkey convention (inherited from post_transformers): <firstauthor><year><firstword>.
+% Entries are ported from post_transformers/guides/shared/references.bib as
+% chapters cite them; not the full upstream bibliography.
 
-@misc{placeholder,
-  title  = {Placeholder reference - replace with your first real citation},
-  author = {Anonymous},
-  year   = {2026},
-  note   = {Remove this entry once you add real references.}
+% ----------------------------------------------------------------------------
+% Foundational dynamical systems + numerical analysis
+% ----------------------------------------------------------------------------
+
+@article{benettin1980lyapunov,
+  author  = {Benettin, Giancarlo and Galgani, Luigi and Giorgilli, Antonio
+             and Strelcyn, Jean-Marie},
+  title   = {Lyapunov characteristic exponents for smooth dynamical systems
+             and for {Hamiltonian} systems; a method for computing all of them},
+  journal = {Meccanica},
+  volume  = {15},
+  number  = {1},
+  pages   = {9--20},
+  year    = {1980}
+}
+
+@inproceedings{blelloch1990prefix,
+  author    = {Blelloch, Guy E.},
+  title     = {Prefix sums and their applications},
+  booktitle = {Synthesis of Parallel Algorithms},
+  editor    = {Reif, John H.},
+  publisher = {Morgan Kaufmann},
+  year      = {1990},
+  pages     = {35--60}
+}
+
+@book{hairer1993ordinary,
+  author    = {Hairer, Ernst and N{\o}rsett, Syvert P. and Wanner, Gerhard},
+  title     = {Solving Ordinary Differential Equations {I}: Nonstiff Problems},
+  publisher = {Springer},
+  series    = {Springer Series in Computational Mathematics},
+  volume    = {8},
+  edition   = {2},
+  year      = {1993}
+}
+
+@book{hairer1996ordinary,
+  author    = {Hairer, Ernst and Wanner, Gerhard},
+  title     = {Solving Ordinary Differential Equations {II}: Stiff and
+               Differential-Algebraic Problems},
+  publisher = {Springer},
+  series    = {Springer Series in Computational Mathematics},
+  volume    = {14},
+  edition   = {2},
+  year      = {1996}
+}
+
+@book{trefethen1997numerical,
+  author    = {Trefethen, Lloyd N. and Bau, David},
+  title     = {Numerical Linear Algebra},
+  publisher = {SIAM},
+  year      = {1997}
+}
+
+@book{golub2013matrix,
+  author    = {Golub, Gene H. and Van Loan, Charles F.},
+  title     = {Matrix Computations},
+  publisher = {Johns Hopkins University Press},
+  edition   = {4},
+  year      = {2013}
+}
+
+@book{antoulas2005approximation,
+  author    = {Antoulas, Athanasios C.},
+  title     = {Approximation of Large-Scale Dynamical Systems},
+  publisher = {SIAM},
+  year      = {2005}
+}
+
+% ----------------------------------------------------------------------------
+% SSM literature directly cited in Ch 1-3
+% ----------------------------------------------------------------------------
+
+@article{gu2020hippo,
+  author  = {Gu, Albert and Dao, Tri and Ermon, Stefano and Rudra, Atri
+             and R\'{e}, Christopher},
+  title   = {{HiPPO}: Recurrent Memory with Optimal Polynomial Projections},
+  journal = {Advances in Neural Information Processing Systems (NeurIPS)},
+  year    = {2020},
+  note    = {arXiv:2008.07669}
+}
+
+@inproceedings{gu2022s4,
+  author    = {Gu, Albert and Goel, Karan and R\'{e}, Christopher},
+  title     = {Efficiently Modeling Long Sequences with Structured State Spaces},
+  booktitle = {International Conference on Learning Representations (ICLR)},
+  year      = {2022},
+  note      = {arXiv:2111.00396}
+}
+
+@inproceedings{gu2022s4d,
+  author    = {Gu, Albert and Gupta, Ankit and Goel, Karan and R\'{e}, Christopher},
+  title     = {On the Parameterization and Initialization of Diagonal State Space Models},
+  booktitle = {Advances in Neural Information Processing Systems (NeurIPS)},
+  year      = {2022},
+  note      = {arXiv:2206.11893}
+}
+
+@article{gu2024mamba,
+  author  = {Gu, Albert and Dao, Tri},
+  title   = {Mamba: Linear-Time Sequence Modeling with Selective State Spaces},
+  journal = {Conference on Language Modeling (COLM)},
+  year    = {2024},
+  note    = {arXiv:2312.00752}
+}
+
+@article{dao2024mamba2,
+  author  = {Dao, Tri and Gu, Albert},
+  title   = {Transformers are {SSMs}: Generalized Models and Efficient Algorithms
+             Through Structured State Space Duality},
+  journal = {International Conference on Machine Learning (ICML)},
+  year    = {2024},
+  note    = {arXiv:2405.21060}
+}
+
+@article{mamba_lyapunov_tmlr,
+  author  = {Anonymous},
+  title   = {Lyapunov Stability Analysis of Mamba},
+  journal = {Transactions on Machine Learning Research (TMLR)},
+  year    = {2025},
+  note    = {OpenReview:wzsYQYs3dO}
 }
