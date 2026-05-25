@@ -1,0 +1,23 @@
+# JuliaFormatter config for ssm-foundations companion code.
+#
+# Style + margin chosen to match the post_transformers convention
+# (per post_transformers/CLAUDE.md "Code Style: Julia: SciML formatting,
+# 92-char lines, immutability by default"), so derived/ported code stays
+# byte-identical in style across both repos.
+#
+# Apply by running `julia -e 'using JuliaFormatter; format("companions")'`
+# from the repo root, or per-file via `format("companions/ch06/julia/symplectic_methods.jl")`.
+
+style = "sciml"
+margin = 92
+indent = 4
+whitespace_typedefs = true
+whitespace_ops_in_indices = true
+remove_extra_newlines = true
+import_to_using = false
+pipe_to_function_call = false
+short_to_long_function_def = false
+always_use_return = false
+whitespace_in_kwargs = false
+annotate_untyped_fields_with_any = false
+format_docstrings = true

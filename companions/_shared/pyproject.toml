@@ -21,6 +21,13 @@ dev = [
     "ruff>=0.5",
     "mypy>=1.10",
 ]
+# Optional torch extras: install via `pip install -e .[torch]` (or the
+# `uv pip install -e .[torch]` equivalent) when a chapter ships a PyTorch
+# companion. Kept optional so the default install stays NumPy/JAX-light
+# (per book-scaffold-astro academic preset deployment footprint).
+torch = [
+    "torch>=2.4.0",
+]
 
 [tool.black]
 line-length = 100

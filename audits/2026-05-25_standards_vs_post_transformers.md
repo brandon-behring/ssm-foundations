@@ -168,7 +168,7 @@ can apply the same logic consistently.
 | F5  | **CRITICAL** | Content authoring     | No consolidated authoring style guide (Ch 1–6 conventions un-codified; Ch 5 already shows drift `§5.7` vs `§X.8`) | B     | Authoring | TBD | `[open]` |
 | F6  | IMPORTANT    | Content authoring     | No bibkey lint (16-entry `bibliography.bib`, bibkey format `<firstauthor><year><firstword>` unenforced)         | B     | Authoring | TBD | `[open]` |
 | F7  | IMPORTANT    | Content authoring     | No theorem cross-ref label lint (`id="thm:chXX:slug"` convention implicit)                                       | B     | Authoring | TBD | `[open]` |
-| F8  | **CRITICAL** | Companion rigor       | Julia + torch companions lack rigor Python has; C1 pilot starts 2026-06-01 → promoted to Track A                 | A*    | Pilot    | TBD | `[open]` |
+| F8  | **CRITICAL** | Companion rigor       | Julia + torch companions lack rigor Python has; C1 pilot starts 2026-06-01 → promoted to Track A                 | A*    | Pilot    | #1  | `[fixed]` |
 | F9  | IMPORTANT    | Quality enforcement   | No `.pre-commit-config.yaml`                                                                                     | B     | Authoring | TBD | `[open]` |
 | F10 | IMPORTANT    | Build automation      | No `Makefile` (npm scripts only; no aliasing for status snapshot, bibkey check, xref check)                      | B     | Maint    | TBD | `[open]` |
 | F11 | IMPORTANT    | Status reporting      | No `docs/STATUS.md` snapshot (per-chapter status, word count, citation count, exercise/companion coverage)        | B     | Maint    | TBD | `[open]` |
@@ -464,7 +464,7 @@ debt (§2.1)
 ### F8 — Julia + torch companion rigor gap (pilot-imminent promotion)
 
 **Severity:** CRITICAL (promoted to Track A via pilot-imminent gate) ·
-**Track:** A · **Lens:** Pilot integration · **Status:** `[open]` ·
+**Track:** A · **Lens:** Pilot integration · **Status:** `[fixed]` (umbrella issue #1) ·
 **Contributes to thesis debt:** Companion-rigor asymmetry (§2.2) — primary
 driver
 
