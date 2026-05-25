@@ -1,0 +1,9 @@
+# wrangler.toml — Cloudflare Workers + Static Assets deploy.
+# Run: npx wrangler deploy
+# Set up: https://developers.cloudflare.com/workers/static-assets/
+
+name = "ssm-foundations"
+compatibility_date = "2025-12-01"
+
+[assets]
+directory = "./dist"

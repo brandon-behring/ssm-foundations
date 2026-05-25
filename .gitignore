@@ -1,0 +1,17 @@
+# Node + Astro build artifacts
+node_modules/
+dist/
+dist-pdf/
+.astro/
+.env.local
+
+# Generated data (rebuilt by build-bib / build-labels)
+src/data/*.json
+!src/data/.gitkeep
+
+# Pagefind index
+public/pagefind/
+
+# OS / editor
+.DS_Store
+*.swp
