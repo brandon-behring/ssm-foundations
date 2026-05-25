@@ -161,7 +161,7 @@ can apply the same logic consistently.
 
 | #   | Severity     | Area                  | Finding                                                                                                          | Track | Lens     | GH  | Status |
 |-----|--------------|-----------------------|------------------------------------------------------------------------------------------------------------------|-------|----------|-----|--------|
-| F1  | **CRITICAL** | Truthfulness          | `CLAUDE.md:5,42` + `companions/README.md:15` claim Ch 1–3 scaffolded / Ch 4–17 planned; reality is Ch 1–6 all `implemented` | A     | Maint    | TBD | `[open]` |
+| F1  | **CRITICAL** | Truthfulness          | `CLAUDE.md:5,42` + `companions/README.md:15` claim Ch 1–3 scaffolded / Ch 4–17 planned; reality is Ch 1–6 all `implemented` | A     | Maint    | #1  | `[fixed]` |
 | F2  | IMPORTANT    | Hub integration       | `CLAUDE.md` has no `lever_of_archimedes/patterns/` reference block (post_transformers/CLAUDE.md:114–121 does)     | A     | Maint    | TBD | `[open]` |
 | F3  | IMPORTANT    | Audit cadence         | No `audits/` directory exists                                                                                    | A     | Maint    | —   | `[fixed]` |
 | F4  | MINOR*       | Content authoring     | Port-credit convention undocumented; only `companions/_shared/plot_utils.py:1–16` has a credit header            | A*    | Authoring | TBD | `[open]` |
@@ -211,7 +211,7 @@ Each thesis debt in §2 is supported by ≥2 findings:
 ### F1 — CLAUDE.md / companions/README.md status drift
 
 **Severity:** CRITICAL · **Track:** A · **Lens:** Long-term maintenance ·
-**Status:** `[open]` · **Contributes to thesis debt:** Truthfulness debt (§2.3)
+**Status:** `[fixed]` (umbrella issue #1) · **Contributes to thesis debt:** Truthfulness debt (§2.3)
 
 **Evidence:**
 

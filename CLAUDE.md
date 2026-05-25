@@ -2,7 +2,7 @@
 
 A 17-chapter lens-led foundations book for sequence-model architectures, with the dynamical-systems perspective foregrounded. Built with `@brandon_m_behring/book-scaffold-astro` (academic preset, v4.2.0).
 
-**Status**: scaffold landed 2026-05-24 (Plan 3 launch). Chapters 1–3 are next-up for authoring; Ch 4–17 are stubbed `planned`.
+**Status**: scaffold landed 2026-05-24 (Plan 3 launch). Chapters 1–6 are authored (`status: implemented`); Ch 7–17 are stubbed `planned`.
 
 ---
 
@@ -39,7 +39,7 @@ Migrated from `post_transformers/roadmap.md`:
 | `scaffolded` | Skeleton file with frontmatter + outline, no real content |
 | `planned` | No file yet, or a stub with PreReleaseBanner only |
 
-Current state (2026-05-24): Ch 1–3 = `scaffolded` (authoring imminent); Ch 4–17 = `planned`.
+Current state (2026-05-25): Ch 1–6 = `implemented`; Ch 7–17 = `planned`.
 
 ---
 
