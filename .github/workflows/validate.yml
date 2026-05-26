@@ -29,10 +29,10 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Content validation + lint + status-check (`make check`)
+      - name: "Content validation + lint + status-check (make check)"
         run: make check
 
-      - name: Astro build (chained: build:bib + build:labels + validate + astro build + pagefind)
+      - name: "Astro build (chained: build:bib + build:labels + validate + astro build + pagefind)"
         run: npm run build
 
       - name: Verify dist/ produced
