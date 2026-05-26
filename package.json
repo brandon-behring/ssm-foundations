@@ -6,7 +6,7 @@
   "private": true,
   "scripts": {
     "predev": "npm run build:bib --if-present && npm run build:labels --if-present",
-    "prebuild": "npm run build:bib --if-present && npm run build:labels --if-present && npm run validate --if-present",
+    "prebuild": "npm run build:bib --if-present && npm run build:labels --if-present && npm run validate",
     "build:bib": "book-scaffold build-bib",
     "build:labels": "book-scaffold build-labels",
     "build:figures": "book-scaffold build-figures",
@@ -14,10 +14,12 @@
     "validate": "book-scaffold validate",
     "dev": "astro dev",
     "build": "astro build && pagefind --site dist",
-    "preview": "astro preview"
+    "preview": "astro preview",
+    "dev:cf": "wrangler dev",
+    "deploy": "wrangler deploy"
   },
   "dependencies": {
-    "@brandon_m_behring/book-scaffold-astro": "^4.2.0",
+    "@brandon_m_behring/book-scaffold-astro": "^4.5.1",
     "@astrojs/mdx": "^5.0.3",
     "@astrojs/preact": "^5.1.1",
     "astro": "^6.1.7",
@@ -25,5 +27,8 @@
     "katex": "^0.16.11",
     "rehype-katex": "^7.0.1",
     "remark-math": "^6.0.0"
+  },
+  "devDependencies": {
+    "wrangler": "^4.93.1"
   }
 }
