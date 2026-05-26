@@ -169,7 +169,7 @@ can apply the same logic consistently.
 | F2  | IMPORTANT    | Hub integration       | `CLAUDE.md` has no `lever_of_archimedes/patterns/` reference block (post_transformers/CLAUDE.md:114–121 does)     | A     | Maint    | #1  | `[fixed]` |
 | F3  | IMPORTANT    | Audit cadence         | No `audits/` directory exists                                                                                    | A     | Maint    | —   | `[fixed]` |
 | F4  | MINOR*       | Content authoring     | Port-credit convention undocumented; only `companions/_shared/plot_utils.py:1–16` has a credit header            | A*    | Authoring | #1  | `[fixed]` |
-| F5  | **CRITICAL** | Content authoring     | No consolidated authoring style guide (Ch 1–6 conventions un-codified; Ch 5 already shows drift `§5.7` vs `§X.8`) | B     | Authoring | TBD | `[open]` |
+| F5  | **CRITICAL** | Content authoring     | No consolidated authoring style guide (Ch 1–6 conventions un-codified; Ch 5 already shows drift `§5.7` vs `§X.8`) | B     | Authoring | #1  | `[fixed]` |
 | F6  | IMPORTANT    | Content authoring     | No bibkey lint (16-entry `bibliography.bib`, bibkey format `<firstauthor><year><firstword>` unenforced)         | B     | Authoring | TBD | `[open]` |
 | F7  | IMPORTANT    | Content authoring     | No theorem cross-ref label lint (`id="thm:chXX:slug"` convention implicit)                                       | B     | Authoring | TBD | `[open]` |
 | F8  | **CRITICAL** | Companion rigor       | Julia + torch companions lack rigor Python has; C1 pilot starts 2026-06-01 → promoted to Track A                 | A*    | Pilot    | #1  | `[fixed]` |
@@ -355,7 +355,7 @@ pilot code is ported in.
 ### F5 — No consolidated authoring style guide
 
 **Severity:** CRITICAL · **Track:** B · **Lens:** Authoring velocity ·
-**Status:** `[open]` · **Contributes to thesis debt:** Authoring-convention
+**Status:** `[fixed]` (umbrella issue #1) · **Contributes to thesis debt:** Authoring-convention
 debt (§2.1) — primary driver
 
 **Evidence:**
