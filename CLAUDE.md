@@ -93,7 +93,7 @@ This book lives in the personal hub-and-spoke architecture rooted at `~/Claude/l
 - Sessions: `~/Claude/lever_of_archimedes/patterns/sessions.md` (multi-sprint workflow).
 - Deploy: `~/Claude/lever_of_archimedes/patterns/deploy_subdomain_brandon_behring_dev.md` (subdomain convention — this book deploys at [`ssm-foundations.brandon-behring.dev`](https://ssm-foundations.brandon-behring.dev)).
 
-Substantive adoption of `testing.md` is tracked via [audit F8](audits/2026-05-25_standards_vs_post_transformers.md) (Julia + torch companion rigor); `precision.md` adoption is deferred via [audit F18](audits/2026-05-25_standards_vs_post_transformers.md) (pilot-blocked on B two-timescale benchmarks producing precision-sensitivity claims).
+Substantive adoption of `testing.md` is tracked via [audit F8](audits/2026-05-25_standards_vs_post_transformers.md) (Julia + torch companion rigor).
 
 ---
 
