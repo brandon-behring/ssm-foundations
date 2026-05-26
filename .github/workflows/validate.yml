@@ -1,0 +1,41 @@
+name: Validate
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+# Single job mirroring the local `make check` gate plus a full Astro build.
+# Per audit F14 (Track C). Audit reference:
+# https://github.com/brandon-behring/ssm-foundations/blob/main/audits/2026-05-25_standards_vs_post_transformers.md#F14
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Content validation + lint + status-check (`make check`)
+        run: make check
+
+      - name: Astro build (chained: build:bib + build:labels + validate + astro build + pagefind)
+        run: npm run build
+
+      - name: Verify dist/ produced
+        run: |
+          test -d dist
+          du -sh dist

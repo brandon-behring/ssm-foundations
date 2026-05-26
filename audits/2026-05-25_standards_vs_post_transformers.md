@@ -178,7 +178,7 @@ can apply the same logic consistently.
 | F11 | IMPORTANT    | Status reporting      | No `docs/STATUS.md` snapshot (per-chapter status, word count, citation count, exercise/companion coverage)        | B     | Maint    | #1  | `[fixed]` |
 | F12 | IMPORTANT    | Governance            | `LICENSE` + `LICENSE-CONTENT` split absent (post_transformers waited 8 weeks before adding these)                 | C     | Prod     | #1  | `[fixed]` |
 | F13 | IMPORTANT    | Governance            | `CONTRIBUTING.md` absent                                                                                         | C     | Prod     | #1  | `[fixed]` |
-| F14 | IMPORTANT    | CI/CD                 | No `.github/workflows/validate.yml`                                                                              | C     | Prod     | TBD | `[open]` |
+| F14 | IMPORTANT    | CI/CD                 | No `.github/workflows/validate.yml`                                                                              | C     | Prod     | #1  | `[fixed]` |
 | F15 | IMPORTANT    | Issue/PR hygiene      | No `.github/ISSUE_TEMPLATE/` or `pull_request_template.md`                                                       | C     | Prod     | #1  | `[fixed]` |
 | F16 | MINOR        | Editor consistency    | No `.editorconfig`                                                                                               | C     | Authoring | #1  | `[fixed]` |
 | F17 | IMPORTANT    | Content authoring     | Practice tags (`\tagofficial`/`\tagpractitioner`/`\tagconv` in post_transformers/guides/STANDARDS.md) have no MDX equivalent | C     | Pilot    | TBD | `[pilot-blocked]` |
