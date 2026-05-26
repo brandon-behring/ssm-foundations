@@ -6,10 +6,13 @@
  * typography. Override styles by adding to the styles[] array — see
  * recipes/15-defining-styles.md.
  *
- * site: Pass 1 — workers.dev URL (sets canonical metadata against the staging
- * URL until Phase 4 custom-domain rebinding). Phase 5 (Pass 2) flips this to
- * https://ssm-foundations.brandon-behring.dev once the domain is bound to the
- * new Worker.
+ * site: Pass 2 — canonical custom domain. ssm-foundations.brandon-behring.dev
+ * was rebound from the legacy bare-name `ssm-foundations` Worker to the
+ * person-prefixed `brandon-behring-ssm-foundations` Worker in the Cloudflare
+ * dashboard on 2026-05-26 (Phase 1c Pass 2). This URL is now what OG metadata,
+ * sitemaps, canonical links, and Pagefind index against. The workers.dev URL
+ * (brandon-behring-ssm-foundations.brandon-m-behring.workers.dev) still
+ * resolves but should be considered staging, not the public URL.
  *
  * routes.chapters: scaffold v4.3.0+ auto-injects both `/chapters/` index and
  * `/chapters/[...slug]/` dynamic routes. The legacy consumer-owned
@@ -31,7 +34,7 @@
 import { defineBookConfig, academicStyle } from '@brandon_m_behring/book-scaffold-astro';
 
 export default await defineBookConfig({
-  site: 'https://brandon-behring-ssm-foundations.brandon-m-behring.workers.dev',
+  site: 'https://ssm-foundations.brandon-behring.dev',
   title: 'ssm-foundations',
   description: '17-chapter lens-led foundations book bridging numerical analysis and dynamical systems to modern sequence-model architectures (SSMs, Mamba, S4, Hyena, DeltaNet).',
   styles: [academicStyle],
