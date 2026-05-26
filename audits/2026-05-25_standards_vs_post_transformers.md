@@ -40,6 +40,10 @@ grep / `git log -S` / text-only-render durability.
    CLAUDE.md, modeled on
    [`post_transformers/CLAUDE.md:114–121`](https://github.com/brandon-behring/post_transformers/blob/main/CLAUDE.md#L114-L121).
 
+**Track A follow-on** (added post-F8 execution): **F19** — correct
+Ch 6 RK4-vs-symplectic energy-drift magnitude claims (six contradictions
+between prose, exercise solution, demo, and the actual figure parameters).
+
 ---
 
 ## 1. Audit Context & Scope
@@ -122,7 +126,7 @@ the same convention.
    2–3 files; Ch 4–6 have both jax and Julia companions. The repo's
    onboarding docs lie to fresh readers. Low cost to fix; high cost if not
    fixed — every external collaborator or future-self reading these claims
-   will form wrong expectations. Findings: **F1**.
+   will form wrong expectations. Findings: **F1**, **F19** (added 2026-05-25 after F8 surfaced a Ch 6 content-correctness contradiction).
 
 Everything else (build automation, governance docs, CI) is secondary to
 these three for the *current* state of the repo. Several of them are
@@ -179,6 +183,7 @@ can apply the same logic consistently.
 | F16 | MINOR        | Editor consistency    | No `.editorconfig`                                                                                               | C     | Authoring | TBD | `[open]` |
 | F17 | IMPORTANT    | Content authoring     | Practice tags (`\tagofficial`/`\tagpractitioner`/`\tagconv` in post_transformers/guides/STANDARDS.md) have no MDX equivalent | C     | Pilot    | TBD | `[pilot-blocked]` |
 | F18 | IMPORTANT    | Hub integration       | `precision.md` pattern from `lever_of_archimedes/patterns/` not adopted                                          | C     | Pilot    | TBD | `[pilot-blocked]` |
+| F19 | IMPORTANT    | Content correctness   | Ch 6 prose + companion overstate RK4 vs symplectic energy drift magnitudes by 3–4 orders at cited parameters; figures' actual parameters mismatch the caption text | A     | Authoring | #1  | `[fixed]` |
 
 \* F4 (MINOR) and F8 (CRITICAL) were promoted to Track A via the
 pilot-imminent gate even though Track A normally implies low effort. F8's
@@ -202,7 +207,7 @@ template, pyproject extras) but its urgency forces the promotion.
 Each thesis debt in §2 is supported by ≥2 findings:
 - *Authoring-convention debt* → F4, F5, F6, F7
 - *Companion-rigor asymmetry* → F8 (with F17 deferred)
-- *Truthfulness debt* → F1
+- *Truthfulness debt* → F1, F19
 
 ---
 
@@ -781,6 +786,41 @@ actual rigor.
 
 **Why pilot-blocked:** premature to design tag taxonomy without empirical
 claims to tag.
+
+---
+
+### F19 — Ch 6 RK4-vs-symplectic energy drift magnitude claims
+
+**Severity:** IMPORTANT · **Track:** A · **Lens:** Authoring velocity ·
+**Status:** `[fixed]` (umbrella issue #1) · **Contributes to thesis debt:** Truthfulness debt (§2.3),
+Authoring-convention debt (§2.1)
+
+**Evidence:** Surfaced during F8 implementation. Six contradictions across
+`src/content/chapters/ch06-implicit-and-symplectic.mdx:111,137,155,198` and
+`companions/ch06/julia/symplectic_methods.jl:184-186`. At the chapter's cited
+parameters (harmonic oscillator, $\Delta = 0.05$, 100 periods), RK4 energy
+drift is $1.36 \times 10^{-6}$ — three orders smaller than the figure
+caption's "$\sim 10^{-3}$" claim and four orders smaller than Symplectic
+Euler's bounded-oscillation band ($2.5 \times 10^{-2}$). Inspection of the
+actual figure files (`public/figures/ch06/energy_drift.png`,
+`phase_portrait.png`) further revealed (a) `energy_drift.png` is plotted
+at $\Delta = 0.3$, not $\Delta = 0.05$ as the caption claimed, and (b) the
+phase portrait at $\Delta = 0.1 / 50$ periods shows both RK4 and Verlet
+trajectories visually indistinguishable (no visible spiraling, contra the
+caption text).
+
+**Recommendation (applied):** Fix A — update chapter prose, the Exercise 6.3
+solution, and the Julia companion's interpretation block to match
+empirical numbers and the actual figure parameters. Reframe the pedagogy
+around horizon-invariance of the symplectic band (the truthful qualitative
+property), rather than absolute-magnitude dominance at any specific
+$(\Delta, T)$.
+
+**Remediation track:** A. Prose + companion text edits only (no figure
+regeneration in this commit; figures themselves are honestly described
+post-correction). A future commit may regenerate the figures at a $(\Delta, T)$
+regime where the qualitative contrast is visually dramatic — that work is
+out of scope for this Track A truthfulness fix.
 
 ---
 

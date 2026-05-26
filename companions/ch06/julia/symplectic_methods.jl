@@ -180,10 +180,17 @@ function energy_drift_table()
     end
     println()
     println("Interpretation:")
-    println("  Symplectic Euler / Verlet / Gauss-Legendre: E_max - E_min bounded")
-    println("    by O(dt^p) (1, 2, 2 respectively); E_final stays close to E_0.")
-    println("  RK4: E_final drifts linearly — much larger than its O(dt^4) local")
-    println("    error would suggest, because of secular accumulation.")
+    println("  Symplectic Euler / Verlet / Gauss-Legendre: E_max - E_min BOUNDED,")
+    println("    independent of horizon. At dt=0.05 the bands are ~O(dt) (Sympl. Euler),")
+    println("    O(dt^2)/8 ≈ 3e-4 (Verlet), and at roundoff level (Gauss-Legendre 2).")
+    println("    Running the same dt for 10x more periods leaves these bands unchanged.")
+    println("  RK4: E_max - E_min GROWS LINEARLY with horizon. At dt=0.05 / 100 periods")
+    println("    the magnitude is small (~1e-6) — smaller than Verlet's band in absolute")
+    println("    terms — but at 1000 periods it is ~1e-5, at 10^4 periods ~1e-4, and so")
+    println("    on. The defining qualitative property of symplectic vs non-symplectic")
+    println("    is the CONSTANCY of the band under horizon scaling, not the absolute")
+    println("    magnitude at any specific (dt, T). Run with larger dt or longer T to")
+    println("    surface the regime where RK4's monotonic drift dominates.")
 end
 
 if abspath(PROGRAM_FILE) == @__FILE__
