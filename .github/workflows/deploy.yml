@@ -1,0 +1,41 @@
+name: Deploy
+
+# Deploys ssm-foundations to Cloudflare Workers + Static Assets via the
+# reusable workflow at brandon-behring/deploy-workflows. Mirrors DML's
+# Phase 1b pattern, flattened (no working-directory; ssm is single-package).
+#
+# paths filter: only push events touching source / build inputs trigger a
+# deploy. Docs (docs/), audits (audits/), companion source (companions/),
+# and CLAUDE.md edits are deploy-irrelevant; validate.yml handles those for
+# content-discipline validation.
+#
+# No preview-on-PR job (Phase 1c Q2.B): solo-dev repo, no PR previews
+# consumer today. Trivial to add back when a contributor PR shows up.
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'src/**'
+      - 'package.json'
+      - 'package-lock.json'
+      - 'astro.config.mjs'
+      - 'wrangler.jsonc'
+      - 'bibliography.bib'
+      - '.github/workflows/deploy.yml'
+
+permissions:
+  contents: read
+  deployments: write
+  actions: read
+
+jobs:
+  deploy-production:
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    uses: brandon-behring/deploy-workflows/.github/workflows/deploy-astro-worker.yml@main
+    secrets: inherit
+    with:
+      # Strict gate — fails the production deploy on a broken cite key,
+      # missing XRef, or duplicate anchor ID. Requires deploy-workflows#1
+      # (merged 2026-05-26, commit fb62358).
+      validate-command: validate

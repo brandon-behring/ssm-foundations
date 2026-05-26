@@ -1,5 +1,17 @@
 name: Validate
 
+# Content-discipline gate for ssm-foundations: validate + lint + status-check
+# (composed as `make check`). Runs on every push and PR — including
+# docs-only paths that deploy.yml's paths filter excludes — so structural
+# changes to chapters/, docs/, audits/, etc. still get content validation
+# even when no deploy fires.
+#
+# Build is owned by deploy.yml (it runs `npm run build` via the reusable
+# workflow). Keeping the build out of this file avoids redundant CI work.
+#
+# Audit references: F14 (Track C initial validate.yml), Phase 1c Q3.C
+# (slim from build-running to make-check-only).
+
 on:
   push:
     branches: [main]
@@ -9,10 +21,6 @@ on:
 
 permissions:
   contents: read
-
-# Single job mirroring the local `make check` gate plus a full Astro build.
-# Per audit F14 (Track C). Audit reference:
-# https://github.com/brandon-behring/ssm-foundations/blob/main/audits/2026-05-25_standards_vs_post_transformers.md#F14
 
 jobs:
   validate:
@@ -31,11 +39,3 @@ jobs:
 
       - name: "Content validation + lint + status-check (make check)"
         run: make check
-
-      - name: "Astro build (chained: build:bib + build:labels + validate + astro build + pagefind)"
-        run: npm run build
-
-      - name: Verify dist/ produced
-        run: |
-          test -d dist
-          du -sh dist
