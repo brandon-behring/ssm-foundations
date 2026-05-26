@@ -1,0 +1,53 @@
+Creative Commons Attribution 4.0 International (CC BY 4.0)
+
+Copyright (c) 2026 Brandon Behring
+
+The prose content of this repository is licensed under the Creative
+Commons Attribution 4.0 International License (CC BY 4.0). The full
+legal text is at https://creativecommons.org/licenses/by/4.0/legalcode
+and a human-readable summary at https://creativecommons.org/licenses/by/4.0/
+
+You are free to:
+
+  - Share: copy and redistribute the material in any medium or format
+  - Adapt: remix, transform, and build upon the material for any
+    purpose, even commercially
+
+Under the following terms:
+
+  - Attribution: You must give appropriate credit, provide a link to
+    the license, and indicate if changes were made. You may do so in
+    any reasonable manner, but not in any way that suggests the
+    licensor endorses you or your use.
+  - No additional restrictions: You may not apply legal terms or
+    technological measures that legally restrict others from doing
+    anything the license permits.
+
+---
+
+This license applies to all PROSE / NARRATIVE content in this repository,
+including but not limited to:
+
+  - src/content/chapters/*.mdx  (chapter bodies, exercises, solutions)
+  - audits/*.md                 (audit reports including the inaugural
+                                 2026-05-25 standards audit)
+  - STYLE.md                    (authoring conventions)
+  - CLAUDE.md                   (project guide)
+  - companions/README.md        (companion-folder layout + port-credit policy)
+  - README.md                   (public-facing repository overview)
+  - docs/STATUS.md              (auto-generated chapter-state snapshot)
+
+Code in this repository (companions/ Python/Julia sources, scripts/ Node
+tooling, build configs) is licensed under MIT as specified in LICENSE.
+
+Bibliographic metadata in bibliography.bib reproduces publicly available
+paper citations and is not copyrightable.
+
+How to attribute:
+
+  - Prefer a link back to the repository (https://github.com/brandon-behring/ssm-foundations)
+    or the public site (https://ssm-foundations.brandon-behring.dev)
+    when sharing or quoting.
+  - For derivative works that adapt a chapter, name the chapter
+    (e.g., "Adapted from 'Chapter 4 — Discretization theory: ZOH, bilinear,
+    exponential families' in ssm-foundations by Brandon Behring").

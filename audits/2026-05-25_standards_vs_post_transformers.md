@@ -176,8 +176,8 @@ can apply the same logic consistently.
 | F9  | IMPORTANT    | Quality enforcement   | No `.pre-commit-config.yaml`                                                                                     | B     | Authoring | #1  | `[fixed]` |
 | F10 | IMPORTANT    | Build automation      | No `Makefile` (npm scripts only; no aliasing for status snapshot, bibkey check, xref check)                      | B     | Maint    | #1  | `[fixed]` |
 | F11 | IMPORTANT    | Status reporting      | No `docs/STATUS.md` snapshot (per-chapter status, word count, citation count, exercise/companion coverage)        | B     | Maint    | #1  | `[fixed]` |
-| F12 | IMPORTANT    | Governance            | `LICENSE` + `LICENSE-CONTENT` split absent (post_transformers waited 8 weeks before adding these)                 | C     | Prod     | TBD | `[open]` |
-| F13 | IMPORTANT    | Governance            | `CONTRIBUTING.md` absent                                                                                         | C     | Prod     | TBD | `[open]` |
+| F12 | IMPORTANT    | Governance            | `LICENSE` + `LICENSE-CONTENT` split absent (post_transformers waited 8 weeks before adding these)                 | C     | Prod     | #1  | `[fixed]` |
+| F13 | IMPORTANT    | Governance            | `CONTRIBUTING.md` absent                                                                                         | C     | Prod     | #1  | `[fixed]` |
 | F14 | IMPORTANT    | CI/CD                 | No `.github/workflows/validate.yml`                                                                              | C     | Prod     | TBD | `[open]` |
 | F15 | IMPORTANT    | Issue/PR hygiene      | No `.github/ISSUE_TEMPLATE/` or `pull_request_template.md`                                                       | C     | Prod     | TBD | `[open]` |
 | F16 | MINOR        | Editor consistency    | No `.editorconfig`                                                                                               | C     | Authoring | #1  | `[fixed]` |
