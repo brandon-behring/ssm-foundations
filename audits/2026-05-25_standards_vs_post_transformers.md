@@ -170,8 +170,8 @@ can apply the same logic consistently.
 | F3  | IMPORTANT    | Audit cadence         | No `audits/` directory exists                                                                                    | A     | Maint    | —   | `[fixed]` |
 | F4  | MINOR*       | Content authoring     | Port-credit convention undocumented; only `companions/_shared/plot_utils.py:1–16` has a credit header            | A*    | Authoring | #1  | `[fixed]` |
 | F5  | **CRITICAL** | Content authoring     | No consolidated authoring style guide (Ch 1–6 conventions un-codified; Ch 5 already shows drift `§5.7` vs `§X.8`) | B     | Authoring | #1  | `[fixed]` |
-| F6  | IMPORTANT    | Content authoring     | No bibkey lint (16-entry `bibliography.bib`, bibkey format `<firstauthor><year><firstword>` unenforced)         | B     | Authoring | TBD | `[open]` |
-| F7  | IMPORTANT    | Content authoring     | No theorem cross-ref label lint (`id="thm:chXX:slug"` convention implicit)                                       | B     | Authoring | TBD | `[open]` |
+| F6  | IMPORTANT    | Content authoring     | No bibkey lint (16-entry `bibliography.bib`, bibkey format `<firstauthor><year><firstword>` unenforced)         | B     | Authoring | #1  | `[fixed]` |
+| F7  | IMPORTANT    | Content authoring     | No theorem cross-ref label lint (`id="thm:chXX:slug"` convention implicit)                                       | B     | Authoring | #1  | `[fixed]` |
 | F8  | **CRITICAL** | Companion rigor       | Julia + torch companions lack rigor Python has; C1 pilot starts 2026-06-01 → promoted to Track A                 | A*    | Pilot    | #1  | `[fixed]` |
 | F9  | IMPORTANT    | Quality enforcement   | No `.pre-commit-config.yaml`                                                                                     | B     | Authoring | TBD | `[open]` |
 | F10 | IMPORTANT    | Build automation      | No `Makefile` (npm scripts only; no aliasing for status snapshot, bibkey check, xref check)                      | B     | Maint    | TBD | `[open]` |
@@ -407,7 +407,7 @@ Ch 1–6 prose) but no urgent deadline. Filed as GH issue under umbrella.
 ### F6 — No bibkey lint
 
 **Severity:** IMPORTANT · **Track:** B · **Lens:** Authoring velocity ·
-**Status:** `[open]` · **Contributes to thesis debt:** Authoring-convention
+**Status:** `[fixed]` (umbrella issue #1) · **Contributes to thesis debt:** Authoring-convention
 debt (§2.1)
 
 **Evidence:**
@@ -441,7 +441,7 @@ implementation lands with explicit acceptance criteria.
 ### F7 — No theorem cross-ref label lint
 
 **Severity:** IMPORTANT · **Track:** B · **Lens:** Authoring velocity ·
-**Status:** `[open]` · **Contributes to thesis debt:** Authoring-convention
+**Status:** `[fixed]` (umbrella issue #1) · **Contributes to thesis debt:** Authoring-convention
 debt (§2.1)
 
 **Evidence:**
