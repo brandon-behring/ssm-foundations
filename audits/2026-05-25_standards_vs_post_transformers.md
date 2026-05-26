@@ -173,7 +173,7 @@ can apply the same logic consistently.
 | F6  | IMPORTANT    | Content authoring     | No bibkey lint (16-entry `bibliography.bib`, bibkey format `<firstauthor><year><firstword>` unenforced)         | B     | Authoring | #1  | `[fixed]` |
 | F7  | IMPORTANT    | Content authoring     | No theorem cross-ref label lint (`id="thm:chXX:slug"` convention implicit)                                       | B     | Authoring | #1  | `[fixed]` |
 | F8  | **CRITICAL** | Companion rigor       | Julia + torch companions lack rigor Python has; C1 pilot starts 2026-06-01 → promoted to Track A                 | A*    | Pilot    | #1  | `[fixed]` |
-| F9  | IMPORTANT    | Quality enforcement   | No `.pre-commit-config.yaml`                                                                                     | B     | Authoring | TBD | `[open]` |
+| F9  | IMPORTANT    | Quality enforcement   | No `.pre-commit-config.yaml`                                                                                     | B     | Authoring | #1  | `[fixed]` |
 | F10 | IMPORTANT    | Build automation      | No `Makefile` (npm scripts only; no aliasing for status snapshot, bibkey check, xref check)                      | B     | Maint    | #1  | `[fixed]` |
 | F11 | IMPORTANT    | Status reporting      | No `docs/STATUS.md` snapshot (per-chapter status, word count, citation count, exercise/companion coverage)        | B     | Maint    | #1  | `[fixed]` |
 | F12 | IMPORTANT    | Governance            | `LICENSE` + `LICENSE-CONTENT` split absent (post_transformers waited 8 weeks before adding these)                 | C     | Prod     | TBD | `[open]` |
@@ -517,7 +517,7 @@ driver
 ### F9 — No `.pre-commit-config.yaml`
 
 **Severity:** IMPORTANT · **Track:** B · **Lens:** Authoring velocity ·
-**Status:** `[open]` · **Contributes to thesis debt:** Authoring-convention
+**Status:** `[fixed]` (umbrella issue #1) · **Contributes to thesis debt:** Authoring-convention
 debt (§2.1)
 
 **Evidence:**

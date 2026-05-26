@@ -1,0 +1,46 @@
+# Pre-commit framework config — invoked automatically by the global
+# ~/.git-hooks/pre-commit gitleaks hook, which chains to `pre-commit run`
+# when both this file and the `pre-commit` tool exist.
+#
+# Install the tool once (user-global, not a project dep):
+#   uv tool install pre-commit
+#   pre-commit install  # in the repo root
+#
+# All hooks route through the Makefile so the gate, `make check`, and any
+# future CI invocation use byte-identical commands.
+#
+# Closes audit F9 (audits/2026-05-25_standards_vs_post_transformers.md#F9).
+
+repos:
+  - repo: local
+    hooks:
+      # Bibkey gate — fires on bibliography.bib edits or any chapter MDX
+      # edit (any chapter could add a new <Cite key="...">).
+      - id: check-bibkeys
+        name: make check-bibkeys (bibkey format + cite resolution)
+        entry: make check-bibkeys
+        language: system
+        pass_filenames: false
+        files: ^(bibliography\.bib|src/content/chapters/.*\.mdx)$
+        stages: [pre-commit]
+
+      # Cross-reference gate — fires on chapter MDX edits. Validates
+      # <Theorem id="..."> and <Figure id="..."> conform to STYLE.md §4
+      # and that no duplicate IDs exist across chapters.
+      - id: check-xrefs
+        name: make check-xrefs (theorem + figure id= format)
+        entry: make check-xrefs
+        language: system
+        pass_filenames: false
+        files: ^src/content/chapters/.*\.mdx$
+        stages: [pre-commit]
+
+      # Content validation — book-scaffold's schema check. Fires on
+      # chapter MDX or content config changes.
+      - id: validate
+        name: make validate (book-scaffold content validation)
+        entry: make validate
+        language: system
+        pass_filenames: false
+        files: ^(src/content/chapters/.*\.mdx|src/content\.config\.ts|astro\.config\.mjs)$
+        stages: [pre-commit]
