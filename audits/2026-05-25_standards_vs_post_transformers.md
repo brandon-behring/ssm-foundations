@@ -143,6 +143,7 @@ post_transformers' April 11 audit which uses emojis):
 - `[tracked]` — GH issue created, queued for execution
 - `[fixed]` — remediated in this session or prior
 - `[pilot-blocked]` — gated on C1 or B pilot outcome; unblock condition stated in §4
+- `[withdrawn]` — finding's framing was based on a misclassification or premise that no longer holds; not a real issue. Retained in §3 + §4 for audit provenance (the audit's own evolution is part of the truthfulness record).
 
 **Track definitions:**
 
@@ -182,7 +183,7 @@ can apply the same logic consistently.
 | F15 | IMPORTANT    | Issue/PR hygiene      | No `.github/ISSUE_TEMPLATE/` or `pull_request_template.md`                                                       | C     | Prod     | #1  | `[fixed]` |
 | F16 | MINOR        | Editor consistency    | No `.editorconfig`                                                                                               | C     | Authoring | #1  | `[fixed]` |
 | F17 | IMPORTANT    | Content authoring     | Practice tags (`\tagofficial`/`\tagpractitioner`/`\tagconv` in post_transformers/guides/STANDARDS.md) have no MDX equivalent | C     | Pilot    | #1  | `[fixed]` |
-| F18 | IMPORTANT    | Hub integration       | `precision.md` pattern from `lever_of_archimedes/patterns/` not adopted                                          | C     | Pilot    | TBD | `[pilot-blocked]` |
+| F18 | IMPORTANT    | Hub integration       | `precision.md` pattern from `lever_of_archimedes/patterns/` not adopted                                          | C     | Pilot    | #1  | `[withdrawn]` |
 | F19 | IMPORTANT    | Content correctness   | Ch 6 prose + companion overstate RK4 vs symplectic energy drift magnitudes by 3–4 orders at cited parameters; figures' actual parameters mismatch the caption text | A     | Authoring | #1  | `[fixed]` |
 
 \* F4 (MINOR) and F8 (CRITICAL) were promoted to Track A via the
@@ -834,32 +835,62 @@ out of scope for this Track A truthfulness fix.
 
 ---
 
-### F18 — `precision.md` pattern adoption (pilot-blocked)
+### F18 — `precision.md` pattern adoption (WITHDRAWN)
 
 **Severity:** IMPORTANT · **Track:** C · **Lens:** Pilot integration ·
-**Status:** `[pilot-blocked]` · **Contributes to thesis debt:** none
+**Status:** `[withdrawn]` (2026-05-26; umbrella issue #1) · **Contributes to thesis debt:** none
 
-**Evidence:**
+**Why withdrawn:**
 
-- `/home/brandon_behring/Claude/lever_of_archimedes/patterns/precision.md`
-  exists in the patterns hub but is not referenced from
-  ssm-foundations/CLAUDE.md.
-- post_transformers/CLAUDE.md does not cite `precision.md` either — it's a
-  newer pattern (no commit history evidence of explicit adoption upstream).
-- Pilot relevance: B (two-timescale benchmarks) will produce numerical
-  precision claims (e.g., "f32 vs f64 affects long-horizon energy drift by
-  X%"). Without consistent precision-claim framing, results may be reported
-  inconsistently across Ch 14 + Ch 16.
+The audit's original F18 framing assumed
+`~/Claude/lever_of_archimedes/patterns/precision.md` was about
+*numerical precision* — specifically, that it would govern how B
+two-timescale benchmark results report precision-sensitivity (f32 vs
+f64 effects on long-horizon energy drift, etc.).
 
-**Recommendation (deferred, pilot-blocked):**
+Reading `precision.md` while executing Track C in this session revealed
+the actual content: it's a **meta-prompting pattern** about showing
+concise + precise versions of user requests in AI-assistant responses
+(opening line: "Improve AI interaction efficiency by showing concise +
+precise versions of user requests"). It applies to *AI-collaboration
+workflows*, not to chapter content or empirical claims.
 
-- **Unblock condition:** B pilot first results expose precision-sensitivity
-  measurements requiring consistent rigor framing (target: 2026-Q3).
-- When unblocked: cite `precision.md` in CLAUDE.md hub-reference block (F2)
-  and codify any precision conventions in STYLE.md (F5).
+Two implications:
 
-**Why pilot-blocked:** pattern is not yet known to be load-bearing for this
-repo's content.
+1. **precision.md is not load-bearing for ssm-foundations as a book
+   repo** — it governs AI-assistant interaction style, which is the
+   user's CLAUDE.md / AI-collaboration concern, not a book-content
+   convention.
+2. **The "pilot-blocked" framing was incorrect** — no pilot output
+   could unblock F18 because the right category was never
+   numerical-rigor framing. The unblock condition was unreachable by
+   construction.
+
+**Historical framing** (preserved for audit provenance):
+
+> Pilot relevance: B (two-timescale benchmarks) will produce numerical
+> precision claims… Unblock condition: B pilot first results expose
+> precision-sensitivity measurements requiring consistent rigor framing
+> (target: 2026-Q3). When unblocked: cite `precision.md` in CLAUDE.md
+> hub-reference block (F2) and codify any precision conventions in
+> STYLE.md (F5).
+
+Both clauses are wrong on the merits because they assumed precision.md
+was about numerical precision. The F2 hub-reference block already
+mentions `precision.md` as "deferred via [audit F18] (pilot-blocked
+on B two-timescale benchmarks producing precision-sensitivity claims)";
+that note is similarly inaccurate and should be removed or rewritten in
+a future commit (out of scope here — the withdrawal is the
+truthful-record action).
+
+**This is the second self-correction in the audit's lifecycle** —
+F19 surfaced Ch 6 magnitude misclaims during F8 execution; F18's
+withdrawal here surfaces the audit's own misreading of an upstream
+pattern. Both reinforce the §2.3 "Truthfulness debt" thesis:
+truthfulness is an ongoing discipline, not a one-shot fix. Future
+audits should expect to discover their own predecessors' errors,
+and the `[withdrawn]` status vocabulary value (§3) is the canonical
+way to record such corrections without rewriting history.
 
 ---
 
@@ -877,6 +908,7 @@ them in.
 | pytest markers `slow` / `gpu` / `pytorch` | Over-engineered for book companions. Companion code should run quickly on a laptop. |
 | Emoji status markers in audit tables (the four glyphs used in post_transformers' April 11 audit Status column for monitoring / tracked / fixed / blocked) | Replaced with bracketed text labels — see §3 Status vocabulary. Future audits in this repo follow text-label convention for grep/log durability. |
 | `paper_index.md` + `wish_list.md` + `evidence_matrix.md` triad | Book bibliography is leaner (16 entries vs ~98); the elaborate ledger system is research-team infrastructure, not book infrastructure. |
+| `lever_of_archimedes/patterns/precision.md` (meta-prompting pattern) | Not load-bearing for a book repo. precision.md governs AI-assistant interaction style (showing concise + precise versions of user requests in AI responses), not chapter content or empirical claims. Originally classified as `[pilot-blocked]` for numerical-precision reasons in audit §4 F18; that framing was a misreading and F18 was withdrawn 2026-05-26 — see F18 detail. |
 
 This section prevents accidentally over-importing standards that don't fit
 the book context.
