@@ -174,7 +174,7 @@ can apply the same logic consistently.
 | F7  | IMPORTANT    | Content authoring     | No theorem cross-ref label lint (`id="thm:chXX:slug"` convention implicit)                                       | B     | Authoring | #1  | `[fixed]` |
 | F8  | **CRITICAL** | Companion rigor       | Julia + torch companions lack rigor Python has; C1 pilot starts 2026-06-01 → promoted to Track A                 | A*    | Pilot    | #1  | `[fixed]` |
 | F9  | IMPORTANT    | Quality enforcement   | No `.pre-commit-config.yaml`                                                                                     | B     | Authoring | TBD | `[open]` |
-| F10 | IMPORTANT    | Build automation      | No `Makefile` (npm scripts only; no aliasing for status snapshot, bibkey check, xref check)                      | B     | Maint    | TBD | `[open]` |
+| F10 | IMPORTANT    | Build automation      | No `Makefile` (npm scripts only; no aliasing for status snapshot, bibkey check, xref check)                      | B     | Maint    | #1  | `[fixed]` |
 | F11 | IMPORTANT    | Status reporting      | No `docs/STATUS.md` snapshot (per-chapter status, word count, citation count, exercise/companion coverage)        | B     | Maint    | #1  | `[fixed]` |
 | F12 | IMPORTANT    | Governance            | `LICENSE` + `LICENSE-CONTENT` split absent (post_transformers waited 8 weeks before adding these)                 | C     | Prod     | TBD | `[open]` |
 | F13 | IMPORTANT    | Governance            | `CONTRIBUTING.md` absent                                                                                         | C     | Prod     | TBD | `[open]` |
@@ -550,7 +550,7 @@ debt (§2.1)
 ### F10 — No Makefile
 
 **Severity:** IMPORTANT · **Track:** B · **Lens:** Long-term maintenance +
-Authoring velocity · **Status:** `[open]` · **Contributes to thesis debt:**
+Authoring velocity · **Status:** `[fixed]` (umbrella issue #1) · **Contributes to thesis debt:**
 none directly; supports F9, F11
 
 **Evidence:**
