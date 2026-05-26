@@ -181,7 +181,7 @@ can apply the same logic consistently.
 | F14 | IMPORTANT    | CI/CD                 | No `.github/workflows/validate.yml`                                                                              | C     | Prod     | #1  | `[fixed]` |
 | F15 | IMPORTANT    | Issue/PR hygiene      | No `.github/ISSUE_TEMPLATE/` or `pull_request_template.md`                                                       | C     | Prod     | #1  | `[fixed]` |
 | F16 | MINOR        | Editor consistency    | No `.editorconfig`                                                                                               | C     | Authoring | #1  | `[fixed]` |
-| F17 | IMPORTANT    | Content authoring     | Practice tags (`\tagofficial`/`\tagpractitioner`/`\tagconv` in post_transformers/guides/STANDARDS.md) have no MDX equivalent | C     | Pilot    | TBD | `[pilot-blocked]` |
+| F17 | IMPORTANT    | Content authoring     | Practice tags (`\tagofficial`/`\tagpractitioner`/`\tagconv` in post_transformers/guides/STANDARDS.md) have no MDX equivalent | C     | Pilot    | #1  | `[fixed]` |
 | F18 | IMPORTANT    | Hub integration       | `precision.md` pattern from `lever_of_archimedes/patterns/` not adopted                                          | C     | Pilot    | TBD | `[pilot-blocked]` |
 | F19 | IMPORTANT    | Content correctness   | Ch 6 prose + companion overstate RK4 vs symplectic energy drift magnitudes by 3–4 orders at cited parameters; figures' actual parameters mismatch the caption text | A     | Authoring | #1  | `[fixed]` |
 
@@ -759,10 +759,11 @@ actual rigor.
 
 ---
 
-### F17 — Practice tags MDX equivalent (pilot-blocked)
+### F17 — Practice tags MDX equivalent (infrastructure landed)
 
 **Severity:** IMPORTANT · **Track:** C · **Lens:** Pilot integration ·
-**Status:** `[pilot-blocked]` · **Contributes to thesis debt:** none
+**Status:** `[fixed]` (umbrella issue #1; infrastructure only — substantive use still gated on 2026-Q3 pilot output) ·
+**Contributes to thesis debt:** none
 
 **Evidence:**
 
@@ -770,22 +771,31 @@ actual rigor.
   `\tagofficial{}` (official recommendation), `\tagpractitioner{}`
   (practitioner consensus), `\tagconv{}` (convention/heuristic) for
   marking actionable recommendations.
-- ssm-foundations has no MDX equivalent (would be e.g. `<Tag
-  type="official">`).
+- ssm-foundations now has the MDX equivalent at
+  [`src/components/Tag.astro`](../src/components/Tag.astro) (landed
+  2026-05-26), documented in [STYLE.md §3](../STYLE.md).
 - Pilot relevance: C1 + B pilot findings (2026-Q3) will produce
   recommendations that need tag taxonomy — e.g., "Use symplectic Euler for
-  Hamiltonian-structured Mamba blocks" might be `tagofficial` if the
-  evidence is strong, `tagconv` if heuristic.
+  Hamiltonian-structured Mamba blocks" might be `<Tag type="official">`
+  if the evidence is strong, `<Tag type="conv">` if heuristic.
 
-**Recommendation (deferred, pilot-blocked):**
+**Recommendation applied:**
 
-- **Unblock condition:** C1 first experiments produce at least 3 actionable
-  recommendations classifiable into tag categories (target: 2026-Q3).
-- When unblocked: create `<Tag type="official|practitioner|conv">` MDX
-  component in `src/components/`. Document in STYLE.md (F5).
+- Component lives at `src/components/Tag.astro` with `Props` interface
+  restricting `type` to `'official' | 'practitioner' | 'conv'`.
+- STYLE.md §3 documents the component vocabulary, type semantics, and
+  the pilot-output gating for substantive use.
+- This mirrors the F4 (port-credit convention) and F8 (Julia formatter +
+  runtests templates) pattern: infrastructure precedes content; the
+  documented gate keeps content honest.
 
-**Why pilot-blocked:** premature to design tag taxonomy without empirical
-claims to tag.
+**Original "Unblock condition"** (still applies to *substantive use* in
+chapter prose, not to the infrastructure itself):
+
+- C1 first experiments produce at least 3 actionable recommendations
+  classifiable into tag categories (target: 2026-Q3).
+- Ch 17 (pilot integration) will be the first chapter to import and use
+  Tag after that gate clears.
 
 ---
 

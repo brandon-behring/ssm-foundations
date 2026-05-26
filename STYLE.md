@@ -119,8 +119,8 @@ variants.
 
 ## 3. Components vocabulary
 
-Five canonical components, imported from
-`@brandon_m_behring/book-scaffold-astro/components/`:
+Five canonical components from book-scaffold-astro plus one
+ssm-foundations-local component (`Tag`):
 
 ```mdx
 import NoteBox from '@brandon_m_behring/book-scaffold-astro/components/NoteBox.astro';
@@ -128,6 +128,7 @@ import Theorem from '@brandon_m_behring/book-scaffold-astro/components/Theorem.a
 import Cite from '@brandon_m_behring/book-scaffold-astro/components/Cite.astro';
 import MarginNote from '@brandon_m_behring/book-scaffold-astro/components/MarginNote.astro';
 import Figure from '@brandon_m_behring/book-scaffold-astro/components/Figure.astro';
+import Tag from '../../components/Tag.astro';  // ssm-foundations-local
 ```
 
 | Component | Use |
@@ -137,13 +138,33 @@ import Figure from '@brandon_m_behring/book-scaffold-astro/components/Figure.ast
 | `Cite` | Inline citations to `bibliography.bib`. |
 | `MarginNote` | Side commentary, technical asides, pilot connections. |
 | `Figure` | Images produced by companion code. |
+| `Tag` | Practice-tag inline badge for actionable recommendations (see below). |
 
 `<Theorem type="...">` accepts: `definition`, `theorem`, `proposition`,
 `lemma`, `example`, `remark` (mirroring LaTeX amsthm).
 
-Other components (`BlockedByCallout`, `Companion`) exist in the toolkit
-but are unused in Ch 1–6. Ch 7+ may import them; if the use stabilizes,
-update this section.
+### Tag (practice-tag inline badge)
+
+`<Tag type="...">` accepts three semantic values for classifying
+actionable recommendations:
+
+| `type` | Meaning |
+|---|---|
+| `official` | Official recommendation — e.g., paper authors' own stated best practice, or a result with strong empirical support. |
+| `practitioner` | Practitioner consensus — community-agreed best practice in the absence of a single authoritative statement. |
+| `conv` | Convention or heuristic — a useful default with known exceptions. |
+
+Conceptual lineage:
+[`post_transformers/guides/STANDARDS.md` §10](https://github.com/brandon-behring/post_transformers/blob/main/guides/STANDARDS.md)
+(`\tagofficial`, `\tagpractitioner`, `\tagconv` in LaTeX). Component
+source at [`src/components/Tag.astro`](src/components/Tag.astro). The
+component landed as audit F17 infrastructure; substantive use awaits
+the C1 + B pilots' first actionable empirical claims (target 2026-Q3).
+Chapters before that should not import it.
+
+Other components (`BlockedByCallout`, `Companion`) exist in the
+book-scaffold-astro toolkit but are unused in Ch 1–6. Ch 7+ may import
+them; if use stabilizes, update this section.
 
 ---
 

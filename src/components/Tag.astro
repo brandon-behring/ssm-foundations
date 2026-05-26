@@ -1,0 +1,64 @@
+---
+// Practice-tag inline badge per STYLE.md §3 + post_transformers/
+// guides/STANDARDS.md §10. Three semantic variants:
+//   - official: official recommendation (e.g., paper authors' own
+//     stated best practice, or a result with strong empirical support)
+//   - practitioner: practitioner consensus (community-agreed best
+//     practice in the absence of a single authoritative statement)
+//   - conv: convention or heuristic (a useful default but with known
+//     exceptions)
+//
+// Usage in MDX:
+//   import Tag from '../../components/Tag.astro';
+//   <Tag type="official">Use symplectic Euler for Hamiltonian SSMs.</Tag>
+//
+// Audit reference: F17 in audits/2026-05-25_standards_vs_post_transformers.md.
+
+interface Props {
+  type: 'official' | 'practitioner' | 'conv';
+}
+
+const { type } = Astro.props;
+
+const labelText: Record<Props['type'], string> = {
+  official: 'OFFICIAL',
+  practitioner: 'PRACTITIONER',
+  conv: 'CONVENTION',
+};
+---
+
+<span class={`tag tag-${type}`} data-tag-type={type}>
+  <span class="tag-label">{labelText[type]}</span>
+  <slot />
+</span>
+
+<style>
+  .tag {
+    display: inline-block;
+    padding: 0.05em 0.5em;
+    border-radius: 0.25em;
+    font-size: 0.9em;
+    margin: 0 0.15em;
+    line-height: 1.4;
+  }
+  .tag-label {
+    font-weight: 700;
+    font-size: 0.7em;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    margin-right: 0.4em;
+    opacity: 0.85;
+  }
+  .tag-official {
+    background: rgba(30, 58, 95, 0.12);
+    color: rgb(30, 58, 95);
+  }
+  .tag-practitioner {
+    background: rgba(196, 125, 0, 0.14);
+    color: rgb(140, 80, 0);
+  }
+  .tag-conv {
+    background: rgba(100, 100, 100, 0.12);
+    color: rgb(70, 70, 70);
+  }
+</style>
