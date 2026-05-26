@@ -1,0 +1,14 @@
+// wrangler.jsonc — Cloudflare Workers + Static Assets deploy.
+// Format mirrors brandon-behring.dev's apex Worker + dml.brandon-behring.dev's
+// monorepo Worker; person-prefixed name follows the portfolio convention.
+// Deploy: `npx wrangler deploy` (or `npm run deploy`). Custom domain
+// ssm-foundations.brandon-behring.dev is bound in the Cloudflare dashboard
+// (Workers → this worker → Settings → Domains) and was REBOUND from the
+// legacy bare-name `ssm-foundations` Worker during Phase 1c (2026-05-26).
+// See audits/2026-05-26_first-deploy.md for the migration history.
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "brandon-behring-ssm-foundations",
+  "compatibility_date": "2026-05-22",
+  "assets": { "directory": "./dist" }
+}
