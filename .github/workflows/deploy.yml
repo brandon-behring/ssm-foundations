@@ -38,4 +38,19 @@ jobs:
       # Strict gate — fails the production deploy on a broken cite key,
       # missing XRef, or duplicate anchor ID. Requires deploy-workflows#1
       # (merged 2026-05-26, commit fb62358).
-      validate-command: validate
+      #
+      # ci:validate (not bare `validate`) is required because the reusable
+      # workflow runs `npm run <validate-command>` STANDALONE between
+      # `npm ci` and `npm run build` — without firing the prebuild hook
+      # that would regenerate src/data/references.json + labels.json
+      # (gitignored, derived from bibliography.bib + chapter id= attrs).
+      # `book-scaffold validate` resolves <Cite key="..."> against
+      # references.json; if it's missing AND BOOK_PROFILE=academic is
+      # picked up from .env (which it IS — committed line in ssm/.env),
+      # validate fails with 25+ "Unknown bibkey" errors. ci:validate
+      # wraps validate with `npm run build:bib && npm run build:labels`
+      # so the prerequisites are regenerated before validate runs.
+      #
+      # See audits/2026-05-26_first-deploy.md (CI-failure investigation
+      # + DML latent-gap finding).
+      validate-command: ci:validate
