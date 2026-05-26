@@ -30,15 +30,23 @@ help:
 	@echo "  check             - validate + lint + status-check (full gate)"
 
 # Build / content pipeline.
-
-validate:
-	npm run validate
+#
+# Note: `validate` depends on build-bib + build-labels because
+# book-scaffold validate resolves <Cite key="..."> and id="..." against
+# src/data/references.json and src/data/labels.json, both of which are
+# gitignored (regenerated from bibliography.bib + chapter MDX). On a
+# fresh checkout these files don't exist, so validate must regenerate
+# them first — locally this is usually a no-op, but in CI it's the
+# difference between green and 25 "unknown bibkey" errors.
 
 build-bib:
 	npm run build:bib
 
 build-labels:
 	npm run build:labels
+
+validate: build-bib build-labels
+	npm run validate
 
 build:
 	npm run build
