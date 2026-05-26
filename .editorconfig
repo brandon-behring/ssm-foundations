@@ -1,0 +1,37 @@
+# EditorConfig — https://EditorConfig.org
+#
+# Minimal cross-tool baseline for ssm-foundations: UTF-8 + LF + trailing
+# newline + trimmed trailing whitespace across all files. Per-language
+# indent settings match the project's existing tool configs
+# (black: 4-space Python; SciML: 4-space Julia; MDX/YAML/JSON: 2-space).
+#
+# Audit reference: audits/2026-05-25_standards_vs_post_transformers.md#F16
+
+root = true
+
+[*]
+charset = utf-8
+end_of_line = lf
+insert_final_newline = true
+trim_trailing_whitespace = true
+
+[*.{mdx,md,json,yml,yaml,toml,html,css,astro,ts,tsx,js,mjs,cjs,jsx}]
+indent_style = space
+indent_size = 2
+
+[*.{py,jl}]
+indent_style = space
+indent_size = 4
+
+[Makefile]
+indent_style = tab
+
+[*.bib]
+indent_style = space
+indent_size = 2
+
+# Markdown: trailing whitespace can be meaningful (line breaks). Override
+# the global trim setting on the off chance a chapter uses it; otherwise
+# the global default applies.
+[*.{md,mdx}]
+trim_trailing_whitespace = false
