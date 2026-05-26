@@ -280,7 +280,9 @@ integration is orthogonal to the three debts
     (deployment convention — directly applies; book is deployed at
     `ssm-foundations.brandon-behring.dev` per CLAUDE.md §"Build + deploy")
 - Cross-ref: substantive adoption of `testing.md` is covered by F8 (Julia +
-  torch companion rigor); `precision.md` adoption is deferred via F18.
+  torch companion rigor). (F18's `precision.md` entry was withdrawn
+  2026-05-26 after re-reading clarified it's a meta-prompting pattern,
+  not a numerical-precision pattern; see F18 detail in §4.)
 
 **Why Track A:** small CLAUDE.md edit (~10 lines).
 
@@ -876,12 +878,13 @@ Two implications:
 > STYLE.md (F5).
 
 Both clauses are wrong on the merits because they assumed precision.md
-was about numerical precision. The F2 hub-reference block already
-mentions `precision.md` as "deferred via [audit F18] (pilot-blocked
-on B two-timescale benchmarks producing precision-sensitivity claims)";
-that note is similarly inaccurate and should be removed or rewritten in
-a future commit (out of scope here — the withdrawal is the
-truthful-record action).
+was about numerical precision. The F2 hub-reference block in CLAUDE.md
+previously propagated the same misclassification ("deferred via [audit F18]
+(pilot-blocked on B two-timescale benchmarks producing
+precision-sensitivity claims)"); that residual was cleaned up in commit
+`5444f54` 2026-05-26 — the precision.md reference is now removed from
+CLAUDE.md entirely, mirroring post_transformers' convention of listing
+only patterns the repo follows or actively defers.
 
 **This is the second self-correction in the audit's lifecycle** —
 F19 surfaced Ch 6 magnitude misclaims during F8 execution; F18's
