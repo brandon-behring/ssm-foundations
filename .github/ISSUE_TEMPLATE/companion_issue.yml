@@ -1,0 +1,44 @@
+name: Companion code issue (JAX / Julia / torch)
+description: Bug, missing test, or rigor gap in `companions/`.
+labels: ["companion"]
+body:
+  - type: dropdown
+    id: language
+    attributes:
+      label: Companion language
+      options:
+        - JAX (Python)
+        - Julia
+        - torch (PyTorch)
+        - Shared (companions/_shared/)
+    validations:
+      required: true
+
+  - type: textarea
+    id: location
+    attributes:
+      label: File path
+      description: e.g. `companions/ch06/julia/symplectic_methods.jl` or `companions/_shared/plot_utils.py`.
+    validations:
+      required: true
+
+  - type: textarea
+    id: description
+    attributes:
+      label: What's wrong?
+      description: >-
+        Reproduction steps (the exact `python ...` or `julia --project=...`
+        invocation), observed output, expected output. For port lineage
+        issues, link to the upstream source in post_transformers.
+    validations:
+      required: true
+
+  - type: checkboxes
+    id: rigor-checklist
+    attributes:
+      label: Rigor checklist (mark what applies to your concern)
+      options:
+        - label: Missing port-credit header (audit F4 convention)
+        - label: Missing or stub-only test in runtests.jl (audit F8)
+        - label: Formatter / lint violation (`JuliaFormatter.toml` / `pyproject.toml`)
+        - label: Caption / docstring overstates magnitudes (cf. audit F19)

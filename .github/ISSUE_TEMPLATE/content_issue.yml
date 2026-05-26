@@ -1,0 +1,55 @@
+name: Content issue (book prose)
+description: Typo, factual error, broken cross-reference, or magnitude-checking concern in chapter prose, exercises, or audit reports.
+labels: ["content"]
+body:
+  - type: dropdown
+    id: chapter
+    attributes:
+      label: Chapter
+      description: Which chapter does this concern? Pick `Ch X-Y range` if it spans multiple chapters; `Other` for audit reports, STYLE.md, README, etc.
+      options:
+        - Ch 1 — Linear ODEs as state-space systems
+        - Ch 2 — Stability theory
+        - Ch 3 — Linear algebra for sequence models
+        - Ch 4 — Discretization theory
+        - Ch 5 — Stability regions and Butcher tableau
+        - Ch 6 — Implicit and symplectic methods
+        - Ch 7-10 — SSM family (planned)
+        - Ch 11-13 — Linear attention + hybrids (planned)
+        - Ch 14-17 — Methodology + pilots (planned)
+        - Other (audit / STYLE.md / README / etc.)
+    validations:
+      required: true
+
+  - type: dropdown
+    id: severity
+    attributes:
+      label: Severity
+      options:
+        - Typo or formatting
+        - Broken cross-reference (link, figure, theorem)
+        - Math error or imprecise claim
+        - Empirical claim contradicts companion demo (cf. audit F19)
+        - Structural / pedagogical concern
+    validations:
+      required: true
+
+  - type: textarea
+    id: location
+    attributes:
+      label: Location
+      description: File path + line number(s) if known.
+      placeholder: src/content/chapters/ch06-implicit-and-symplectic.mdx:137
+    validations:
+      required: true
+
+  - type: textarea
+    id: evidence
+    attributes:
+      label: Evidence and proposed correction
+      description: >-
+        What's wrong, ideally backed by a citation or a companion-code reproduction.
+        For empirical-claim issues, name the (parameters, observed value, expected value)
+        triple the way audit F19 does.
+    validations:
+      required: true

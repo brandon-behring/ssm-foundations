@@ -1,0 +1,14 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Toolkit issue (book-scaffold-astro)
+    url: https://github.com/brandon-behring/book-scaffold-astro/issues/new?labels=consumer%3Assm-foundations
+    about: >-
+      Issues with the build infrastructure (Astro components, validation,
+      KaTeX, label resolution, etc.) belong in book-scaffold-astro. Use
+      the `consumer:ssm-foundations` label so they surface in this book's
+      consumer-feedback view.
+  - name: Cross-repo discussion
+    url: https://github.com/brandon-behring/post_transformers/discussions
+    about: >-
+      Curriculum design or research-direction discussions belong in the
+      sibling post_transformers repo.

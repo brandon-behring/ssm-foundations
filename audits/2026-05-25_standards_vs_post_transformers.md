@@ -179,7 +179,7 @@ can apply the same logic consistently.
 | F12 | IMPORTANT    | Governance            | `LICENSE` + `LICENSE-CONTENT` split absent (post_transformers waited 8 weeks before adding these)                 | C     | Prod     | #1  | `[fixed]` |
 | F13 | IMPORTANT    | Governance            | `CONTRIBUTING.md` absent                                                                                         | C     | Prod     | #1  | `[fixed]` |
 | F14 | IMPORTANT    | CI/CD                 | No `.github/workflows/validate.yml`                                                                              | C     | Prod     | TBD | `[open]` |
-| F15 | IMPORTANT    | Issue/PR hygiene      | No `.github/ISSUE_TEMPLATE/` or `pull_request_template.md`                                                       | C     | Prod     | TBD | `[open]` |
+| F15 | IMPORTANT    | Issue/PR hygiene      | No `.github/ISSUE_TEMPLATE/` or `pull_request_template.md`                                                       | C     | Prod     | #1  | `[fixed]` |
 | F16 | MINOR        | Editor consistency    | No `.editorconfig`                                                                                               | C     | Authoring | #1  | `[fixed]` |
 | F17 | IMPORTANT    | Content authoring     | Practice tags (`\tagofficial`/`\tagpractitioner`/`\tagconv` in post_transformers/guides/STANDARDS.md) have no MDX equivalent | C     | Pilot    | TBD | `[pilot-blocked]` |
 | F18 | IMPORTANT    | Hub integration       | `precision.md` pattern from `lever_of_archimedes/patterns/` not adopted                                          | C     | Pilot    | TBD | `[pilot-blocked]` |
