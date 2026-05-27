@@ -93,10 +93,16 @@ stability at small dt. Accuracy: second-order for C¹ inputs. A-stable.
 """
 function discretize_exp_trap(A::AbstractMatrix{T}, B::AbstractVector{T}, dt::T) where {T}
     n = size(A, 1)
+    # Construct M = dt · Â where Â = [[A, B, 0]; [0 0 1]; [0 0 0]], so
+    # M = [[A·dt, B·dt, 0]; [0 0 dt]; [0 0 0]] (shape (n+2, n+2)). The
+    # (n+1, n+2) entry MUST be `dt`, not `1`: see the Python companion
+    # `exp_trapezoidal.py:105-109` for the derivation. The previous
+    # `T(1.0)` here was a bug (F29 in audits/2026-05-27_repo_audit_deeper.md)
+    # that silently degraded exp-trap from second- to first-order accuracy.
     M = zeros(T, n + 2, n + 2)
     M[1:n, 1:n] .= A .* dt
     M[1:n, n+1] .= B .* dt
-    M[n+1, n+2] = T(1.0)
+    M[n+1, n+2] = dt
     E = exp(M)
     Ad = E[1:n, 1:n]
     B0 = E[1:n, n+1]           # dt · φ₁(A dt) · B

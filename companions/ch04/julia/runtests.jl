@@ -71,4 +71,30 @@ end
         @test errs[2] < 0.7 * errs[1]
         @test errs[3] < 0.7 * errs[2]
     end
+
+    @testset "Exp-trapezoidal achieves order >= 2 (F29 regression guard)" begin
+        # Empirical second-order accuracy for exp-trap on the forced oscillator.
+        # Before the F29 fix, M[n+1, n+2] = T(1.0) made B1 too small by a factor
+        # of dt, degrading exp-trap to first order — halving dt would have given
+        # ratio ~0.5 (matching ZOH). After the fix, ratio is ~0.25.
+        t_end = 4.0
+        ref = DiscretizationAtlas.continuous_forced(t_end)
+        errs = Float64[]
+        dts = Float64[0.2, 0.1, 0.05]
+        for dt in dts
+            ts, ys = DiscretizationAtlas.simulate(
+                DiscretizationAtlas.discretize_exp_trap,
+                DiscretizationAtlas.step_exp_trap,
+                dt,
+                t_end,
+            )
+            yref = [dot(DiscretizationAtlas.C_OSC, ref(t)) for t in ts]
+            push!(errs, maximum(abs.(ys .- yref)))
+        end
+        # Second-order: halving dt should reduce error by a factor near 4.
+        # The 0.35 threshold separates 2nd-order (ratio ~0.25) from 1st-order
+        # (ratio ~0.5), with slack for finite-dt effects.
+        @test errs[2] < 0.35 * errs[1]
+        @test errs[3] < 0.35 * errs[2]
+    end
 end
