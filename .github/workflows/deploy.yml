@@ -32,7 +32,7 @@ permissions:
 jobs:
   deploy-production:
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-    uses: brandon-behring/deploy-workflows/.github/workflows/deploy-astro-worker.yml@main
+    uses: brandon-behring/deploy-workflows/.github/workflows/deploy-astro-worker.yml@v1
     secrets: inherit
     with:
       # Strict gate — fails the production deploy on a broken cite key,
