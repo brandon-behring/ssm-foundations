@@ -66,12 +66,17 @@ Ch 1–3 + Ch 6 should be authored with the C1 pilot's empirical needs as primar
 ```bash
 npm install
 npm run dev               # localhost:4321
-npm run validate          # content checks
+npm run ci:validate       # content checks (wraps build:bib + build:labels + validate)
 npm run build             # dist/
-npx wrangler deploy       # Cloudflare Workers + Static Assets
+npx wrangler deploy       # manual one-off (normally CI handles this)
 ```
 
-**Deploy target**: Cloudflare Workers + Static Assets, auto-deployed on push to `main` via Cloudflare Workers Builds. Public URL: **https://ssm-foundations.brandon-behring.dev** (subdomain). The legacy workers.dev preview remains live at `https://ssm-foundations.brandon-m-behring.workers.dev`.
+**Deploy paradigm**: Cloudflare Workers + Static Assets, deployed via GitHub Actions calling the reusable workflow at [`brandon-behring/deploy-workflows`](https://github.com/brandon-behring/deploy-workflows) (pinned to `@v1`). `.github/workflows/deploy.yml` is a 10-line caller; pushes to `main` trigger production deploys. No Cloudflare Workers Builds (dashboard auto-build) involved — the Actions-owned pipeline is canonical.
+
+- **Worker name**: `brandon-behring-ssm-foundations` (person-prefixed flat per the brandon-behring.dev convention).
+- **Production URL**: <https://ssm-foundations.brandon-behring.dev> (custom domain bound in CF dashboard).
+- **Workers.dev preview URL**: <https://brandon-behring-ssm-foundations.brandon-m-behring.workers.dev>.
+- **First-deploy audit**: [`audits/2026-05-26_first-deploy.md`](audits/2026-05-26_first-deploy.md) — full Phase 1c decisions matrix + findings (including the latent `references.json` gap that drove the `ci:validate` script convention).
 
 **Deployment URL convention**: each book/project under `brandon-behring.dev` follows the per-project-subdomain pattern. See [the Subdomain convention in brandon-behring.dev/README.md](https://github.com/brandon-behring/brandon-behring.dev#subdomain-convention) for the slug rule, click-path, and registry.
 
