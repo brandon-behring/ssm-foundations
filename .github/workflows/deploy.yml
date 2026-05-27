@@ -35,22 +35,15 @@ jobs:
     uses: brandon-behring/deploy-workflows/.github/workflows/deploy-astro-worker.yml@v1
     secrets: inherit
     with:
-      # Strict gate — fails the production deploy on a broken cite key,
-      # missing XRef, or duplicate anchor ID. Requires deploy-workflows#1
-      # (merged 2026-05-26, commit fb62358).
+      # v4.6.0 migration (2026-05-27): reverted ci:validate → validate.
+      # The book-scaffold-astro v4.6 release introduces the prevalidate
+      # npm-lifecycle hook convention (see recipes/19-prevalidate-hook.md):
+      # `npm run validate` now auto-runs the `prevalidate` hook first,
+      # which regenerates src/data/references.json + labels.json. The
+      # historical ci:validate wrapper (band-aid fix from Phase 1c) is
+      # no longer needed — same CI behavior, cleaner package.json.
       #
-      # ci:validate (not bare `validate`) is required because the reusable
-      # workflow runs `npm run <validate-command>` STANDALONE between
-      # `npm ci` and `npm run build` — without firing the prebuild hook
-      # that would regenerate src/data/references.json + labels.json
-      # (gitignored, derived from bibliography.bib + chapter id= attrs).
-      # `book-scaffold validate` resolves <Cite key="..."> against
-      # references.json; if it's missing AND BOOK_PROFILE=academic is
-      # picked up from .env (which it IS — committed line in ssm/.env),
-      # validate fails with 25+ "Unknown bibkey" errors. ci:validate
-      # wraps validate with `npm run build:bib && npm run build:labels`
-      # so the prerequisites are regenerated before validate runs.
-      #
-      # See audits/2026-05-26_first-deploy.md (CI-failure investigation
-      # + DML latent-gap finding).
-      validate-command: ci:validate
+      # Historical context: audits/2026-05-26_first-deploy.md documents
+      # the original ci:validate latent-gap investigation. ssm's .env
+      # tracks BOOK_PROFILE=academic so validate picks up the profile.
+      validate-command: validate
