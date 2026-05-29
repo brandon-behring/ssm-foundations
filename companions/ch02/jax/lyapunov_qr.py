@@ -14,9 +14,33 @@ exponents reduce to the real parts of the eigenvalues of the *discrete-time*
 Jacobian $e^{\\statemat \\Delta t}$, divided by $\\Delta t$. We verify this
 identity numerically as a sanity check.
 
+Idiomatic-JAX note (this companion is a NumPy→JAX teaching example)
+------------------------------------------------------------------
+The Benettin QR iteration is a matrix-valued recurrence, the natural home of
+``lax.scan``:
+
+* **``jax.lax.scan`` instead of the Python ``for t in range(n_steps)`` loop.**
+  The carry is the pair ``(Q, log_diag_sum)`` — an orthonormal frame plus the
+  running sum of $\\log|\\mathrm{diag}(R_t)|$. Each step re-orthonormalizes the
+  propagated frame ($Q_{t+1} R_t = J_t Q_t$) and accumulates the log-stretch.
+  This is a *matrix-valued hidden state*: the same scan primitive that powers the
+  S4 / Mamba selective scan, here carrying a $N\\times N$ orthonormal frame.
+* **Pre-tiled scan ``xs`` instead of in-loop ``jacobians[t % T]`` indexing.** The
+  cyclic Jacobian schedule is materialized once as ``J_seq = jacobians[arange(n)%T]``
+  and consumed as the scan input, so the step body has no modular index. ``T = 1``
+  is the autonomous special case used by the figure.
+
+``scipy.linalg.expm`` is kept as the trusted builder of the discrete-time Jacobian.
+
 Output
 ------
 ``public/figures/ch02/lyapunov_spectrum.png`` (referenced from §2.3).
+
+Usage
+-----
+::
+
+    PYTHONPATH=. python companions/ch02/jax/lyapunov_qr.py
 
 References
 ----------
@@ -27,14 +51,21 @@ Hamiltonian systems; a method for computing all of them*. Meccanica 15(1).
 
 from __future__ import annotations
 
-import sys
+from functools import partial
 from pathlib import Path
 
-import matplotlib.pyplot as plt
-import numpy as np
-from scipy.linalg import expm
+import jax
 
-from companions._shared.plot_utils import (
+# Enable float64 before any jnp array exists; Lyapunov exponents of the lightly
+# damped ring are O(0.1) and need the extra precision to separate from zero.
+jax.config.update("jax_enable_x64", True)
+
+import jax.numpy as jnp  # noqa: E402
+import matplotlib.pyplot as plt  # noqa: E402
+import numpy as np  # noqa: E402
+from scipy.linalg import expm  # noqa: E402
+
+from companions._shared.plot_utils import (  # noqa: E402
     SSM_COLORS,
     apply_style,
     create_tufte_figure,
@@ -42,13 +73,34 @@ from companions._shared.plot_utils import (
     set_tufte_labels,
     set_tufte_title,
 )
-
-# Reuse the ring-Jacobian builder from Ch 1.
-sys.path.insert(0, str(Path(__file__).resolve().parents[3]))
 from companions.ch01.jax.coupled_oscillators import build_ring_state_matrix  # noqa: E402
 
 _REPO_ROOT = Path(__file__).resolve().parents[3]
 _OUTPUT_PATH = _REPO_ROOT / "public" / "figures" / "ch02" / "lyapunov_spectrum"
+
+
+@partial(jax.jit, static_argnums=1)
+def _qr_lyapunov(jacobians: jnp.ndarray, n_steps: int) -> jnp.ndarray:
+    """``lax.scan`` core of the Benettin QR algorithm (see :func:`qr_lyapunov`)."""
+    T, N, _ = jacobians.shape
+    # Materialize the cyclic Jacobian schedule as the scan input — dissolves the
+    # in-loop `jacobians[t % T]` modular index into a plain per-step `xs`.
+    idx = jnp.arange(n_steps) % T
+    J_seq = jacobians[idx]  # (n_steps, N, N)
+
+    def step(carry, J_t):  # carry = (Q, log_diag_sum); xs = per-step Jacobian J_t
+        Q, acc = carry
+        Q_next, R = jnp.linalg.qr(J_t @ Q)
+        # Force diag(R) > 0 (sign convention; leaves the Lyapunov values unchanged).
+        signs = jnp.sign(jnp.diag(R))
+        signs = jnp.where(signs == 0, 1.0, signs)
+        Q_next = Q_next * signs[None, :]
+        R = signs[:, None] * R
+        acc = acc + jnp.log(jnp.abs(jnp.diag(R)) + 1e-300)
+        return (Q_next, acc), None
+
+    (_, log_diag_sum), _ = jax.lax.scan(step, (jnp.eye(N), jnp.zeros(N)), J_seq)
+    return jnp.sort(log_diag_sum / n_steps)[::-1]
 
 
 def qr_lyapunov(jacobians: np.ndarray, n_steps: int) -> np.ndarray:
@@ -56,7 +108,7 @@ def qr_lyapunov(jacobians: np.ndarray, n_steps: int) -> np.ndarray:
 
     For an autonomous system with constant per-step Jacobian
     ``J = jacobians[0]``, this is the autonomous Lyapunov spectrum and
-    should agree with $\\log|\\text{eigvals}(J)|$ sorted by magnitude.
+    should agree with $\\Re(\\text{eigvals}(\\log J))$ sorted descending.
 
     Parameters
     ----------
@@ -70,31 +122,18 @@ def qr_lyapunov(jacobians: np.ndarray, n_steps: int) -> np.ndarray:
     -------
     ndarray of shape (N,)
         Sorted Lyapunov exponents in descending order.
+
+    Raises
+    ------
+    ValueError
+        If ``jacobians`` is not (T, N, N) or ``n_steps < 1``.
     """
+    jacobians = jnp.asarray(jacobians)
     if jacobians.ndim != 3 or jacobians.shape[1] != jacobians.shape[2]:
-        raise ValueError(
-            f"jacobians must have shape (T, N, N), got {jacobians.shape}"
-        )
+        raise ValueError(f"jacobians must have shape (T, N, N), got {jacobians.shape}")
     if n_steps < 1:
         raise ValueError(f"n_steps must be positive, got {n_steps}")
-
-    T, N, _ = jacobians.shape
-    Q = np.eye(N)
-    log_diag_sum = np.zeros(N)
-
-    for t in range(n_steps):
-        J_t = jacobians[t % T]
-        M = J_t @ Q
-        Q, R = np.linalg.qr(M)
-        # Force the diagonal of R to be positive (sign convention; doesn't change Lyapunov values).
-        signs = np.sign(np.diag(R))
-        signs[signs == 0] = 1.0
-        Q = Q * signs[np.newaxis, :]
-        R = (signs[:, np.newaxis]) * R
-        log_diag_sum += np.log(np.abs(np.diag(R)) + 1e-300)
-
-    lyapunov = np.sort(log_diag_sum / n_steps)[::-1]
-    return lyapunov
+    return np.asarray(_qr_lyapunov(jacobians, n_steps))
 
 
 def autonomous_lyapunov_reference(A: np.ndarray, dt: float) -> np.ndarray:
@@ -104,7 +143,7 @@ def autonomous_lyapunov_reference(A: np.ndarray, dt: float) -> np.ndarray:
     its eigenvalues are $e^{\\lambda_i \\, dt}$. The Lyapunov exponents are
     $\\Re(\\lambda_i)$, sorted descending.
     """
-    eigs = np.linalg.eigvals(A)
+    eigs = np.asarray(jnp.linalg.eigvals(jnp.asarray(A)))
     return np.sort(eigs.real)[::-1]
 
 
@@ -118,9 +157,10 @@ def make_figure() -> plt.Figure:
     A_damped = build_ring_state_matrix(n=n, k=4.0, c=0.2, kappa=1.0)
     A_undamped = build_ring_state_matrix(n=n, k=4.0, c=0.0, kappa=1.0)
 
-    # Discrete-time Jacobian (one for all steps; autonomous case).
-    J_damped = expm(A_damped * dt)
-    J_undamped = expm(A_undamped * dt)
+    # Discrete-time Jacobian (one for all steps; autonomous case). scipy.expm is
+    # the trusted reference builder; np.asarray coerces the jnp state matrix.
+    J_damped = expm(np.asarray(A_damped) * dt)
+    J_undamped = expm(np.asarray(A_undamped) * dt)
 
     spec_damped = qr_lyapunov(J_damped[np.newaxis, ...], n_steps) / dt
     spec_undamped = qr_lyapunov(J_undamped[np.newaxis, ...], n_steps) / dt
