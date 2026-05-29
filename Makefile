@@ -81,6 +81,12 @@ companion-julia-tests:
 		julia --project=companions/$$ch/julia companions/$$ch/julia/runtests.jl || exit 1; \
 	done
 
+# Companion testing (JAX track — audit 0527-F26). Local gate only: deliberately
+# NOT wired into `check` (which CI runs, and where jax is unavailable). Run via
+# pre-commit / `make check-local`. Requires the uv-managed .venv (see .gitignore).
+companion-jax-tests:
+	@.venv/bin/pytest companions -q
+
 # Composite gates.
 
 lint: check-bibkeys check-xrefs
