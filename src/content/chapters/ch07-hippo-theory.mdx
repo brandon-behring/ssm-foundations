@@ -1,15 +1,262 @@
 ---
-week: 07
+week: 7
 part: ssm-core
+status: implemented
 title: 'HiPPO theory: orthogonal-basis projection operators'
-status: planned
-description: Legendre/Laguerre/Fourier bases; optimal polynomial approximation of input history.
+description: Online function approximation by projection onto orthogonal polynomial bases — the HiPPO-LegS operator, its lower-triangular structure and exact spectrum, discretization to the S4 recurrence, and the basis-conditioning question.
+# v4.8.0 provenance — process-as-artifact audit trail. Chapter 7 is newly authored
+# (2026-05-29) and post-dates the Ch 1–6 audit passes, so audit_history is omitted
+# until the next repo-wide pass covers it (same convention ch04 uses for fields whose
+# target files do not yet exist). ai_tools + citation_backstop apply now.
+provenance:
+  ai_tools:
+    - Claude Code
+  citation_backstop: research-kb
 ---
 
-import PreReleaseBanner from '@brandon_m_behring/book-scaffold-astro/components/PreReleaseBanner.astro';
+{/*
+  Math notation used in this chapter (auto-loaded via ssmMacros):
+    \statevec  = h     (state vector — the HiPPO coefficient vector c)
+    \statemat  = A     (continuous dynamics / projection-update matrix)
+    \inputmat  = B
+    \outputmat = C
+    \stepsize  = Δ     (step size)
+    \discA     = Ā     (discrete state matrix)
+    \discB     = B̄
+    \R, \C, \N — number sets
+    \norm{·}, \abs{·}, \tr, \diag — operators
+  HiPPO-specific symbols (Legendre P_n, coefficients c_n, measure ω) are written inline.
+*/}
 
-<PreReleaseBanner state="alpha" message="Chapter 07 is planned; not yet authored. See description above for scope. Authoring sequence: Ch 1–3 (foundations) → Ch 4–6 (discretization thread for C1) → remaining chapters per pilot needs." />
+import NoteBox from '@brandon_m_behring/book-scaffold-astro/components/NoteBox.astro';
+import Theorem from '@brandon_m_behring/book-scaffold-astro/components/Theorem.astro';
+import Cite from '@brandon_m_behring/book-scaffold-astro/components/Cite.astro';
+import MarginNote from '@brandon_m_behring/book-scaffold-astro/components/MarginNote.astro';
+import Figure from '@brandon_m_behring/book-scaffold-astro/components/Figure.astro';
 
 # HiPPO theory: orthogonal-basis projection operators
 
-This chapter is planned. See the [chapter-at-a-glance](https://github.com/brandon-behring/post_transformers/blob/main/notes/foundations_curriculum_design_2026_05_20.md) (foundations §3) for the full design; the [crosswalk](https://github.com/brandon-behring/post_transformers/blob/main/notes/foundations_curriculum_design_2026_05_20.md) (foundations §22) maps this chapter to the relevant post_transformers/roadmap.md weeks.
+<NoteBox title="Chapter 7 — at a glance">
+**Goal**: answer the question Chapter 4 left open — *what should the matrix $\statemat$ be?* The HiPPO framework <Cite key="gu2020hippo" /> derives a structured $\statemat$ from a single principle: the state should hold the coefficients of the best $N$-term approximation of the input history $u(s),\, s\in[0,t]$, in an orthogonal polynomial basis. We build the HiPPO-LegS operator from that principle, prove it is lower-triangular with spectrum exactly $\{-1,\dots,-N\}$, discretize it with Chapter 4's zero-order hold to recover the S4 recurrence, and confront the basis-conditioning issue that drives one of this book's research niches.
+
+**Reading time**: ~45 minutes prose; 90+ minutes with the JAX, Julia, and PyTorch companions.
+
+**Direct-transfer hook (C1 pilot)**: the HiPPO-LegS matrix *is* the structured $\statemat$ whose discretization the symplectic-integrator pilot scrutinizes. Its exact eigenvalue structure (§7.7) and the conditioning of its basis (§7.5) are precisely the objects a geometric-integration analysis of S4 / Mamba begins from.
+
+**Key insight**: HiPPO turns "memory" into "online orthogonal projection." Random $\statemat$ gives vanishing or exploding dynamics; the HiPPO $\statemat$ is the *projection-update operator* of a Legendre expansion, and its structure (lower-triangular, real spectrum on the negative integers) is exactly what makes long-range memory both expressive and numerically stable.
+</NoteBox>
+
+## 7.1 The online function-approximation problem
+
+A recurrent model carries a finite state $\statevec_t \in \R^N$ and updates it one sample at a time. The central question is *what should that state store?* HiPPO's answer is sharp: the state should store a **compressed representation of the entire input history**, chosen so that the history can be reconstructed as accurately as $N$ numbers allow.
+
+Make this precise. Fix a time $t > 0$ and consider the input seen so far, $u(s)$ for $s \in [0, t]$. Equip the interval with a **measure** $\omega_t(s)$ (a weighting that says which parts of the history matter). The best $N$-term approximation of $u$ in the weighted space $L^2(\omega_t)$ is its orthogonal projection onto an $N$-dimensional subspace spanned by basis functions $g_0, \dots, g_{N-1}$:
+$$
+u(s) \;\approx\; \sum_{n=0}^{N-1} c_n(t)\, g_n(s), \qquad c_n(t) = \langle u, g_n \rangle_{\omega_t} = \int_0^t u(s)\, g_n(s)\, \omega_t(s)\, ds.
+$$
+The **coefficient vector** $c(t) = (c_0(t), \dots, c_{N-1}(t))^\top$ is the compressed memory. HiPPO's discovery is that for well-chosen bases $c(t)$ obeys a *linear ODE* in $t$ — so maintaining the optimal projection online is exactly running a linear state-space model.
+
+<MarginNote>This reframes "memory" as "compression." The state is not an opaque hidden vector; it is the coordinate representation of the past in a fixed function basis. Everything in this chapter follows from taking that sentence literally.</MarginNote>
+
+The picture to keep in mind is reconstruction. Drive a signal into the operator, read off $c(t)$ at the final time, and expand $\sum_n c_n g_n$: you recover the history, and the recovery sharpens as $N$ grows. <Figure id="ch07:fig:reconstruction" src="/figures/ch07/hippo_reconstruction.png" alt="Left: a two-sinusoid history and its HiPPO-LegS reconstructions at N=4, 16, 64, converging to the true signal. Right: relative L2 reconstruction error versus N on a log scale, dropping sharply then plateauing." caption="HiPPO-LegS as online function approximation. Left: the input history (dark) and its reconstruction from the HiPPO state at N=4, 16, 64. Right: relative $L^2$ error falls from $0.80$ at $N=4$ to $0.011$ at $N=16$, then plateaus near $7\times10^{-3}$ once the state dimension exceeds the signal's intrinsic complexity. Produced by companions/ch07/jax/hippo_reconstruction.py." />
+
+## 7.2 Orthogonal polynomial bases
+
+The natural basis for functions on an interval is the **Legendre polynomials** $P_n$. On $[-1, 1]$ they are orthogonal under the uniform measure,
+$$
+\int_{-1}^{1} P_n(x)\, P_m(x)\, dx = \frac{2}{2n+1}\,\delta_{nm},
+$$
+and satisfy the three-term recurrence $(n+1)P_{n+1}(x) = (2n+1)\,x\,P_n(x) - n\,P_{n-1}(x)$ with $P_0 = 1$, $P_1(x) = x$. Rescaling to the unit interval $z \in [0,1]$ and normalizing gives an **orthonormal** family
+$$
+\tilde P_n(z) = \sqrt{2n+1}\,P_n(2z - 1), \qquad \int_0^1 \tilde P_n(z)\, \tilde P_m(z)\, dz = \delta_{nm}.
+$$
+These are the basis functions HiPPO projects onto; the companion's Gram-matrix check confirms their orthonormality to $10^{-3}$ under trapezoidal quadrature. <Figure id="ch07:fig:legendre-basis" src="/figures/ch07/legendre_basis.png" alt="The first five normalized shifted Legendre basis functions on the unit interval, increasing in oscillation with degree." caption="The normalized shifted Legendre basis $\tilde P_n(z) = \sqrt{2n+1}\,P_n(2z-1)$ for $n = 0,\dots,4$ on $z \in [0,1]$. Higher-degree polynomials oscillate more and resolve finer detail of the history. Produced by companions/ch07/jax/hippo_reconstruction.py." />
+
+Orthogonality is what makes projection cheap and optimal. Because the basis is orthonormal, the best approximation is obtained coefficient-by-coefficient — no linear system to solve.
+
+<Theorem id="ch07:best-approximation" type="theorem">
+**(Orthogonal projection is the best approximation.)** Let $\{g_n\}_{n=0}^{N-1}$ be orthonormal in $L^2(\omega)$ and let $V = \operatorname{span}\{g_n\}$. For any $u \in L^2(\omega)$, the coefficients $c_n = \langle u, g_n\rangle_\omega$ minimize the reconstruction error: $\big\lVert u - \sum_n c_n g_n \big\rVert_\omega \le \big\lVert u - v \big\rVert_\omega$ for every $v \in V$, with equality only when $v = \sum_n c_n g_n$.
+</Theorem>
+
+The proof (Exercise 7.5, §7.10) is the Hilbert-space Pythagorean theorem: the residual $u - \sum_n c_n g_n$ is orthogonal to $V$, so any other $v \in V$ only adds an orthogonal error that grows the norm.
+
+The **measure** $\omega_t$ encodes *which history matters*. Two choices dominate the HiPPO literature <Cite key="gu2020hippo" />:
+
+- **LegT** (translated Legendre): a sliding window of fixed length $\theta$ — the state remembers the most recent $\theta$ time units uniformly and forgets everything older. This is a *fixed-horizon* memory.
+- **LegS** (scaled Legendre): the *growing* window $[0,t]$ with uniform weight, rescaled as $t$ increases. The state remembers all history, allocating its $N$ coefficients to the whole past at every scale. This is the variant that gives S4 its long-range reach, and the one we develop in detail.
+
+## 7.3 The HiPPO-LegS operator
+
+For the scaled measure the projection coefficients obey a strikingly clean ODE. Differentiating $c_n(t) = \langle u, \tilde P_n\rangle$ through the time-dependence of the measure and using the Legendre recurrence yields the **HiPPO-LegS dynamics**, a linear state-space system whose matrices have a closed form.
+
+<Theorem id="ch07:legs-operator" type="proposition">
+**(HiPPO-LegS closed form.)** The scaled-Legendre projection coefficients evolve under a linear system with state matrix $\statemat \in \R^{N\times N}$ and input matrix $\inputmat \in \R^{N\times 1}$ given by
+$$
+\statemat_{ij} = -\begin{cases} \sqrt{(2i+1)(2j+1)} & i > j \\ \,i + 1 & i = j \\ \,0 & i < j \end{cases}
+\qquad
+\inputmat_{i} = \sqrt{2i+1},
+$$
+for $i, j = 0, \dots, N-1$. In particular $\statemat$ is **lower-triangular**.
+</Theorem>
+
+The derivation (Exercise 7.4, §7.10) substitutes the Legendre three-term recurrence into the time-derivative of the projection integral; the lower-triangular structure is inherited from the recurrence, which expresses $P_{n+1}$ using only lower-degree polynomials. The matrix has a vivid signature: a negative diagonal that grows linearly, and negative off-diagonal entries below it that grow like $\sqrt{ij}$.
+
+<Figure id="ch07:fig:matrix-structure" src="/figures/ch07/hippo_matrix_structure.png" alt="Heatmap of the 8x8 HiPPO-LegS A matrix: zero above the diagonal, negative on and below it, with magnitudes growing toward the bottom-left." caption="The HiPPO-LegS state matrix $\statemat$ for $N=8$. Strictly upper-triangular entries are exactly zero; the diagonal is $-(i{+}1)$ and the sub-diagonal block grows in magnitude like $-\sqrt{(2i{+}1)(2j{+}1)}$. The lower-triangular structure is the algebraic fingerprint of the Legendre recurrence. Produced by companions/ch07/jax/hippo_matrix.py." />
+
+<MarginNote>**Two conventions, one matrix.** The *exact* LegS operator is time-varying, $\ddt c(t) = \tfrac{1}{t}\!\left(-\statemat_{+}\, c + \inputmat\, u\right)$ with the positive-eigenvalue matrix $\statemat_{+} = -\statemat$ (this is what `hippo_reconstruction.py` integrates to produce Figure 7.1). The S4 lineage instead freezes a **linear time-invariant** surrogate $\ddt \statevec = \statemat\,\statevec + \inputmat\, u$ with the *stable* $\statemat$ above (spectrum in the left half-plane) and a learnable timescale $\stepsize$. Same structured matrix; the sign and the $1/t$ scaling are the difference between the exact operator and the LTI model that gets discretized.</MarginNote>
+
+This is the answer to Chapter 4's open question. Where Chapter 4 asked "given $\statemat$, how do we discretize it?", HiPPO supplies the $\statemat$ — not by guessing, but as the projection-update operator of an optimal polynomial memory. Random initialization of $\statemat$ produces eigenvalues scattered across the complex plane and dynamics that vanish or explode over long horizons; the HiPPO $\statemat$ is engineered so that its discretization gives stable, long-memory recurrences <Cite key="gu2020hippo" />.
+
+## 7.4 From the operator to the S4 recurrence
+
+To run the HiPPO operator on sampled data we discretize the LTI system $\ddt \statevec = \statemat \statevec + \inputmat u$ exactly as in Chapter 4 §4.3. The **zero-order hold** gives
+$$
+\discA = e^{\statemat \stepsize}, \qquad \discB = \statemat^{-1}\!\left(e^{\statemat \stepsize} - I\right)\inputmat, \qquad \statevec_{k+1} = \discA\, \statevec_k + \discB\, u_k,
+$$
+computed in practice through the augmented matrix-exponential trick of Chapter 4 (the HiPPO $\statemat$ is invertible — that promise from §4.3 is kept here). Because every eigenvalue of $\statemat$ has negative real part (§7.7), Chapter 4's ZOH stability proposition applies verbatim: every discrete eigenvalue satisfies $\abs{\mu_i} = e^{\operatorname{Re}(\lambda_i)\stepsize} < 1$, so the recurrence is stable for *any* step size. ZOH is the default discretization throughout Chapters 7–9 precisely because it preserves the HiPPO spectrum so cleanly.
+
+This recurrence is the **recurrent view** of an S4 layer <Cite key="gu2022s4" />. Chapter 8 adds the second view — unrolling the recurrence into a convolution and computing it with an FFT — and shows the two views are identical for zero initial state. The HiPPO matrix is exactly the initialization that S4 places on $\statemat$ before training; S4D <Cite key="gu2022s4d" /> then diagonalizes it for speed, a move §7.5 explains is delicate precisely because of conditioning. Everything S4 does is downstream of the operator in §7.3.
+
+## 7.5 Conditioning of the HiPPO basis
+
+The HiPPO-LegS matrix is lower-triangular and its eigenvalues are the well-separated integers $-1, \dots, -N$ (§7.7), which sounds maximally benign. It is not, and the reason is **non-normality**: $\statemat$ is far from symmetric, so its eigenvectors are highly oblique and the matrix that diagonalizes it is ill-conditioned. The condition number of that eigenvector basis **grows with $N$** — empirically sub-quadratically — rather than staying bounded <Cite key="park2024numerical" />.
+
+<MarginNote>An earlier draft of this book (and much informal lore) claimed the HiPPO basis conditioning stays *bounded* as $N$ grows. The careful numerical-analysis treatment <Cite key="park2024numerical" /> shows it **grows**; the practical consequence is that off-the-shelf integrators lose accuracy on the HiPPO-LegS ODE at large $N$, which is why corrected discretizations matter.</MarginNote>
+
+Two consequences follow. First, **diagonalization is dangerous**: S4D's diagonal reparameterization <Cite key="gu2022s4d" /> must be done in a numerically careful (often complex, approximately-diagonal) form, and the "robustifying" line of work <Cite key="yu2023robustifying" /> exists exactly to tame the conditioning of the diagonalizing transform. Second, the choice of *discretization* interacts with conditioning: a poorly conditioned basis amplifies the per-step error of a low-order scheme, so the second-order schemes of Chapter 4 (and the geometric integrators of Chapter 6) are not academic refinements but a response to a real failure mode. This conditioning question is the seed of research niche **C4** — characterizing where HiPPO-style projections become numerically untrustworthy and what to do about it.
+
+## 7.6 Alternative bases
+
+Legendre is one choice among many; HiPPO is a *framework* parameterized by the basis–measure pair <Cite key="gu2023train" />. Swapping the basis changes what the state is good at remembering:
+
+- **LagT** (Laguerre): an exponentially-weighted infinite horizon — the measure decays into the past, so the state emphasizes recent history with a graceful tail.
+- **FouT** (Fourier): a Fourier basis on a sliding window, well matched to periodic or oscillatory inputs; closely related to the implicit long convolutions of Chapter 11.
+- **Wavelet bases (WaLRUS)**: replacing polynomials with a redundant wavelet frame <Cite key="babaei2025walrus" /> shifts the optimal-projection target from polynomial smoothness to wavelet sparsity, which can suit signals with localized or multi-scale structure better than a global polynomial basis.
+
+The "How to Train Your HiPPO" generalization <Cite key="gu2023train" /> derives the projection ODE for arbitrary measure–basis pairs and identifies which ones are well-conditioned to train — directly connecting basis choice back to §7.5. The lesson is that the *structure* of $\statemat$ (lower-triangular, stable spectrum, projection-update semantics) survives the basis change; the closed-form entries do not. When a later chapter reaches for a non-Legendre SSM, this is the machinery underneath.
+
+## 7.7 Eigenvalue structure and stability
+
+Return to the matrix itself. Because $\statemat$ is lower-triangular, its eigenvalues are exactly its diagonal entries.
+
+<Theorem id="ch07:legs-spectrum" type="proposition">
+**(HiPPO-LegS spectrum.)** The eigenvalues of the HiPPO-LegS matrix $\statemat$ are exactly $\{-1, -2, \dots, -N\}$ — real, distinct, and strictly negative. Consequently the continuous system $\ddt \statevec = \statemat\statevec + \inputmat u$ is asymptotically stable (Chapter 2), and its ZOH discretization has all discrete eigenvalues strictly inside the unit disk for every $\stepsize > 0$ (Chapter 4).
+</Theorem>
+
+The proof is immediate from lower-triangularity (Exercise 7.6, §7.10). The companion verifies it numerically: for $N$ up to $32$ the computed eigenvalues match $-1, \dots, -N$ to better than $10^{-8}$, and the strict upper triangle is exactly zero. <Figure id="ch07:fig:spectrum" src="/figures/ch07/hippo_eigenvalues.png" alt="The 16 eigenvalues of the HiPPO-LegS matrix lie on the negative real axis at the integers minus 1 through minus 16, inside the shaded left half-plane." caption="Spectrum of the HiPPO-LegS $\statemat$ for $N=16$: the eigenvalues are the negative integers $-1, \dots, -16$, all real and in the open left half-plane (shaded). The integer spectrum is what gives HiPPO its graded multi-timescale memory — mode $n$ decays at rate $n+1$. Produced by companions/ch07/jax/hippo_matrix.py." />
+
+The integer spectrum has a memory interpretation: under ZOH the $n$-th mode decays per step by $e^{-(n+1)\stepsize}$, so low-index coefficients (coarse features of the history) are long-lived while high-index coefficients (fine detail) fade fastest. The state is a graded, multi-timescale memory — and the learnable $\stepsize$ slides the whole schedule. This is the dynamical-systems reading of why HiPPO works, and it is the structure a stability or Lyapunov analysis of a trained S4 layer (Chapter 15) measures against.
+
+## 7.8 What's next
+
+This chapter answered "what is $\statemat$?" with "the projection-update operator of an optimal polynomial memory," and showed that operator is lower-triangular, stably-spectrumed, and ZOH-discretizable into a recurrence. **Chapter 8** takes that recurrence and develops the full S4 / S4D / S5 machinery: the convolutional view, the FFT kernel, the diagonalization that §7.5 warned is delicate, and the parallel scan. **Chapter 9** then makes the parameters input-dependent — the selective SSMs (Mamba) — and **Chapter 10** swaps ZOH for the exponential-trapezoidal scheme of Chapter 4 when the dynamics turn stiff. HiPPO is the hinge: every architecture from here inherits the structured $\statemat$ derived in §7.3.
+
+## 7.9 Exercises
+
+Six problems mixing computation and theory. Short/numerical (7.1–7.3) have inline collapsible solutions; the theory exercises (7.4–7.6) have full worked solutions in §7.10.
+
+### Exercise 7.1 (computation)
+
+Using the three-term recurrence, write down $P_0, P_1, P_2, P_3$ and verify by direct integration that $\int_{-1}^{1} P_1(x) P_3(x)\, dx = 0$. Then confirm $\int_{-1}^1 P_2(x)^2\, dx = 2/5$.
+
+<details>
+<summary>Solution</summary>
+
+$P_0 = 1,\ P_1 = x,\ P_2 = \tfrac12(3x^2 - 1),\ P_3 = \tfrac12(5x^3 - 3x)$. The product $P_1 P_3 = \tfrac12(5x^4 - 3x^2)$ is even, and $\int_{-1}^1 (5x^4 - 3x^2)\,dx = 5\cdot\tfrac{2}{5} - 3\cdot\tfrac{2}{3} = 2 - 2 = 0$, so the integral is $0$ — Legendre orthogonality. For the norm, $\int_{-1}^1 \tfrac14(3x^2-1)^2 dx = \tfrac14\int_{-1}^1 (9x^4 - 6x^2 + 1)\,dx = \tfrac14(9\cdot\tfrac25 - 6\cdot\tfrac23 + 2) = \tfrac14(\tfrac{18}{5} - 4 + 2) = \tfrac14\cdot\tfrac{8}{5} = \tfrac{2}{5}$, matching $2/(2\cdot2+1)$.
+</details>
+
+### Exercise 7.2 (computation)
+
+Build the $4\times 4$ HiPPO-LegS matrix $\statemat$ from the closed form of §7.3 by hand. Verify that $\statemat_{31} = -\sqrt{21}$ and that the diagonal is $(-1, -2, -3, -4)$.
+
+<details>
+<summary>Solution</summary>
+
+Entry $(3,1)$ has $i = 3 > j = 1$, so $\statemat_{31} = -\sqrt{(2\cdot3+1)(2\cdot1+1)} = -\sqrt{7\cdot3} = -\sqrt{21} \approx -4.583$. The diagonal entries are $\statemat_{ii} = -(i+1)$ for $i = 0,1,2,3$, i.e. $-1, -2, -3, -4$. The full matrix is lower-triangular with $\statemat_{10} = -\sqrt{3},\ \statemat_{20} = -\sqrt{5},\ \statemat_{21} = -\sqrt{15},\ \statemat_{30} = -\sqrt{7},\ \statemat_{32} = -\sqrt{35}$, and zeros above the diagonal. The companion `hippo_matrix.py` prints exactly $\statemat_{31} = -4.582576$.
+</details>
+
+### Exercise 7.3 (computation + code)
+
+Run `companions/ch07/jax/hippo_reconstruction.py`. Confirm that the relative $L^2$ reconstruction error of the two-sinusoid test signal falls sharply from $N=4$ to $N=16$, then plateaus. Why does it plateau rather than continue to zero?
+
+<details>
+<summary>Solution</summary>
+
+The companion prints errors $\approx 0.80\ (N{=}4),\ 0.39\ (N{=}8),\ 0.011\ (N{=}16),\ 0.0072\ (N{=}32),\ 0.0072\ (N{=}64)$. The sharp drop happens once $N$ is large enough to represent the signal's two frequencies (≈ 1.5 and 4 cycles on the window); beyond that the error plateaus at the **discretization floor** of the time-varying LegS recurrence at the chosen sample count ($L=1000$), not at zero. Adding more Legendre modes cannot beat the error already incurred by integrating the projection ODE on a finite grid — exactly the conditioning/discretization interaction of §7.5. The Julia and PyTorch companions reproduce these numbers to machine precision.
+</details>
+
+### Exercise 7.4 (theory) — solution in §7.10
+
+Show that the HiPPO-LegS matrix $\statemat$ is lower-triangular, and that its diagonal entries are $\statemat_{ii} = -(i+1)$, by appealing to the structure of the Legendre three-term recurrence. (You may take the off-diagonal closed form as given; the point is the *structure*.)
+
+### Exercise 7.5 (theory) — solution in §7.10
+
+Prove the best-approximation theorem (Theorem, §7.2): if $\{g_n\}$ is orthonormal in $L^2(\omega)$ and $c_n = \langle u, g_n\rangle_\omega$, then $\sum_n c_n g_n$ is the unique minimizer of $\lVert u - v\rVert_\omega$ over $v \in \operatorname{span}\{g_n\}$.
+
+### Exercise 7.6 (theory) — solution in §7.10
+
+Using lower-triangularity, prove that the eigenvalues of $\statemat$ are exactly $\{-1, \dots, -N\}$. Then show that ZOH discretization sends every eigenvalue strictly inside the unit disk for all $\stepsize > 0$, and identify the per-step decay rate of the $n$-th mode.
+
+## 7.10 Full solutions to theory exercises
+
+### Solution to Exercise 7.4
+
+The shifted Legendre polynomials satisfy a three-term recurrence in which $P_{n}$ is expressed through $P_{n-1}$ and $P_{n-2}$ — never through higher-degree polynomials. When the projection coefficient $c_n(t) = \langle u, \tilde P_n\rangle_{\omega_t}$ is differentiated in $t$, the time-derivative of the (scaled) measure couples $c_n$ to the inner products of $u$ against $\tilde P_m$ — and the recurrence guarantees only $m \le n$ appear. Hence $\ddt c_n$ depends on $c_0, \dots, c_n$ but not on $c_{n+1}, \dots$, which is exactly the statement that $\statemat$ has zero entries above the diagonal: $\statemat_{ij} = 0$ for $i < j$. For the diagonal, the "self-coupling" term of the $n$-th coefficient under the scaled measure contributes $-(n+1)$ (the normalization $\sqrt{2n+1}$ and the measure's $1/t$ scaling combine to the integer $n+1$); this is the $\statemat_{ii} = -(i+1)$ claim. The off-diagonal entries $-\sqrt{(2i+1)(2j+1)}$ for $i>j$ follow from the same expansion carried through the normalization, given here without the full bookkeeping. $\blacksquare$
+
+### Solution to Exercise 7.5
+
+Let $p = \sum_n c_n g_n$ with $c_n = \langle u, g_n\rangle_\omega$, and let $v = \sum_n a_n g_n$ be any element of $V = \operatorname{span}\{g_n\}$. First, the residual $u - p$ is orthogonal to every $g_m$:
+$$
+\langle u - p, g_m\rangle_\omega = \langle u, g_m\rangle_\omega - \sum_n c_n \langle g_n, g_m\rangle_\omega = c_m - c_m = 0,
+$$
+using orthonormality $\langle g_n, g_m\rangle = \delta_{nm}$. Therefore $u - p \perp V$, and in particular $u - p \perp (p - v)$ since $p - v \in V$. Now decompose and apply the Pythagorean theorem:
+$$
+\lVert u - v\rVert_\omega^2 = \lVert (u - p) + (p - v)\rVert_\omega^2 = \lVert u - p\rVert_\omega^2 + \lVert p - v\rVert_\omega^2 \ge \lVert u - p\rVert_\omega^2,
+$$
+with equality iff $\lVert p - v\rVert_\omega = 0$, i.e. $v = p$. So $p$ is the unique minimizer. $\blacksquare$
+
+### Solution to Exercise 7.6
+
+A lower-triangular matrix has its eigenvalues on the diagonal: $\det(\statemat - \lambda I)$ is the product of diagonal entries $\prod_i (\statemat_{ii} - \lambda)$ because the determinant of a triangular matrix is the product of its diagonal, and subtracting $\lambda I$ keeps it triangular. With $\statemat_{ii} = -(i+1)$ the roots are $\lambda_i = -(i+1)$ for $i = 0,\dots,N-1$, i.e. exactly $\{-1, -2, \dots, -N\}$ — real, distinct, strictly negative.
+
+Under ZOH the discrete dynamics matrix is $\discA = e^{\statemat\stepsize}$, whose eigenvalues are $\mu_i = e^{\lambda_i \stepsize}$. Then
+$$
+\abs{\mu_i} = \abs{e^{\lambda_i \stepsize}} = e^{\operatorname{Re}(\lambda_i)\stepsize} = e^{-(i+1)\stepsize} < 1 \quad\text{for all } \stepsize > 0,
+$$
+so every discrete eigenvalue lies strictly inside the unit disk (A-stability, Chapter 4). The per-step decay rate of mode $n$ is $e^{-(n+1)\stepsize}$: higher-index modes decay faster, giving the graded multi-timescale memory of §7.7. $\blacksquare$
+
+## 7.11 Companion code
+
+Three runnable companions for Chapter 7 — the first chapter with all three language tracks (the SSM core is where the foundations and numerics threads meet). All produce the *same* HiPPO-LegS matrix and the *same* reconstruction errors, which is itself the lesson: the mathematics is framework-independent; the idioms differ.
+
+**JAX** (`companions/ch07/jax/`):
+
+- `hippo_matrix.py` — builds the HiPPO-LegS $\statemat, \inputmat$ from the §7.3 closed form with a vectorized `jnp.where` (no Python loop, `jit`-fusable); emits `hippo_matrix_structure.png` and `hippo_eigenvalues.png`.
+- `hippo_reconstruction.py` — runs the time-varying LegS recurrence via `jax.lax.scan` and reconstructs the history; emits `legendre_basis.png` and `hippo_reconstruction.png`.
+- `tests/test_hippo.py` — pins the closed form, the integer spectrum, the reconstruction-error decay, and a `lax.scan`-vs-naive-loop equivalence guard.
+
+**Julia** (`companions/ch07/julia/`):
+
+- `hippo_legendre.jl` — the same operator with stdlib `LinearAlgebra` only; the encoder is an explicit `for` loop (the contrast to `lax.scan`), and the Legendre basis is built from the three-term recurrence.
+- `runtests.jl` — `@testset` assertions including an orthonormality Gram-matrix check.
+
+**PyTorch** (`companions/ch07/torch/`):
+
+- `hippo_operator.py` — HiPPO-LegS wrapped as an `nn.Module` projection operator (fixed buffers, zero learnable parameters); a define-by-run eager loop encodes the signal. This is the object Chapter 8's S4 layer extends.
+- `tests/test_hippo_torch.py` — cross-framework consistency: the matrix matches the closed form and the reconstruction errors reproduce the JAX/Julia numbers.
+
+To run from the repo root:
+
+```bash
+# JAX (uses the uv .venv with jax, numpy, scipy, matplotlib)
+PYTHONPATH=. python companions/ch07/jax/hippo_matrix.py
+PYTHONPATH=. python companions/ch07/jax/hippo_reconstruction.py
+
+# Julia (stdlib only; instantiates instantly)
+julia --project=companions/ch07/julia companions/ch07/julia/hippo_legendre.jl
+
+# PyTorch (needs the .venv [torch] extra)
+PYTHONPATH=. python companions/ch07/torch/hippo_operator.py
+```
+
+All figures emit to `public/figures/ch07/`.
