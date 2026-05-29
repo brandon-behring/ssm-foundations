@@ -128,7 +128,7 @@ For SSMs, condition number matters in three places:
 2. **S4 kernel computation.** S4's Vandermonde-Cauchy kernel construction requires inverting a matrix with structured but potentially ill-conditioned columns. The paper carefully handles the conditioning; naive implementations don't.
 3. **Mamba-3's complex-state design.** Chapter 10 discusses how Mamba-3 deliberately places eigenvalues in a region of the complex plane where the discrete-time map remains well-conditioned across the integration step <Cite key="lahoti2026mamba3" />.
 
-<Figure src="/figures/ch03/condition_number_growth.png" alt="Growth of the condition number of various structured matrices as size N increases." caption="Condition number κ(A) as a function of matrix size N for: a random Gaussian matrix (κ grows roughly linearly in N, modulo log factors); a Hilbert matrix (κ grows exponentially — the textbook example of ill-conditioning); the HiPPO-LegS matrix (κ stays bounded as N grows — its design feature). Produced by companions/ch03/jax/condition_number.py." />
+<Figure id="ch03:fig:condition-number-growth" src="/figures/ch03/condition_number_growth.png" alt="Growth of the condition number of various structured matrices as size N increases." caption="Condition number κ(A) as a function of matrix size N for: a random Gaussian matrix (κ grows roughly linearly in N, modulo log factors); a Hilbert matrix (κ grows exponentially — the textbook example of ill-conditioning); the HiPPO-LegS matrix (κ stays bounded as N grows — its design feature). Produced by companions/ch03/jax/condition_number.py." />
 
 ## 3.4 Structured matrix families
 
@@ -203,7 +203,7 @@ where $a_i$ is the (scalar) recurrence coefficient at step $i$. The $(i, j)$ ent
 
 When $L$ is moderate (say $\le 8192$) and the GPU favors matmul over scan, the matrix view wins; when $L$ is huge, the scan view wins. Mamba-2's chunked algorithm interpolates: matrix-multiplies *within* chunks of size $\sim 256$, scans *across* chunks. This is the structural reason Mamba-2 is faster than Mamba-1 on long sequences without sacrificing parallelism.
 
-<Figure src="/figures/ch03/structured_matrices.png" alt="Heatmap visualizations of Toeplitz, Vandermonde, Cauchy, and semiseparable matrices showing their structural patterns." caption="Structure of the four matrix families for N=8: Toeplitz (constant along diagonals — convolution); Vandermonde (powers of node values in rows); Cauchy (each entry is 1/(x_i - y_j)); 1-semiseparable lower triangular (each lower-triangular entry is the product of a prefix of off-diagonal factors). Color encodes log|entry|. Produced by companions/ch03/jax/structured_matrices.py." />
+<Figure id="ch03:fig:structured-matrices" src="/figures/ch03/structured_matrices.png" alt="Heatmap visualizations of Toeplitz, Vandermonde, Cauchy, and semiseparable matrices showing their structural patterns." caption="Structure of the four matrix families for N=8: Toeplitz (constant along diagonals — convolution); Vandermonde (powers of node values in rows); Cauchy (each entry is 1/(x_i - y_j)); 1-semiseparable lower triangular (each lower-triangular entry is the product of a prefix of off-diagonal factors). Color encodes log|entry|. Produced by companions/ch03/jax/structured_matrices.py." />
 
 ## 3.5 Low-rank corrections and rank-1 updates
 

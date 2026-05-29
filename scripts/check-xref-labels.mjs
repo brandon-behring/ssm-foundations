@@ -39,12 +39,24 @@ async function main() {
 
         for (let i = 0; i < lines.length; i++) {
             const line = lines[i];
-            const isTheoremOrFigure =
-                line.includes('<Theorem') || line.includes('<Figure');
-            if (!isTheoremOrFigure) continue;
+            const isTheorem = line.includes('<Theorem');
+            // A real <Figure> component carries attributes, so it always has a
+            // space after the tag (`<Figure src=...`). The bare `<Figure>` that
+            // appears in prose (e.g. "referenced from the `<Figure>` components")
+            // has no space and is correctly ignored.
+            const isRealFigure = line.includes('<Figure ');
+            if (!isTheorem && !isRealFigure) continue;
 
             const idMatch = line.match(/\bid="([^"]+)"/);
-            if (!idMatch) continue; // No id; not required (yet)
+            if (!idMatch) {
+                // Figure IDs are REQUIRED (audit 0527-F4); <Theorem> id stays optional.
+                if (isRealFigure) {
+                    violations.push(
+                        `${entry}:${i + 1}: <Figure> is missing a required id="ch##:fig:<slug>" (audit 0527-F4)`,
+                    );
+                }
+                continue;
+            }
             const id = idMatch[1];
 
             if (!ID_FORMAT.test(id)) {
