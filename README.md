@@ -2,7 +2,7 @@
 
 A lens-led 17-chapter foundations book for post-transformer sequence-model architectures, foregrounding the dynamical-systems perspective: continuous-time math first, then discretization theory, then the SSM family and its delta-rule / gating / hybrid cousins.
 
-> **Status — alpha (2026-05-24)**: scaffold landed. Chapters 1–3 are in active authoring; Ch 4–17 are stubbed. Expect breaking changes to structure and prose. Pre-release banner is live site-wide. Substantive feedback welcome via issues.
+> **Status — alpha (2026-05-24)**: scaffold landed. Chapters 1–6 are authored (`status: implemented`); Ch 7–17 are planned stubs. Expect breaking changes to structure and prose. Pre-release banner is live site-wide. Substantive feedback welcome via issues.
 
 ---
 
@@ -45,4 +45,4 @@ npm run build             # → dist/
 npx wrangler deploy       # → Cloudflare Workers
 ```
 
-Built with [`@brandon_m_behring/book-scaffold-astro`](https://github.com/brandon-behring/book-scaffold-astro) (academic preset, v4.2.0).
+Built with [`@brandon_m_behring/book-scaffold-astro`](https://github.com/brandon-behring/book-scaffold-astro) (academic preset, v4.8.0).
