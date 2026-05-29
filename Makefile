@@ -94,3 +94,9 @@ lint: check-bibkeys check-xrefs
 check: validate lint status-check
 	@echo ""
 	@echo "make check: all gates passed"
+
+# Local-only super-gate: `check` plus the companion test suites that need the uv
+# .venv (jax/pytest). NOT used by CI — validate.yml runs `check`, kept jax-free.
+# Run before pushing a Track-B PR.
+check-local: check companion-jax-tests
+	@echo "make check-local: content gates + companion tests passed"

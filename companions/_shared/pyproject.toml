@@ -2,7 +2,6 @@
 name = "ssm-foundations-companions"
 version = "0.1.0"
 description = "Companion-code dependencies for ssm-foundations Ch 1-17 (Python/JAX)."
-readme = "../README.md"
 requires-python = ">=3.11"
 dependencies = [
     "matplotlib>=3.9.0",
@@ -20,6 +19,8 @@ dev = [
     "black>=24.0",
     "ruff>=0.5",
     "mypy>=1.10",
+    "pytest>=7.0",
+    "pytest-cov>=4.0",
 ]
 # Optional torch extras: install via `pip install -e .[torch]` (or the
 # `uv pip install -e .[torch]` equivalent) when a chapter ships a PyTorch
