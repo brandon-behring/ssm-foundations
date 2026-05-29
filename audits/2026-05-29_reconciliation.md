@@ -13,6 +13,20 @@
 
 ---
 
+## Remediation status (live — updated 2026-05-29)
+
+Track A remediation executed on branch `remediation/track-a`. Status of findings against that branch:
+
+- **[RESOLVED] (Track A):** 0527-F1, F2, F3, F6, F8, F11, F12, F18, F19, F20, F30, F31, F32, F35, F36 (help-text portion); 0529-F1, F4. Each `remediation/track-a` commit cites `Closes 0527-Fn`.
+- **[DEFERRED → Phase 7] (needs runnable JAX/matplotlib env):** 0527-F34 (Ex 6.3 Δ=0.05 drift reproducibility), 0527-F14 (HiPPO-κ wording + figure-vs-claim check).
+- **[OPEN → Track B]:** 0527-F4 (XRef enforcement), F7 + F36 (Julia ch04 gate, full close), F26 (JAX pytest), F27 (torch); Manifest policy; stale remote branch. Tracked via the umbrella issue.
+- **[DISPUTED — no change]:** 0527-F16.
+- **[DEFERRED-C — unchanged]:** the Track-C rows in §1.3.
+
+The per-finding rows in §1.3 below are the original 2026-05-29 snapshot; this section is the authoritative live status.
+
+---
+
 ## 0. Why this pass exists
 
 The three prior audits constitute a sophisticated finding-tracking system (~106 KB, F-numbered, Track A/B/C, bracketed status). But the system **was never reconciled against the commits that followed it**, so its status markers are now wrong in *both* directions, and a naive reading materially misleads:
