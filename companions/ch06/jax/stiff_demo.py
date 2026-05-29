@@ -12,6 +12,29 @@ with $\\mu = 10$ (mildly stiff but well-behaved on float64). The limit
 cycle period is $\\sim 2.0 \\mu$ for large $\\mu$, with rapid jumps lasting
 $\\sim 1/\\mu$ — the fast time scale that constrains explicit step sizes.
 
+Idiomatic-JAX note (this companion is a NumPy→JAX teaching example)
+------------------------------------------------------------------
+Three idioms, each replacing a NumPy pattern:
+
+* **``jax.jacfwd`` replaces the hand-coded Jacobian.** The backward-Euler Newton
+  step needs $\\partial f/\\partial h$; instead of maintaining the analytic
+  ``vdp_jacobian`` by hand (a transcription-error risk), we differentiate
+  ``vdp_rhs`` with forward-mode autodiff. (The analytic form survives only as a
+  test oracle.)
+* **``lax.while_loop`` damped Newton mirrors NumPy's solve-to-tolerance loop.**
+  Backward Euler needs an implicit solve each step. We iterate damped Newton until
+  the residual falls below tolerance (``while_loop`` — the structured-control-flow
+  analogue of NumPy's ``while not converged``), with a ``jax.vmap``'d backtracking
+  line search that picks the residual-minimizing step fraction. (A *fixed*
+  iteration count under-converges during the van der Pol fast jumps at coarse dt;
+  the trajectory-wide ``test_backward_euler_residual`` guard catches that.)
+* **``jnp.where(|h| > 1e8, nan)`` replaces ``np.seterr`` + ``try/except``.** XLA
+  has no ``FloatingPointError``; explicit-RK divergence at coarse dt produces
+  ``inf``/``nan`` silently, so we mask the blown-up tail to ``nan`` *after* the
+  scan, letting the plot truncate at the same visual point.
+
+Both time integrations are ``jax.lax.scan`` over the step count.
+
 Output
 ------
 ``public/figures/ch06/stiff_blowup.png`` — two-panel figure showing RK4's
@@ -26,13 +49,18 @@ Usage
 
 from __future__ import annotations
 
+from functools import partial
 from pathlib import Path
-from typing import Callable
 
-import matplotlib.pyplot as plt
-import numpy as np
+import jax
 
-from companions._shared.plot_utils import (
+jax.config.update("jax_enable_x64", True)
+
+import jax.numpy as jnp  # noqa: E402
+import matplotlib.pyplot as plt  # noqa: E402
+import numpy as np  # noqa: E402
+
+from companions._shared.plot_utils import (  # noqa: E402
     SSM_COLORS,
     apply_style,
     create_tufte_figure,
@@ -44,24 +72,26 @@ from companions._shared.plot_utils import (
 _REPO_ROOT = Path(__file__).resolve().parents[3]
 _OUT_PATH = _REPO_ROOT / "public" / "figures" / "ch06" / "stiff_blowup"
 
-_MU: float = 10.0  # Mild stiffness — visible without breaking cold-start Newton at coarse dt.
+_MU: float = 10.0  # Stiffness parameter (mild; visible on float64).
+_BLOWUP_THRESHOLD: float = 1e8  # |state| above this is treated as RK4 divergence.
+_NEWTON_TOL: float = 1e-10  # backward-Euler Newton residual tolerance.
+_NEWTON_MAX_ITER: int = 60  # safeguard cap on damped-Newton iterations.
+# Backtracking step fractions (1, 1/2, ..., ~3e-5) for the line search: at a
+# coarse dt the forward-Euler warm start sits outside the pure-Newton basin
+# during the van der Pol fast jumps, so each iteration takes the
+# residual-minimizing fraction of the Newton step rather than the full step.
+_NEWTON_DAMPING = jnp.array([0.5**k for k in range(16)])
 
 
-def vdp_rhs(h: np.ndarray) -> np.ndarray:
+def vdp_rhs(h: jnp.ndarray) -> jnp.ndarray:
     """Van der Pol right-hand side $f(q, p) = (p, \\mu(1-q^2)p - q)$."""
     q, p = h
-    return np.array([p, _MU * (1.0 - q * q) * p - q])
+    return jnp.array([p, _MU * (1.0 - q * q) * p - q])
 
 
-def vdp_jacobian(h: np.ndarray) -> np.ndarray:
-    """Jacobian of the van der Pol RHS — needed for backward-Euler Newton."""
-    q, p = h
-    return np.array(
-        [
-            [0.0, 1.0],
-            [-2.0 * _MU * q * p - 1.0, _MU * (1.0 - q * q)],
-        ]
-    )
+# Forward-mode autodiff Jacobian — the teaching point; replaces a hand-coded
+# vdp_jacobian (kept only as the test oracle in test_stiff.py).
+_vdp_jac = jax.jacfwd(vdp_rhs)
 
 
 # ---------------------------------------------------------------------------
@@ -69,123 +99,96 @@ def vdp_jacobian(h: np.ndarray) -> np.ndarray:
 # ---------------------------------------------------------------------------
 
 
-def rk4_step(f: Callable[[np.ndarray], np.ndarray], h: np.ndarray, dt: float) -> np.ndarray:
-    """One step of classical Runge-Kutta 4 (autonomous form)."""
-    k1 = f(h)
-    k2 = f(h + 0.5 * dt * k1)
-    k3 = f(h + 0.5 * dt * k2)
-    k4 = f(h + dt * k3)
+def rk4_step(h: jnp.ndarray, dt: float) -> jnp.ndarray:
+    """One step of classical Runge-Kutta 4 on the van der Pol system (autonomous)."""
+    k1 = vdp_rhs(h)
+    k2 = vdp_rhs(h + 0.5 * dt * k1)
+    k3 = vdp_rhs(h + 0.5 * dt * k2)
+    k4 = vdp_rhs(h + dt * k3)
     return h + (dt / 6.0) * (k1 + 2.0 * k2 + 2.0 * k3 + k4)
 
 
 # ---------------------------------------------------------------------------
-# Backward Euler — solved via Newton iteration on g(x) = x - h - dt f(x) = 0
+# Backward Euler — Newton on g(x) = x - h - dt f(x) = 0, fixed iteration count
 # ---------------------------------------------------------------------------
 
 
 def backward_euler_step(
-    f: Callable[[np.ndarray], np.ndarray],
-    jac: Callable[[np.ndarray], np.ndarray],
-    h: np.ndarray,
-    dt: float,
-    tol: float = 1e-10,
-    max_iter: int = 50,
-) -> np.ndarray:
-    """Backward Euler with Newton iteration to solve the implicit equation.
+    h: jnp.ndarray, dt: float, tol: float = _NEWTON_TOL, max_iter: int = _NEWTON_MAX_ITER
+) -> jnp.ndarray:
+    """Backward Euler via a damped Newton solve iterated to tolerance.
 
-    Solves $g(x) = x - h - \\Delta f(x) = 0$ for $x = h_{k+1}$ using
-    Newton steps $x \\leftarrow x - g(x) / g'(x)$, where $g'(x) = I - \\Delta J(x)$.
-
-    Parameters
-    ----------
-    f : Callable
-        Right-hand side $f(h)$.
-    jac : Callable
-        Jacobian $\\partial f / \\partial h$.
-    h : ndarray, shape (n,)
-        Current state.
-    dt : float
-        Step size; positive.
-    tol : float
-        Convergence tolerance on the residual norm.
-    max_iter : int
-        Maximum Newton iterations.
-
-    Returns
-    -------
-    h_next : ndarray of shape (n,)
-        State at $t + \\Delta$.
-
-    Raises
-    ------
-    ValueError
-        If ``dt <= 0`` or Newton fails to converge within ``max_iter``.
+    Solves $g(x) = x - h - \\Delta f(x) = 0$ with damped Newton steps
+    $x \\leftarrow x - \\alpha\\,[I - \\Delta J(x)]^{-1} g(x)$ from a forward-Euler
+    warm start. The Jacobian $J$ comes from ``jax.jacfwd``. Each iteration runs a
+    JAX-clean backtracking line search — it evaluates the residual at a fixed set
+    of step fractions $\\alpha$ (``_NEWTON_DAMPING``) with ``jax.vmap`` and keeps
+    the smallest-residual candidate (``argmin``). The iteration count is *adaptive*
+    via ``jax.lax.while_loop`` (the analogue of NumPy's while-not-converged loop):
+    a fixed iteration count under-converges during the van der Pol fast jumps at
+    coarse dt, so we loop until $\\|g\\| < \\text{tol}$ (capped at ``max_iter``).
     """
-    if dt <= 0:
-        raise ValueError(f"dt must be positive, got {dt}")
-    n = h.shape[0]
-    Id = np.eye(n)
-    # Forward-Euler initial guess: closer to root than `h` alone for stiff problems.
-    x = h + dt * f(h)
-    g = x - h - dt * f(x)
-    g_norm = float(np.linalg.norm(g))
-    for _ in range(max_iter):
-        if g_norm < tol:
-            return x
-        Jg = Id - dt * jac(x)
-        delta = np.linalg.solve(Jg, g)
-        # Damped Newton: backtrack if the full step doesn't reduce the residual.
-        step = 1.0
-        for _ in range(20):
-            x_trial = x - step * delta
-            g_trial = x_trial - h - dt * f(x_trial)
-            g_trial_norm = float(np.linalg.norm(g_trial))
-            if g_trial_norm < g_norm:
-                x = x_trial
-                g = g_trial
-                g_norm = g_trial_norm
-                break
-            step *= 0.5
-        else:
-            # Even the smallest step didn't help — give up and report.
-            raise ValueError(
-                f"Backward Euler damped Newton stalled at dt={dt}; "
-                f"residual {g_norm:.3e}, state {x.tolist()}"
-            )
-    raise ValueError(f"Backward Euler Newton did not converge in {max_iter} iters at dt={dt}")
+    Id = jnp.eye(h.shape[0])
+
+    def resnorm(x):
+        return jnp.linalg.norm(x - h - dt * vdp_rhs(x))
+
+    def cond(state):  # keep iterating while not converged and under the cap
+        x, it = state
+        return (resnorm(x) > tol) & (it < max_iter)
+
+    def body(state):
+        x, it = state
+        delta = jnp.linalg.solve(Id - dt * _vdp_jac(x), x - h - dt * vdp_rhs(x))
+        candidates = x[None, :] - _NEWTON_DAMPING[:, None] * delta[None, :]  # (n_alpha, n)
+        return candidates[jnp.argmin(jax.vmap(resnorm)(candidates))], it + 1
+
+    x_final, _ = jax.lax.while_loop(cond, body, (h + dt * vdp_rhs(h), 0))
+    return x_final
 
 
 # ---------------------------------------------------------------------------
-# Simulate up to t_end and return trajectories
+# Simulate up to t_end and return trajectories (lax.scan time stepping)
 # ---------------------------------------------------------------------------
+
+
+@partial(jax.jit, static_argnums=2)
+def _rk4_trajectory(h0: jnp.ndarray, dt: float, n_steps: int) -> jnp.ndarray:
+    def step(h, _):  # carry = state; emit pre-step state
+        return rk4_step(h, dt), h
+
+    h_final, hs_head = jax.lax.scan(step, h0, None, length=n_steps - 1)
+    hs = jnp.concatenate([hs_head, h_final[None]])
+    # Explicit-RK divergence -> sentinel to NaN so the plot truncates (replaces
+    # NumPy's np.seterr/try-except; |nan| > thr is False so NaNs stay NaN).
+    return jnp.where(jnp.abs(hs) > _BLOWUP_THRESHOLD, jnp.nan, hs)
+
+
+@partial(jax.jit, static_argnums=2)
+def _be_trajectory(h0: jnp.ndarray, dt: float, n_steps: int) -> jnp.ndarray:
+    def step(h, _):
+        return backward_euler_step(h, dt), h
+
+    h_final, hs_head = jax.lax.scan(step, h0, None, length=n_steps - 1)
+    return jnp.concatenate([hs_head, h_final[None]])
 
 
 def simulate_rk4(h0: np.ndarray, dt: float, t_end: float) -> tuple[np.ndarray, np.ndarray]:
+    """Explicit RK4 trajectory; diverged tail is masked to NaN. Raises on dt/t_end <= 0."""
+    if dt <= 0 or t_end <= 0:
+        raise ValueError(f"dt and t_end must be positive, got dt={dt}, t_end={t_end}")
     n_steps = int(round(t_end / dt)) + 1
-    ts = np.arange(n_steps) * dt
-    hs = np.zeros((n_steps, h0.shape[0]))
-    hs[0] = h0
-    for k in range(n_steps - 1):
-        try:
-            hs[k + 1] = rk4_step(vdp_rhs, hs[k], dt)
-        except (FloatingPointError, OverflowError):
-            hs[k + 1 :] = np.nan
-            break
-        # Detect overflow / explosion explicitly so the plot truncates.
-        if np.any(np.abs(hs[k + 1]) > 1e8):
-            hs[k + 1 :] = np.nan
-            break
-    return ts, hs
+    hs = _rk4_trajectory(jnp.asarray(h0, dtype=jnp.float64), dt, n_steps)
+    return np.asarray(jnp.arange(n_steps) * dt), np.asarray(hs)
 
 
 def simulate_be(h0: np.ndarray, dt: float, t_end: float) -> tuple[np.ndarray, np.ndarray]:
+    """Backward-Euler trajectory (stable at any dt). Raises on dt/t_end <= 0."""
+    if dt <= 0 or t_end <= 0:
+        raise ValueError(f"dt and t_end must be positive, got dt={dt}, t_end={t_end}")
     n_steps = int(round(t_end / dt)) + 1
-    ts = np.arange(n_steps) * dt
-    hs = np.zeros((n_steps, h0.shape[0]))
-    hs[0] = h0
-    for k in range(n_steps - 1):
-        hs[k + 1] = backward_euler_step(vdp_rhs, vdp_jacobian, hs[k], dt)
-    return ts, hs
+    hs = _be_trajectory(jnp.asarray(h0, dtype=jnp.float64), dt, n_steps)
+    return np.asarray(jnp.arange(n_steps) * dt), np.asarray(hs)
 
 
 # ---------------------------------------------------------------------------
@@ -235,5 +238,4 @@ def main() -> None:
 
 
 if __name__ == "__main__":
-    np.seterr(over="raise", invalid="raise")
     main()
