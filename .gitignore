@@ -17,3 +17,7 @@ public/pagefind/
 *.swp
 __pycache__/
 *.pyc
+
+# Python venv (uv-managed; companion test env) + editable-install artifacts
+.venv/
+*.egg-info/

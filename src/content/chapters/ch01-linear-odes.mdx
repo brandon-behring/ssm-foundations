@@ -4,6 +4,7 @@ part: foundations
 title: Linear ODEs as state-space systems
 status: implemented
 description: Continuous-time linear systems, the matrix exponential as fundamental solution, the damped oscillator as canonical example, and the eigenvalue classification of phase portraits.
+notebook_path: notebooks/ch01-matrix-exponential.ipynb
 # v4.8.0 provenance — process-as-artifact audit trail. Fields reference only
 # files that exist in this repo (no DECISIONS.md / docs/sessions here, so those
 # fields are omitted). audits/ are repo-wide passes covering Ch 1–6 (implemented).
@@ -151,7 +152,7 @@ Three sub-cases follow from the sign of the discriminant $c^2 - 4k$:
 
 The **total energy** $E(t) = \tfrac{1}{2}(\dot q^2 + k q^2)$ is a useful diagnostic. Its time derivative is $\dot E = -c \dot q^2 \le 0$, i.e. energy decreases monotonically whenever $\dot q \ne 0$. Both stationary and oscillating trajectories satisfy this. The companion `damped_oscillator.py` simulates the underdamped regime and plots $E(t)$ alongside the trajectory; the energy curve gives an at-a-glance check that the numerical integration preserves the dissipation structure of the continuous system.
 
-<Figure src="/figures/ch01/energy_decay.png" alt="Energy decay of the damped harmonic oscillator over time, plotted on linear and log scales." caption="Energy E(t) of the underdamped oscillator (k=4, c=0.2) decaying exponentially in time. Left: linear scale, showing the envelope shape. Right: log scale, where the constant slope confirms the exponential decay rate of c/2 in the energy norm. Produced by companions/ch01/jax/damped_oscillator.py." />
+<Figure id="ch01:fig:energy-decay" src="/figures/ch01/energy_decay.png" alt="Energy decay of the damped harmonic oscillator over time, plotted on linear and log scales." caption="Energy E(t) of the underdamped oscillator (k=4, c=0.2) decaying exponentially in time. Left: linear scale, showing the envelope shape. Right: log scale, where the constant slope confirms the exponential decay rate of c/2 in the energy norm. Produced by companions/ch01/jax/damped_oscillator.py." />
 
 ## 1.4 Coupled systems and the Jacobian
 
@@ -173,7 +174,7 @@ $$
 
 (for the underdamped regime). Each $m$ indexes a **standing wave mode** on the ring with wavenumber $2\pi m / n$; the $m=0$ mode is uniform translation (no spatial structure), $m = n/2$ (when $n$ is even) is the maximally-oscillating mode where adjacent oscillators move in antiphase. The companion `coupled_oscillators.py` constructs $\statemat$ for $n = 8$ and visualizes the eigenvalues in the complex plane.
 
-<Figure src="/figures/ch01/jacobian_eigenvalues.png" alt="Eigenvalues of the coupled-oscillator Jacobian in the complex plane, showing two arcs corresponding to the underdamped modes." caption="Eigenvalues of the ring-of-oscillators Jacobian for n=8, k=4, c=0.2, κ=1. All 16 eigenvalues sit in the left half-plane (asymptotically stable) and arrange into two arcs corresponding to the two underdamped families. The arc curvature reflects the dispersion relation ω(m) of the spatial Laplacian. Produced by companions/ch01/jax/coupled_oscillators.py." />
+<Figure id="ch01:fig:jacobian-eigenvalues" src="/figures/ch01/jacobian_eigenvalues.png" alt="Eigenvalues of the coupled-oscillator Jacobian in the complex plane, showing two arcs corresponding to the underdamped modes." caption="Eigenvalues of the ring-of-oscillators Jacobian for n=8, k=4, c=0.2, κ=1. All 16 eigenvalues sit in the left half-plane (asymptotically stable) and arrange into two arcs corresponding to the two underdamped families. The arc curvature reflects the dispersion relation ω(m) of the spatial Laplacian. Produced by companions/ch01/jax/coupled_oscillators.py." />
 
 The key qualitative lesson: **once you have the right state-space lift, even a system with rich spatial structure reduces to "compute eigenvalues of $\statemat$, classify by real and imaginary parts."** The eigenvalue distribution of a trained SSM's $\statemat$ — pre-training, mid-training, and converged — is one of the most informative diagnostics you can compute (Chapter 2, §2.2; Chapter 5).
 

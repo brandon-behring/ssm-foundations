@@ -7,7 +7,7 @@
 #
 # Audit reference: audits/2026-05-25_standards_vs_post_transformers.md#F10
 
-.PHONY: help validate build-bib build-labels build status-snapshot status-check check-bibkeys check-xrefs lint check companion-julia-tests
+.PHONY: help validate build-bib build-labels build status-snapshot status-check check-bibkeys check-xrefs lint check companion-julia-tests companion-jax-tests companion-torch-tests check-local check-local-torch
 
 # Default — print available targets.
 help:
@@ -25,6 +25,8 @@ help:
 	@echo "  check-xrefs       - validate <Theorem id=...>  + <Figure id=...> (audit F7)"
 	@echo "  companion-julia-tests"
 	@echo "                    - run julia runtests.jl in ch05, ch06 (ch04 manual; needs Pkg.instantiate)"
+	@echo "  companion-jax-tests   - run JAX companion pytest suites (.venv; excludes torch)"
+	@echo "  companion-torch-tests - run PyTorch companion pytest suites (.venv [torch] extra)"
 	@echo ""
 	@echo "  lint              - check-bibkeys + check-xrefs (fast)"
 	@echo "  check             - validate + lint + status-check (full gate)"
@@ -81,6 +83,19 @@ companion-julia-tests:
 		julia --project=companions/$$ch/julia companions/$$ch/julia/runtests.jl || exit 1; \
 	done
 
+# Companion testing (JAX track — audit 0527-F26). Local gate only: deliberately
+# NOT wired into `check` (which CI runs, and where jax is unavailable). Run via
+# pre-commit / `make check-local`. Requires the uv-managed .venv (see .gitignore).
+companion-jax-tests:
+	@.venv/bin/pytest companions -q --ignore-glob='*/torch/*'
+
+# Companion testing (PyTorch track — audit 0527-F26). Separate target because
+# torch is an optional, heavy dependency: install it with
+#   uv pip install -e 'companions/_shared[torch]'
+# Local gate only; never wired into `check` (CI stays jax/torch-free).
+companion-torch-tests:
+	@.venv/bin/pytest companions/ch01/torch companions/ch02/torch companions/ch03/torch -q
+
 # Composite gates.
 
 lint: check-bibkeys check-xrefs
@@ -88,3 +103,14 @@ lint: check-bibkeys check-xrefs
 check: validate lint status-check
 	@echo ""
 	@echo "make check: all gates passed"
+
+# Local-only super-gate: `check` plus the companion test suites that need the uv
+# .venv (jax/pytest). NOT used by CI — validate.yml runs `check`, kept jax-free.
+# Run before pushing a Track-B PR.
+check-local: check companion-jax-tests
+	@echo "make check-local: content gates + companion tests passed"
+
+# Full local super-gate including the PyTorch companions (needs the [torch] extra).
+# CI still runs only `check`; this is the broadest local gate.
+check-local-torch: check companion-jax-tests companion-torch-tests
+	@echo "make check-local-torch: content gates + jax + torch companion tests passed"

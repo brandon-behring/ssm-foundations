@@ -1,0 +1,231 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>ch01-matrix-exponential.ipynb — executable companion</title>
+  <style>
+    body { font-family: system-ui, sans-serif; margin: 2rem auto; max-width: 60rem; padding: 0 1rem; }
+    .notebook-frame { font-size: 0.95rem; line-height: 1.55; }
+    .notebook-frame pre { background: #f5f5f4; padding: 0.5rem 0.8rem; border-radius: 4px; overflow-x: auto; }
+    .notebook-frame code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
+    .notebook-frame h1, .notebook-frame h2, .notebook-frame h3 { line-height: 1.2; }
+    .notebook-frame img { max-width: 100%; height: auto; }
+    .notebook-frame table { border-collapse: collapse; }
+    .notebook-frame table td, .notebook-frame table th { padding: 0.3em 0.6em; border: 1px solid #ddd; }
+    .companion-header { padding: 0.5rem 0; border-bottom: 1px solid #ddd; margin-bottom: 1.5rem; font-size: 0.85rem; color: #666; }
+    .companion-header a { color: #3B6FA0; }
+  </style>
+</head>
+<body>
+  <div class="companion-header">
+    Executable companion — <code>ch01-matrix-exponential.ipynb</code>.
+  </div>
+  <div class="notebook-frame">
+    <div class="cell border-box-sizing text_cell rendered" id="cell-id=35b0343c"><div class="prompt input_prompt">
+</div><div class="inner_cell">
+<div class="text_cell_render border-box-sizing rendered_html">
+<h1 id="Matrix-exponential-across-array-frameworks-%E2%80%94-NumPy-%E2%86%92-JAX-%E2%86%92-PyTorch">Matrix exponential across array frameworks — NumPy → JAX → PyTorch<a class="anchor-link" href="#Matrix-exponential-across-array-frameworks-%E2%80%94-NumPy-%E2%86%92-JAX-%E2%86%92-PyTorch">¶</a></h1><p><strong>Code companion to Chapter 1, section 1.2.</strong> The chapter prose is canonical; this
+notebook is a runnable, <em>output-free</em> companion that puts the three array-framework
+idioms side by side. All the load-bearing logic lives in the chapter's companion
+modules (<code>companions/ch01/jax/matrix_exponential.py</code>,
+<code>companions/ch01/torch/matrix_exponential.py</code>), each pinned by its own pytest suite —
+this notebook is thin glue that calls them and narrates the contrast.</p>
+<p>Run it from the repo root with the companions on the path:</p>
+<pre><code>uv run jupyter lab notebooks/ch01-matrix-exponential.ipynb
+</code></pre>
+<p>(The first cell puts the repo root on <code>sys.path</code> so the <code>companions</code> package imports
+regardless of where Jupyter was launched.)</p>
+</div>
+</div>
+</div>
+<div class="cell border-box-sizing text_cell rendered" id="cell-id=2dc415c6"><div class="prompt input_prompt">
+</div><div class="inner_cell">
+<div class="text_cell_render border-box-sizing rendered_html">
+<h2 id="The-computation">The computation<a class="anchor-link" href="#The-computation">¶</a></h2><p>The matrix exponential is the power series <code>e^M = sum_{k&gt;=0} M^k / k!</code>. Truncating at
+order K gives a partial sum <code>S_K</code>. Convergence is fast when the spectral radius of M
+is small and catastrophically slow when it is large (section 1.2) — which is <em>why</em>
+production code uses Pade-plus-scaling (<code>scipy.linalg.expm</code>, <code>torch.linalg.matrix_exp</code>)
+rather than naive truncation.</p>
+<p>The partial sums form a recurrence, <code>S_k = S_{k-1} + M^k / k!</code>, and computing the
+per-order error is a sweep over those partial sums. <em>How</em> each framework expresses
+that recurrence and that sweep is the whole point of the comparison below.</p>
+</div>
+</div>
+</div>
+<div class="cell border-box-sizing code_cell rendered" id="cell-id=41b819db">
+<div class="input">
+<div class="prompt input_prompt">In [ ]:</div>
+<div class="inner_cell">
+<div class="input_area">
+<div class="highlight hl-ipython3"><pre><span></span><span class="c1"># Put the repo root on sys.path so the `companions` namespace imports however</span>
+<span class="c1"># Jupyter was launched (mirrors pytest's `pythonpath = .`).</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">sys</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">pathlib</span><span class="w"> </span><span class="kn">import</span> <span class="n">Path</span>
+<span class="n">_root</span> <span class="o">=</span> <span class="nb">next</span><span class="p">(</span><span class="n">p</span> <span class="k">for</span> <span class="n">p</span> <span class="ow">in</span> <span class="p">[</span><span class="n">Path</span><span class="o">.</span><span class="n">cwd</span><span class="p">(),</span> <span class="o">*</span><span class="n">Path</span><span class="o">.</span><span class="n">cwd</span><span class="p">()</span><span class="o">.</span><span class="n">parents</span><span class="p">]</span> <span class="k">if</span> <span class="p">(</span><span class="n">p</span> <span class="o">/</span> <span class="s2">"companions"</span><span class="p">)</span><span class="o">.</span><span class="n">is_dir</span><span class="p">())</span>
+<span class="k">if</span> <span class="nb">str</span><span class="p">(</span><span class="n">_root</span><span class="p">)</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">sys</span><span class="o">.</span><span class="n">path</span><span class="p">:</span>
+    <span class="n">sys</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">insert</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="nb">str</span><span class="p">(</span><span class="n">_root</span><span class="p">))</span>
+
+<span class="kn">import</span><span class="w"> </span><span class="nn">numpy</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">np</span>
+
+<span class="kn">import</span><span class="w"> </span><span class="nn">jax</span>
+<span class="n">jax</span><span class="o">.</span><span class="n">config</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="s2">"jax_enable_x64"</span><span class="p">,</span> <span class="kc">True</span><span class="p">)</span>  <span class="c1"># JAX: float64 is a *global* config switch</span>
+
+<span class="kn">import</span><span class="w"> </span><span class="nn">torch</span>  <span class="c1"># PyTorch: precision is set *per tensor* (dtype=torch.float64)</span>
+
+<span class="kn">from</span><span class="w"> </span><span class="nn">companions.ch01.jax</span><span class="w"> </span><span class="kn">import</span> <span class="n">matrix_exponential</span> <span class="k">as</span> <span class="n">me_jax</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">companions.ch01.torch</span><span class="w"> </span><span class="kn">import</span> <span class="n">matrix_exponential</span> <span class="k">as</span> <span class="n">me_torch</span>
+
+<span class="c1"># A 2x2 test matrix with modest spectral radius (the series converges quickly).</span>
+<span class="n">A</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">([[</span><span class="o">-</span><span class="mf">0.5</span><span class="p">,</span> <span class="mf">1.0</span><span class="p">],</span> <span class="p">[</span><span class="o">-</span><span class="mf">1.0</span><span class="p">,</span> <span class="o">-</span><span class="mf">0.5</span><span class="p">]])</span>
+</pre></div>
+</div>
+</div>
+</div>
+</div>
+<div class="cell border-box-sizing text_cell rendered" id="cell-id=d7b0b066"><div class="prompt input_prompt">
+</div><div class="inner_cell">
+<div class="text_cell_render border-box-sizing rendered_html">
+<h2 id="1.-NumPy-%E2%80%94-the-baseline-idiom">1. NumPy — the baseline idiom<a class="anchor-link" href="#1.-NumPy-%E2%80%94-the-baseline-idiom">¶</a></h2><p>Accumulate the running term and running total in an interpreted Python loop. This is
+the reference both other frameworks are measured against.</p>
+</div>
+</div>
+</div>
+<div class="cell border-box-sizing code_cell rendered" id="cell-id=98bccac5">
+<div class="input">
+<div class="prompt input_prompt">In [ ]:</div>
+<div class="inner_cell">
+<div class="input_area">
+<div class="highlight hl-ipython3"><pre><span></span><span class="k">def</span><span class="w"> </span><span class="nf">numpy_truncated_series</span><span class="p">(</span><span class="n">M</span><span class="p">,</span> <span class="n">K</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">"""Naive NumPy partial sum S_K via a Python accumulation loop."""</span>
+    <span class="n">total</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">eye</span><span class="p">(</span><span class="n">M</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">])</span>
+    <span class="n">term</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">eye</span><span class="p">(</span><span class="n">M</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">])</span>
+    <span class="k">for</span> <span class="n">k</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="n">K</span> <span class="o">+</span> <span class="mi">1</span><span class="p">):</span>
+        <span class="n">term</span> <span class="o">=</span> <span class="n">term</span> <span class="o">@</span> <span class="n">M</span> <span class="o">/</span> <span class="n">k</span>  <span class="c1"># M^k / k!  from  M^{k-1}/(k-1)!</span>
+        <span class="n">total</span> <span class="o">=</span> <span class="n">total</span> <span class="o">+</span> <span class="n">term</span>
+    <span class="k">return</span> <span class="n">total</span>
+
+<span class="n">numpy_truncated_series</span><span class="p">(</span><span class="n">A</span><span class="p">,</span> <span class="mi">20</span><span class="p">)</span>
+</pre></div>
+</div>
+</div>
+</div>
+</div>
+<div class="cell border-box-sizing text_cell rendered" id="cell-id=f35371e8"><div class="prompt input_prompt">
+</div><div class="inner_cell">
+<div class="text_cell_render border-box-sizing rendered_html">
+<h2 id="2.-JAX-%E2%80%94-lax.scan-+-vmap-+-jit">2. JAX — <code>lax.scan</code> + <code>vmap</code> + <code>jit</code><a class="anchor-link" href="#2.-JAX-%E2%80%94-lax.scan-+-vmap-+-jit">¶</a></h2><p>The partial-sum recurrence becomes a single <code>jax.lax.scan</code> that threads <code>(term, total)</code>
+as the carry and <em>emits every partial sum in one fused, compiled pass</em> (O(K) instead of
+NumPy's O(K^2) recompute over a sweep). The per-order error sweep is a <code>jax.vmap</code>. The
+whole pipeline is <code>jit</code>-compiled; <code>scipy.linalg.expm</code> is the reference.</p>
+</div>
+</div>
+</div>
+<div class="cell border-box-sizing code_cell rendered" id="cell-id=94f5d3ef">
+<div class="input">
+<div class="prompt input_prompt">In [ ]:</div>
+<div class="inner_cell">
+<div class="input_area">
+<div class="highlight hl-ipython3"><pre><span></span><span class="c1"># series_partial_sums uses jax.lax.scan; convergence_errors uses jax.vmap.</span>
+<span class="n">S_jax</span> <span class="o">=</span> <span class="n">me_jax</span><span class="o">.</span><span class="n">series_partial_sums</span><span class="p">(</span><span class="n">A</span><span class="p">,</span> <span class="mi">20</span><span class="p">)</span>     <span class="c1"># shape (21, 2, 2): S_0 .. S_20</span>
+<span class="n">errs_jax</span> <span class="o">=</span> <span class="n">me_jax</span><span class="o">.</span><span class="n">convergence_errors</span><span class="p">(</span><span class="n">A</span><span class="p">,</span> <span class="mi">20</span><span class="p">)</span>   <span class="c1"># relative Frobenius error vs scipy.expm</span>
+<span class="n">S_jax</span><span class="p">[</span><span class="mi">20</span><span class="p">],</span> <span class="n">errs_jax</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span>
+</pre></div>
+</div>
+</div>
+</div>
+</div>
+<div class="cell border-box-sizing text_cell rendered" id="cell-id=a9bfbf49"><div class="prompt input_prompt">
+</div><div class="inner_cell">
+<div class="text_cell_render border-box-sizing rendered_html">
+<h2 id="3.-PyTorch-%E2%80%94-eager-loop-+-batched-norm-+-native-matrix_exp">3. PyTorch — eager loop + batched norm + native <code>matrix_exp</code><a class="anchor-link" href="#3.-PyTorch-%E2%80%94-eager-loop-+-batched-norm-+-native-matrix_exp">¶</a></h2><p>PyTorch is <em>define-by-run</em> and has no <code>scan</code> primitive, so the same recurrence is a plain
+eager Python loop — the loop <em>is</em> the program. The per-order error is a batched
+<code>torch.linalg.norm</code> over the stacked partial sums (the counterpart of JAX's <code>vmap</code>), and
+<code>torch.linalg.matrix_exp</code> is a <em>native</em> reference (JAX borrowed it from SciPy).</p>
+</div>
+</div>
+</div>
+<div class="cell border-box-sizing code_cell rendered" id="cell-id=23aabfef">
+<div class="input">
+<div class="prompt input_prompt">In [ ]:</div>
+<div class="inner_cell">
+<div class="input_area">
+<div class="highlight hl-ipython3"><pre><span></span><span class="n">S_torch</span> <span class="o">=</span> <span class="n">me_torch</span><span class="o">.</span><span class="n">series_partial_sums</span><span class="p">(</span><span class="n">A</span><span class="p">,</span> <span class="mi">20</span><span class="p">)</span>     <span class="c1"># eager loop -&gt; stacked partial sums</span>
+<span class="n">errs_torch</span> <span class="o">=</span> <span class="n">me_torch</span><span class="o">.</span><span class="n">convergence_errors</span><span class="p">(</span><span class="n">A</span><span class="p">,</span> <span class="mi">20</span><span class="p">)</span>   <span class="c1"># batched norm vs torch.linalg.matrix_exp</span>
+<span class="n">S_torch</span><span class="p">[</span><span class="mi">20</span><span class="p">],</span> <span class="n">errs_torch</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span>
+</pre></div>
+</div>
+</div>
+</div>
+</div>
+<div class="cell border-box-sizing text_cell rendered" id="cell-id=9761f318"><div class="prompt input_prompt">
+</div><div class="inner_cell">
+<div class="text_cell_render border-box-sizing rendered_html">
+<h2 id="The-contrast,-at-a-glance">The contrast, at a glance<a class="anchor-link" href="#The-contrast,-at-a-glance">¶</a></h2><table>
+<thead>
+<tr>
+<th>Concern</th>
+<th>NumPy</th>
+<th>JAX</th>
+<th>PyTorch</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Partial-sum recurrence</td>
+<td>Python <code>for</code> loop</td>
+<td><code>jax.lax.scan</code> (fused)</td>
+<td>eager <code>for</code> loop (define-by-run)</td>
+</tr>
+<tr>
+<td>Per-order error sweep</td>
+<td>list comprehension</td>
+<td><code>jax.vmap</code></td>
+<td>batched <code>torch.linalg.norm</code></td>
+</tr>
+<tr>
+<td>Compilation</td>
+<td>none (interpreted)</td>
+<td><code>jit</code> → XLA</td>
+<td>eager (opt-in <code>torch.compile</code>)</td>
+</tr>
+<tr>
+<td>float64</td>
+<td>default</td>
+<td>global <code>jax_enable_x64</code></td>
+<td>per-tensor <code>dtype</code></td>
+</tr>
+<tr>
+<td>Reference <code>expm</code></td>
+<td><code>scipy.linalg.expm</code></td>
+<td><code>scipy.linalg.expm</code></td>
+<td><code>torch.linalg.matrix_exp</code> (native)</td>
+</tr>
+</tbody>
+</table>
+<p>The same <code>lax.scan</code> primitive that fuses this toy recurrence is exactly what powers the
+S4 / Mamba <em>selective scan</em> in later chapters — which is why the framework's handling of
+recurrences, not just its array ops, is worth meeting early.</p>
+</div>
+</div>
+</div>
+<div class="cell border-box-sizing code_cell rendered" id="cell-id=59476ae8">
+<div class="input">
+<div class="prompt input_prompt">In [ ]:</div>
+<div class="inner_cell">
+<div class="input_area">
+<div class="highlight hl-ipython3"><pre><span></span><span class="c1"># All three implement the same math: the truncated series converges to e^A. Each</span>
+<span class="c1"># companion's pytest suite pins this independently; here we just confirm the JAX and</span>
+<span class="c1"># PyTorch companions agree with each other (and hence with their native references).</span>
+<span class="k">assert</span> <span class="n">np</span><span class="o">.</span><span class="n">allclose</span><span class="p">(</span><span class="n">errs_jax</span><span class="p">,</span> <span class="n">errs_torch</span><span class="p">,</span> <span class="n">atol</span><span class="o">=</span><span class="mf">1e-12</span><span class="p">)</span>
+<span class="k">assert</span> <span class="n">np</span><span class="o">.</span><span class="n">allclose</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">S_jax</span><span class="p">[</span><span class="mi">20</span><span class="p">]),</span> <span class="n">S_torch</span><span class="p">[</span><span class="mi">20</span><span class="p">]</span><span class="o">.</span><span class="n">numpy</span><span class="p">(),</span> <span class="n">atol</span><span class="o">=</span><span class="mf">1e-12</span><span class="p">)</span>
+<span class="nb">print</span><span class="p">(</span><span class="s2">"JAX and PyTorch agree to 1e-12; both match their native matrix-exponential reference."</span><span class="p">)</span>
+</pre></div>
+</div>
+</div>
+</div>
+</div>
+
+  </div>
+</body>
+</html>

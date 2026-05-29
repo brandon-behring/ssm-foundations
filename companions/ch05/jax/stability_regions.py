@@ -13,6 +13,17 @@ figures referenced by Chapter 5:
    visualizing the contrast between bounded (explicit) and unbounded
    (exponential/rational) stability regions.
 
+Idiomatic-JAX note (this companion is a NumPy→JAX teaching example)
+------------------------------------------------------------------
+* **``jax.vmap`` replaces the per-grid-point solve loop.** The explicit-RK
+  stability function $R(z) = 1 + z\\,b^\\top (I - zA)^{-1}\\mathbf{1}$ needs a tiny
+  linear solve at every point of the complex grid. NumPy ran a Python
+  ``for idx, z_val in enumerate(z.ravel())`` loop with one ``np.linalg.solve``
+  per point; ``jax.vmap`` maps the single-point solve over the flattened grid in
+  one batched, compiled call.
+* The closed-form ZOH ($e^z$) and bilinear stability functions already vectorise;
+  only ``np → jnp`` changes there.
+
 Output paths
 ------------
 ``public/figures/ch05/{butcher_tableaux,rk_stability_regions,atlas_stability}.png``
@@ -30,10 +41,15 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Callable
 
-import matplotlib.pyplot as plt
-import numpy as np
+import jax
 
-from companions._shared.plot_utils import (
+jax.config.update("jax_enable_x64", True)
+
+import jax.numpy as jnp  # noqa: E402
+import matplotlib.pyplot as plt  # noqa: E402
+import numpy as np  # noqa: E402
+
+from companions._shared.plot_utils import (  # noqa: E402
     SSM_COLORS,
     apply_style,
     create_tufte_figure,
@@ -56,9 +72,9 @@ class Tableau:
     """A Runge-Kutta Butcher tableau (A, b, c) with $s$ stages."""
 
     name: str
-    A: np.ndarray  # shape (s, s); strictly lower triangular for explicit methods
-    b: np.ndarray  # shape (s,)
-    c: np.ndarray  # shape (s,)
+    A: jnp.ndarray  # shape (s, s); strictly lower triangular for explicit methods
+    b: jnp.ndarray  # shape (s,)
+    c: jnp.ndarray  # shape (s,)
     order: int
 
     @property
@@ -67,15 +83,16 @@ class Tableau:
 
 
 def forward_euler_tableau() -> Tableau:
-    return Tableau(name="Forward Euler", A=np.array([[0.0]]), b=np.array([1.0]), c=np.array([0.0]), order=1)
+    return Tableau(name="Forward Euler", A=jnp.array([[0.0]]), b=jnp.array([1.0]),
+                   c=jnp.array([0.0]), order=1)
 
 
 def midpoint_rk2_tableau() -> Tableau:
     return Tableau(
         name="Midpoint RK2",
-        A=np.array([[0.0, 0.0], [0.5, 0.0]]),
-        b=np.array([0.0, 1.0]),
-        c=np.array([0.0, 0.5]),
+        A=jnp.array([[0.0, 0.0], [0.5, 0.0]]),
+        b=jnp.array([0.0, 1.0]),
+        c=jnp.array([0.0, 0.5]),
         order=2,
     )
 
@@ -83,7 +100,7 @@ def midpoint_rk2_tableau() -> Tableau:
 def classical_rk4_tableau() -> Tableau:
     return Tableau(
         name="Classical RK4",
-        A=np.array(
+        A=jnp.array(
             [
                 [0.0, 0.0, 0.0, 0.0],
                 [0.5, 0.0, 0.0, 0.0],
@@ -91,15 +108,15 @@ def classical_rk4_tableau() -> Tableau:
                 [0.0, 0.0, 1.0, 0.0],
             ]
         ),
-        b=np.array([1.0 / 6.0, 1.0 / 3.0, 1.0 / 3.0, 1.0 / 6.0]),
-        c=np.array([0.0, 0.5, 0.5, 1.0]),
+        b=jnp.array([1.0 / 6.0, 1.0 / 3.0, 1.0 / 3.0, 1.0 / 6.0]),
+        c=jnp.array([0.0, 0.5, 0.5, 1.0]),
         order=4,
     )
 
 
 def rkf45_tableau() -> Tableau:
     """Runge-Kutta-Fehlberg 4(5) tableau (Fehlberg 1969, 5th-order weights)."""
-    A = np.array(
+    A = jnp.array(
         [
             [0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
             [1 / 4, 0.0, 0.0, 0.0, 0.0, 0.0],
@@ -109,8 +126,8 @@ def rkf45_tableau() -> Tableau:
             [-8 / 27, 2.0, -3544 / 2565, 1859 / 4104, -11 / 40, 0.0],
         ]
     )
-    b = np.array([16 / 135, 0.0, 6656 / 12825, 28561 / 56430, -9 / 50, 2 / 55])
-    c = np.array([0.0, 1 / 4, 3 / 8, 12 / 13, 1.0, 1 / 2])
+    b = jnp.array([16 / 135, 0.0, 6656 / 12825, 28561 / 56430, -9 / 50, 2 / 55])
+    c = jnp.array([0.0, 1 / 4, 3 / 8, 12 / 13, 1.0, 1 / 2])
     return Tableau(name="RKF 4(5)", A=A, b=b, c=c, order=5)
 
 
@@ -122,29 +139,33 @@ def rkf45_tableau() -> Tableau:
 # ---------------------------------------------------------------------------
 
 
-def explicit_stab_fn(tab: Tableau) -> Callable[[np.ndarray], np.ndarray]:
-    """Build $R(z) = 1 + z b^\\top (I - z A)^{-1} \\mathbf{1}$ for an explicit tableau."""
-    A, b = tab.A, tab.b
-    ones = np.ones(tab.s)
+def explicit_stab_fn(tab: Tableau) -> Callable[[jnp.ndarray], jnp.ndarray]:
+    """Build $R(z) = 1 + z b^\\top (I - z A)^{-1} \\mathbf{1}$ for an explicit tableau.
 
-    def R(z: np.ndarray) -> np.ndarray:
-        out = np.zeros_like(z)
-        flat = z.ravel()
-        for idx, z_val in enumerate(flat):
-            M = np.eye(tab.s) - z_val * A
-            kappa = np.linalg.solve(M, ones)
-            out.flat[idx] = 1.0 + z_val * (b @ kappa)
-        return out
+    The per-point linear solve is mapped over the complex grid with ``jax.vmap``
+    (replacing the NumPy ``for`` loop over ``z.ravel()`` — see the module note).
+    """
+    A, b = tab.A, tab.b
+    ones = jnp.ones(tab.s)
+    eye = jnp.eye(tab.s)
+
+    def R_scalar(z: jnp.ndarray) -> jnp.ndarray:
+        kappa = jnp.linalg.solve(eye - z * A, ones)
+        return 1.0 + z * (b @ kappa)
+
+    def R(z: jnp.ndarray) -> jnp.ndarray:
+        z = jnp.asarray(z)
+        return jax.vmap(R_scalar)(z.ravel()).reshape(z.shape)
 
     return R
 
 
-def zoh_stab_fn(z: np.ndarray) -> np.ndarray:
+def zoh_stab_fn(z: jnp.ndarray) -> jnp.ndarray:
     """ZOH and exp-trapezoidal share $R(z) = e^z$ on the Dahlquist test problem."""
-    return np.exp(z)
+    return jnp.exp(z)
 
 
-def bilinear_stab_fn(z: np.ndarray) -> np.ndarray:
+def bilinear_stab_fn(z: jnp.ndarray) -> jnp.ndarray:
     """Bilinear (Tustin): $R(z) = (1 + z/2)/(1 - z/2)$."""
     return (1.0 + z / 2.0) / (1.0 - z / 2.0)
 
@@ -158,9 +179,9 @@ def _augmented_matrix(tab: Tableau) -> np.ndarray:
     """Build the (s+1) x (s+1) array [[A | b]; [c^T | 0]] for visualization."""
     s = tab.s
     M = np.zeros((s + 1, s + 1))
-    M[:s, :s] = tab.A
-    M[:s, s] = tab.b
-    M[s, :s] = tab.c
+    M[:s, :s] = np.asarray(tab.A)
+    M[:s, s] = np.asarray(tab.b)
+    M[s, :s] = np.asarray(tab.c)
     return M
 
 
@@ -201,7 +222,7 @@ def _make_grid(
     im_range: tuple[float, float] = (-4.0, 4.0),
     n: int = 401,
 ) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
-    """Return (RE, IM, Z) meshgrid suitable for plotting stability regions."""
+    """Return (RE, IM, Z) meshgrid (NumPy, for matplotlib) for stability regions."""
     re = np.linspace(re_range[0], re_range[1], n)
     im = np.linspace(im_range[0], im_range[1], n)
     RE, IM = np.meshgrid(re, im)
@@ -221,7 +242,7 @@ def make_rk_stability_figure() -> plt.Figure:
 
     for tab, color in zip(tabs, colors):
         R = explicit_stab_fn(tab)
-        modulus = np.abs(R(Z))
+        modulus = np.asarray(jnp.abs(R(Z)))
         # Filled contour: region where |R| <= 1.
         ax.contourf(RE, IM, modulus, levels=[0.0, 1.0], colors=[color], alpha=0.35)
         # Boundary curve |R| = 1.
@@ -251,14 +272,14 @@ def make_atlas_stability_figure() -> plt.Figure:
     ax.axvline(0.0, color=SSM_COLORS["baseline"], linewidth=0.5)
 
     # Forward Euler (bounded disk)
-    R_fe = explicit_stab_fn(forward_euler_tableau())(Z)
-    ax.contourf(RE, IM, np.abs(R_fe), levels=[0.0, 1.0], colors=[SSM_COLORS["baseline"]], alpha=0.30)
-    ax.contour(RE, IM, np.abs(R_fe), levels=[1.0], colors=[SSM_COLORS["baseline"]], linewidths=1.2)
+    R_fe = np.asarray(jnp.abs(explicit_stab_fn(forward_euler_tableau())(Z)))
+    ax.contourf(RE, IM, R_fe, levels=[0.0, 1.0], colors=[SSM_COLORS["baseline"]], alpha=0.30)
+    ax.contour(RE, IM, R_fe, levels=[1.0], colors=[SSM_COLORS["baseline"]], linewidths=1.2)
 
     # Classical RK4 (bounded kidney)
-    R_rk4 = explicit_stab_fn(classical_rk4_tableau())(Z)
-    ax.contourf(RE, IM, np.abs(R_rk4), levels=[0.0, 1.0], colors=[SSM_COLORS["highlight"]], alpha=0.30)
-    ax.contour(RE, IM, np.abs(R_rk4), levels=[1.0], colors=[SSM_COLORS["highlight"]], linewidths=1.2)
+    R_rk4 = np.asarray(jnp.abs(explicit_stab_fn(classical_rk4_tableau())(Z)))
+    ax.contourf(RE, IM, R_rk4, levels=[0.0, 1.0], colors=[SSM_COLORS["highlight"]], alpha=0.30)
+    ax.contour(RE, IM, R_rk4, levels=[1.0], colors=[SSM_COLORS["highlight"]], linewidths=1.2)
 
     # ZOH / exp-trap (entire LHP — shade the LHP).
     ax.axvspan(-6.0, 0.0, alpha=0.18, color=SSM_COLORS["alert"])

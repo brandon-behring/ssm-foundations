@@ -205,20 +205,33 @@ def simulate(
     ------
     ValueError
         If ``dt <= 0`` or ``t_end <= 0``.
+
+    Notes
+    -----
+    The time recurrence is expressed with ``jax.lax.scan`` rather than a Python
+    ``for`` loop: the carry is the hidden state ``h`` and each step emits
+    ``y_k = C h_k``. This is the idiomatic JAX spelling of a linear recurrence —
+    and the very same scan primitive that powers the S4 / Mamba selective scan in
+    later chapters. It is also pure (no in-place ``ys[k] = ...`` mutation) and
+    fuses into a single compiled kernel.
     """
     if dt <= 0 or t_end <= 0:
         raise ValueError(f"dt and t_end must both be positive, got dt={dt}, t_end={t_end}")
     Ad, Bd = discretizer(_A_MAT, _B_VEC, dt)
     n_steps = int(round(t_end / dt)) + 1
-    h = jnp.zeros(2, dtype=_A_MAT.dtype)
-    ts = np.array([k * dt for k in range(n_steps)])
-    u_vals = drive(ts)
-    ys = np.zeros(n_steps)
-    for k in range(n_steps - 1):
-        ys[k] = float((_C_ROW @ h).item())
-        h = stepper(Ad, Bd, h, float(u_vals[k]), float(u_vals[k + 1]))
-    ys[-1] = float((_C_ROW @ h).item())
-    return ts, ys
+    ts = jnp.arange(n_steps, dtype=_A_MAT.dtype) * dt
+    u_vals = jnp.sin(2.0 * ts)  # drive(t) = sin(2t) as a JAX array
+
+    def step(h, u_pair):  # carry = hidden state h; xs = (u_k, u_{k+1}) pairs
+        u_k, u_kp1 = u_pair
+        y_k = _C_ROW @ h
+        h_next = stepper(Ad, Bd, h, u_k, u_kp1)
+        return h_next, y_k
+
+    h0 = jnp.zeros(2, dtype=_A_MAT.dtype)
+    h_final, ys_head = jax.lax.scan(step, h0, (u_vals[:-1], u_vals[1:]))
+    ys = jnp.concatenate([ys_head, (_C_ROW @ h_final)[None]])
+    return np.asarray(ts), np.asarray(ys)
 
 
 def continuous_reference(t_end: float, t_grid: np.ndarray) -> np.ndarray:

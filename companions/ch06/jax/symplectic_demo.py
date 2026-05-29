@@ -15,6 +15,14 @@ Two test systems:
    solutions above the separatrix; phase-space visualization makes the
    geometric difference visible.
 
+Idiomatic-JAX note (this companion is a NumPy→JAX teaching example)
+------------------------------------------------------------------
+* **``jax.lax.scan`` replaces the Python ``for k in range(n_steps)`` loop.** The
+  carry is the phase-space point $(q, p)$; each step applies one integrator
+  update and emits the pre-step state. No in-place ``qs[k+1] = ...`` mutation;
+  the whole trajectory fuses into one compiled kernel — the same scan primitive
+  as the S4 / Mamba selective scan.
+
 Output
 ------
 ``public/figures/ch06/energy_drift.png`` — energy vs time for both methods.
@@ -32,10 +40,15 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Callable
 
-import matplotlib.pyplot as plt
-import numpy as np
+import jax
 
-from companions._shared.plot_utils import (
+jax.config.update("jax_enable_x64", True)
+
+import jax.numpy as jnp  # noqa: E402
+import matplotlib.pyplot as plt  # noqa: E402
+import numpy as np  # noqa: E402
+
+from companions._shared.plot_utils import (  # noqa: E402
     SSM_COLORS,
     apply_style,
     create_tufte_figure,
@@ -53,32 +66,32 @@ _OUT_DIR = _REPO_ROOT / "public" / "figures" / "ch06"
 # ---------------------------------------------------------------------------
 
 
-def harmonic_T_grad(p: float) -> float:
+def harmonic_T_grad(p: jnp.ndarray) -> jnp.ndarray:
     """$\\partial T/\\partial p = p$ for the harmonic oscillator."""
     return p
 
 
-def harmonic_V_grad(q: float) -> float:
+def harmonic_V_grad(q: jnp.ndarray) -> jnp.ndarray:
     """$\\partial V/\\partial q = q$ for the harmonic oscillator."""
     return q
 
 
-def harmonic_H(q: float, p: float) -> float:
+def harmonic_H(q: jnp.ndarray, p: jnp.ndarray) -> jnp.ndarray:
     return 0.5 * (p * p + q * q)
 
 
-def pendulum_T_grad(p: float) -> float:
+def pendulum_T_grad(p: jnp.ndarray) -> jnp.ndarray:
     """$\\partial T/\\partial p = p$ for the pendulum (unit mass)."""
     return p
 
 
-def pendulum_V_grad(q: float) -> float:
+def pendulum_V_grad(q: jnp.ndarray) -> jnp.ndarray:
     """$\\partial V/\\partial q = \\sin q$ for the pendulum."""
-    return float(np.sin(q))
+    return jnp.sin(q)
 
 
-def pendulum_H(q: float, p: float) -> float:
-    return 0.5 * p * p - float(np.cos(q))
+def pendulum_H(q: jnp.ndarray, p: jnp.ndarray) -> jnp.ndarray:
+    return 0.5 * p * p - jnp.cos(q)
 
 
 # ---------------------------------------------------------------------------
@@ -86,10 +99,10 @@ def pendulum_H(q: float, p: float) -> float:
 # ---------------------------------------------------------------------------
 
 
-def rk4_step_hamilton(T_grad: Callable[[float], float], V_grad: Callable[[float], float], q: float, p: float, dt: float) -> tuple[float, float]:
+def rk4_step_hamilton(T_grad: Callable, V_grad: Callable, q: jnp.ndarray, p: jnp.ndarray, dt: float) -> tuple[jnp.ndarray, jnp.ndarray]:
     """Classical RK4 on $\\dot q = T'(p), \\dot p = -V'(q)$ — not symplectic."""
 
-    def f(state: tuple[float, float]) -> tuple[float, float]:
+    def f(state: tuple[jnp.ndarray, jnp.ndarray]) -> tuple[jnp.ndarray, jnp.ndarray]:
         qq, pp = state
         return (T_grad(pp), -V_grad(qq))
 
@@ -102,7 +115,7 @@ def rk4_step_hamilton(T_grad: Callable[[float], float], V_grad: Callable[[float]
     return q_next, p_next
 
 
-def verlet_step(T_grad: Callable[[float], float], V_grad: Callable[[float], float], q: float, p: float, dt: float) -> tuple[float, float]:
+def verlet_step(T_grad: Callable, V_grad: Callable, q: jnp.ndarray, p: jnp.ndarray, dt: float) -> tuple[jnp.ndarray, jnp.ndarray]:
     """Störmer-Verlet (symplectic, 2nd order, time-reversible).
 
     Half-kick / drift / half-kick:
@@ -123,21 +136,41 @@ def verlet_step(T_grad: Callable[[float], float], V_grad: Callable[[float], floa
 
 def simulate(
     stepper: Callable,
-    T_grad: Callable[[float], float],
-    V_grad: Callable[[float], float],
+    T_grad: Callable,
+    V_grad: Callable,
     q0: float,
     p0: float,
     dt: float,
     n_steps: int,
 ) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
-    """Return ``(ts, qs, ps)`` arrays of length ``n_steps + 1`` from a stepper."""
-    ts = np.arange(n_steps + 1) * dt
-    qs = np.zeros(n_steps + 1)
-    ps = np.zeros(n_steps + 1)
-    qs[0], ps[0] = q0, p0
-    for k in range(n_steps):
-        qs[k + 1], ps[k + 1] = stepper(T_grad, V_grad, float(qs[k]), float(ps[k]), dt)
-    return ts, qs, ps
+    """Return ``(ts, qs, ps)`` arrays of length ``n_steps + 1`` from a stepper.
+
+    The time loop is a ``jax.lax.scan``: the carry is the phase-space point
+    $(q, p)$ and each step emits the pre-update state.
+    """
+    def step(carry, _):  # carry = (q, p); emit pre-step state
+        q, p = carry
+        q_next, p_next = stepper(T_grad, V_grad, q, p, dt)
+        return (q_next, p_next), (q, p)
+
+    init = (jnp.asarray(q0, dtype=jnp.float64), jnp.asarray(p0, dtype=jnp.float64))
+    (q_f, p_f), (qs_head, ps_head) = jax.lax.scan(step, init, None, length=n_steps)
+    qs = jnp.concatenate([qs_head, q_f[None]])
+    ps = jnp.concatenate([ps_head, p_f[None]])
+    ts = jnp.arange(n_steps + 1) * dt
+    return np.asarray(ts), np.asarray(qs), np.asarray(ps)
+
+
+def rk4_drift_per_period(dt: float = 0.05, periods: int = 100) -> float:
+    """Mean RK4 energy drift per period on the harmonic oscillator (Exercise 6.3).
+
+    Returns $(E(T) - E_0) / \\text{periods}$ for the unit harmonic oscillator from
+    $(q_0, p_0) = (1, 0)$; at $\\Delta = 0.05$ this is $\\approx -1.4\\times 10^{-8}$.
+    """
+    n_steps = int(round(periods * 2 * np.pi / dt))
+    _, qs, ps = simulate(rk4_step_hamilton, harmonic_T_grad, harmonic_V_grad, 1.0, 0.0, dt, n_steps)
+    energy = 0.5 * (ps**2 + qs**2)
+    return float((energy[-1] - 0.5) / periods)
 
 
 # ---------------------------------------------------------------------------
@@ -228,6 +261,10 @@ def main() -> None:
     for p in paths:
         print(f"Wrote {p}")
     plt.close(fig2)
+
+    # Exercise 6.3 (0527-F34): make the Δ=0.05 RK4 drift rate reproducible.
+    drift_005 = rk4_drift_per_period(dt=0.05, periods=100)
+    print(f"  RK4 drift @ Δ=0.05: {drift_005:.3e} energy/period (Exercise 6.3 ≈ 1.4e-8)")
 
 
 if __name__ == "__main__":
