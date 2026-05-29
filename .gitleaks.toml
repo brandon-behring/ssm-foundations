@@ -1,0 +1,20 @@
+# gitleaks config for ssm-foundations.
+#
+# Extends the default gitleaks ruleset (so normal secret detection is unchanged
+# for source files) and adds a narrow path allowlist: Julia `Manifest.toml`
+# files are full of package UUIDs (e.g. `94b1ba4f-4ee9-5380-92f1-94cde586c3c5`)
+# that the generic-api-key entropy heuristic flags as secrets. They are
+# deterministic registry identifiers, not credentials — ch04's Manifest alone
+# has ~487 of them, so per-line `.gitleaksignore` fingerprints are impractical.
+#
+# (Bibkey/cite false positives in chapter MDX stay allowlisted by fingerprint in
+# `.gitleaksignore`; this file only adds the Manifest path allowlist.)
+
+[extend]
+useDefault = true
+
+[allowlist]
+description = "Julia Manifest.toml package UUIDs are not secrets"
+paths = [
+    '''companions/.*/julia/Manifest\.toml$''',
+]
