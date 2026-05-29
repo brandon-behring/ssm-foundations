@@ -79,7 +79,7 @@ $$
 
 which is the source of the polynomial-in-$t$ factors mentioned in Chapter 1, §1.2 — they appear exactly when there are Jordan blocks of size $> 1$.
 
-For SSM analysis, the diagonalizable case dominates. Almost every $\statemat$ arising from random initialization or from training is diagonalizable; the non-diagonalizable case is a codimension-one subset of parameter space and shows up only at carefully-tuned boundaries. **In practice the assumption "$\statemat$ is diagonalizable" is essentially always valid; the Jordan form is the worst-case fallback.**
+For SSM analysis, the diagonalizable case dominates. Almost every $\statemat$ arising from random initialization or from training is diagonalizable; the non-diagonalizable case is a codimension-one subset of parameter space and shows up only at carefully-tuned boundaries. **For generic random $\statemat$ the diagonalizable assumption holds (non-diagonalizability is measure-zero); but structured or learned $\statemat$ — HiPPO-LegS, S4's DPLR parametrization, the critically-damped regime of §1.3 — can carry Jordan structure by design, and Chapter 2's Lyapunov theorem explicitly handles the defective case.**
 
 <MarginNote>The polynomial-factor blow-up in defective Jordan blocks is the reason Chapter 2's Lyapunov stability theorem includes the caveat about defective imaginary eigenvalues — a defective $\lambda = 0$ produces $t^{k-1}$ growth.</MarginNote>
 
