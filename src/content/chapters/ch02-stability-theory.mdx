@@ -166,7 +166,7 @@ The four examples above:
 
 ### Why this matters for SSMs
 
-The S4 family uses ZOH discretization, and is therefore stable at every step size for which the continuous system is stable. Mamba-1 uses ZOH as well. Mamba-3's exponential-trapezoidal rule (Chapter 10) is a second-order generalization of bilinear that retains A-stability. The C1 research pilot (see Chapter 6) asks whether *symplectic* integrators — A-stable methods designed to preserve geometric invariants — can do better for complex-state SSMs whose $\statemat$ has near-imaginary eigenvalues.
+The S4 family uses ZOH discretization, and is therefore stable at every step size for which the continuous system is stable. Mamba-1 uses ZOH as well. Mamba-3's exponential-trapezoidal rule (Chapter 10) is a second-order generalization of bilinear that retains A-stability <Cite key="lahoti2026mamba3" />. The C1 research pilot (see Chapter 6) asks whether *symplectic* integrators — A-stable methods designed to preserve geometric invariants — can do better for complex-state SSMs whose $\statemat$ has near-imaginary eigenvalues.
 
 When a stability-region analysis fails, it usually fails dramatically: a forward-Euler discretization of a stiff system blows up in a handful of steps. This is exactly the failure mode that careful integrator choice prevents.
 

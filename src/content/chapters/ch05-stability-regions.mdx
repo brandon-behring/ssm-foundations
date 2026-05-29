@@ -28,7 +28,7 @@ import Figure from '@brandon_m_behring/book-scaffold-astro/components/Figure.ast
 
 **Reading time**: ~45 minutes prose; 60–90 minutes with the JAX and Julia companions.
 
-**Key insight**: the choice of discretization for an SSM is a choice of *point in Butcher-tableau space*. ZOH and exp-trapezoidal sit in the exponential-integrator corner of that space; bilinear is the trapezoidal-rule corner; the Mamba-3 paper effectively shops for tableau-space points that combine A-stability with second-order accuracy. The **Dahlquist barrier** (§5.4) says you cannot have everything at once: no explicit Runge–Kutta method is both A-stable *and* of order higher than 2. This is the structural reason the next chapter switches to implicit methods.
+**Key insight**: the choice of discretization for an SSM is a choice of *point in Butcher-tableau space*. ZOH and exp-trapezoidal sit in the exponential-integrator corner of that space; bilinear is the trapezoidal-rule corner; the Mamba-3 paper <Cite key="lahoti2026mamba3" /> effectively shops for tableau-space points that combine A-stability with second-order accuracy. The **Dahlquist barrier** (§5.4) says you cannot have everything at once: no explicit Runge–Kutta method is both A-stable *and* of order higher than 2. This is the structural reason the next chapter switches to implicit methods.
 </NoteBox>
 
 ## 5.1 Runge–Kutta methods and the Butcher tableau

@@ -115,7 +115,7 @@ For SSMs, condition number matters in three places:
 
 1. **HiPPO matrix construction.** The HiPPO-LegS matrix has structure that keeps its condition number bounded as $N$ grows — this is *why* HiPPO is the standard initialization. Random initializations typically give $\kappa$ growing as $N^{O(1)}$ or worse.
 2. **S4 kernel computation.** S4's Vandermonde-Cauchy kernel construction requires inverting a matrix with structured but potentially ill-conditioned columns. The paper carefully handles the conditioning; naive implementations don't.
-3. **Mamba-3's complex-state design.** Chapter 10 discusses how Mamba-3 deliberately places eigenvalues in a region of the complex plane where the discrete-time map remains well-conditioned across the integration step.
+3. **Mamba-3's complex-state design.** Chapter 10 discusses how Mamba-3 deliberately places eigenvalues in a region of the complex plane where the discrete-time map remains well-conditioned across the integration step <Cite key="lahoti2026mamba3" />.
 
 <Figure src="/figures/ch03/condition_number_growth.png" alt="Growth of the condition number of various structured matrices as size N increases." caption="Condition number κ(A) as a function of matrix size N for: a random Gaussian matrix (κ grows roughly linearly in N, modulo log factors); a Hilbert matrix (κ grows exponentially — the textbook example of ill-conditioning); the HiPPO-LegS matrix (κ stays bounded as N grows — its design feature). Produced by companions/ch03/jax/condition_number.py." />
 
