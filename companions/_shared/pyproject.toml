@@ -29,6 +29,14 @@ dev = [
 torch = [
     "torch>=2.4.0",
 ]
+# Notebook tooling for the Phase 9 comparison notebooks. The scaffold renders
+# output-free .ipynb to HTML via `npm run build:notebooks` (book-scaffold
+# render-notebooks), which calls `uv run jupyter nbconvert`. Install:
+#   uv pip install -e 'companions/_shared[notebooks]'
+notebooks = [
+    "nbconvert>=7.0",
+    "ipykernel>=6.0",
+]
 
 [tool.black]
 line-length = 100

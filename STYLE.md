@@ -305,6 +305,33 @@ companions/chXX/julia/runtests.jl`.
 block with an absolute GitHub URL pinned to `main`. See
 `companions/README.md` §"Port-credit convention" (audit F4).
 
+**Comparison notebooks (policy — resolves audit 0527-F5).** Companion
+*scripts* are the canonical, tested code artifacts (each chapter's
+`companions/chXX/{jax,torch}/tests/` pins its numerical claims). *Notebooks*
+are an optional secondary layer: curated, cross-framework **comparison
+companions** that put the NumPy / JAX / PyTorch idioms side by side as a
+teaching narrative. The predecessor `post_transformers` shipped weekly
+notebooks; here scripts are primary and notebooks are the curated overlay.
+Conventions:
+
+- **Location + naming.** One `.ipynb` per topic under `notebooks/`, named
+  `chXX-<topic>.ipynb` (e.g. `notebooks/ch01-matrix-exponential.ipynb`).
+- **Output-free.** Source notebooks store **no** cell outputs — the rendered
+  HTML is code + markdown only. The chapter prose and its figures are
+  canonical; the notebook is a runnable companion, not a figure source.
+- **Thin glue over tested code.** Notebooks *import* the companion functions
+  (`from companions.chXX.jax import …`) rather than re-implement logic, so
+  their substance is covered by the companions' pytest suites. A first cell
+  puts the repo root on `sys.path` (mirrors pytest's `pythonpath = .`).
+- **Rendering.** `npm run build:notebooks` (book-scaffold `render-notebooks`,
+  run on `prebuild`) converts each non-stub `.ipynb` to standalone HTML under
+  `public/notebooks/` via `uv run jupyter nbconvert --template basic`; the
+  committed HTML is the CI/Cloudflare artifact (the step graceful-skips when
+  `uv` is absent). Tooling: `uv pip install -e 'companions/_shared[notebooks]'`.
+- **Linking.** Set `notebook_path: notebooks/chXX-<topic>.ipynb` in the chapter
+  frontmatter; the chapter header surfaces a "Notebook" link to
+  `/notebooks/chXX-<topic>.html`.
+
 ---
 
 ## 9. Margin notes
