@@ -27,6 +27,7 @@ Hamiltonian systems; a method for computing all of them*. Meccanica 15(1).
 
 from __future__ import annotations
 
+import sys
 from pathlib import Path
 
 import matplotlib.pyplot as plt
@@ -43,7 +44,6 @@ from companions._shared.plot_utils import (
 )
 
 # Reuse the ring-Jacobian builder from Ch 1.
-import sys
 sys.path.insert(0, str(Path(__file__).resolve().parents[3]))
 from companions.ch01.jax.coupled_oscillators import build_ring_state_matrix  # noqa: E402
 

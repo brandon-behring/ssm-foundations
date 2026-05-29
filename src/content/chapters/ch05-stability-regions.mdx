@@ -4,6 +4,17 @@ part: foundations
 status: implemented
 title: 'Stability regions, Butcher tableau, and order conditions'
 description: Runge–Kutta theory, the Butcher tableau formalism, order conditions, stability regions in the complex plane, A-stability and L-stability, and the Dahlquist barrier — applied to the Chapter 4 discretization atlas.
+# v4.8.0 provenance — process-as-artifact audit trail. Fields reference only
+# files that exist in this repo (no DECISIONS.md / docs/sessions here, so those
+# fields are omitted). audits/ are repo-wide passes covering Ch 1–6 (implemented).
+provenance:
+  ai_tools:
+    - Claude Code
+  audit_history:
+    - { date: 2026-05-25, type: standards, file: audits/2026-05-25_standards_vs_post_transformers.md }
+    - { date: 2026-05-27, type: deep-repo-audit, file: audits/2026-05-27_repo_audit_deeper.md }
+    - { date: 2026-05-29, type: reconciliation, file: audits/2026-05-29_reconciliation.md }
+  citation_backstop: research-kb
 ---
 
 {/*
@@ -28,7 +39,7 @@ import Figure from '@brandon_m_behring/book-scaffold-astro/components/Figure.ast
 
 **Reading time**: ~45 minutes prose; 60–90 minutes with the JAX and Julia companions.
 
-**Key insight**: the choice of discretization for an SSM is a choice of *point in Butcher-tableau space*. ZOH and exp-trapezoidal sit in the exponential-integrator corner of that space; bilinear is the trapezoidal-rule corner; the Mamba-3 paper effectively shops for tableau-space points that combine A-stability with second-order accuracy. The **Dahlquist barrier** (§5.4) says you cannot have everything at once: no explicit Runge–Kutta method is both A-stable *and* of order higher than 2. This is the structural reason the next chapter switches to implicit methods.
+**Key insight**: the choice of discretization for an SSM is a choice of *point in Butcher-tableau space*. ZOH and exp-trapezoidal sit in the exponential-integrator corner of that space; bilinear is the trapezoidal-rule corner; the Mamba-3 paper <Cite key="lahoti2026mamba3" /> effectively shops for tableau-space points that combine A-stability with second-order accuracy. The **Dahlquist barrier** (§5.4) says you cannot have everything at once: no explicit Runge–Kutta method is both A-stable *and* of order higher than 2. This is the structural reason the next chapter switches to implicit methods.
 </NoteBox>
 
 ## 5.1 Runge–Kutta methods and the Butcher tableau
@@ -93,13 +104,13 @@ The derivation expands $\statevec(t_k + \stepsize)$ as a Taylor series and match
 - **Order 3**: also $\sum_i b_i c_i^2 = 1/3$ and $\sum_{i,j} b_i a_{ij} c_j = 1/6$
 - **Order 4**: four more conditions involving products of $b_i, c_i, a_{ij}$
 
-For systems (the case we actually care about), the number of order conditions grows combinatorially: **5 conditions for order 4, 17 for order 5, 37 for order 6** <Cite key="hairer1993ordinary" />. Butcher organized these conditions using a bijection between order-conditions and **rooted trees** (each tree corresponds to an integer partition of $f$-evaluations and gives one polynomial identity). The combinatorial explosion is one reason 8th-order RK methods are rarely used: there are over 200 order conditions to satisfy simultaneously, and the resulting tableaux have dozens of stages.
+For systems (the case we actually care about), the number of order conditions grows combinatorially: the **cumulative** count through order $p$ is **1, 2, 4, 8, 17, 37** for $p = 1, \ldots, 6$ — one condition per Butcher tree of order $\le p$ <Cite key="hairer1993ordinary" />. Butcher organized these conditions using a bijection between order-conditions and **rooted trees** (each tree corresponds to an integer partition of $f$-evaluations and gives one polynomial identity). The combinatorial explosion is one reason 8th-order RK methods are rarely used: there are over 200 order conditions to satisfy simultaneously, and the resulting tableaux have dozens of stages.
 
 <Theorem id="ch05:order-conditions" type="theorem">
 **(Butcher order conditions.)** Suppose $f$ is sufficiently smooth. An $s$-stage Runge–Kutta method with tableau $(A, b, c)$ is of order $p$ — meaning $\statevec_{k+1} - \statevec(t_{k+1}) = O(\stepsize^{p+1})$ — if and only if a specific finite set of polynomial conditions on $(A, b, c)$ holds (one per Butcher tree of order $\le p$). The Lax equivalence theorem (Chapter 4) then guarantees global convergence at order $p$.
 </Theorem>
 
-The proof is non-trivial and we will not reproduce it; the canonical reference is Hairer–Nørsett–Wanner Chapter II.2 <Cite key="hairer1993ordinary" />. For our purposes the takeaway is that **the order of an RK method is a property of its tableau entries**, derivable by algebraic manipulation alone. You can verify (Exercise 5.1) that RK4's tableau satisfies all 4 order-4 conditions; you can also verify (Exercise 5.2) that an arbitrary two-stage explicit tableau cannot achieve order higher than 2, regardless of how you choose the free parameters.
+The proof is non-trivial and we will not reproduce it; the canonical reference is Hairer–Nørsett–Wanner Chapter II.2 <Cite key="hairer1993ordinary" />. For our purposes the takeaway is that **the order of an RK method is a property of its tableau entries**, derivable by algebraic manipulation alone. You can verify (Exercise 5.1) that RK4's tableau satisfies the order conditions through order 3; you can also verify (Exercise 5.2) that an arbitrary two-stage explicit tableau cannot achieve order higher than 2, regardless of how you choose the free parameters.
 
 <Figure src="/figures/ch05/butcher_tableaux.png" alt="Butcher tableau matrix visualizations for forward Euler, midpoint RK2, classical RK4, and Runge-Kutta-Fehlberg 4(5)." caption="Butcher tableau matrices for four canonical methods, visualized as heatmaps of the (A | b, c) augmented matrix. Forward Euler (1×1, trivial). Midpoint RK2 (2×2, single off-diagonal). Classical RK4 (4×4, characteristic strictly-lower-triangular A with the $b = (1/6, 1/3, 1/3, 1/6)$ weights). RKF45 (6×6, dense lower-triangular). The sparsity pattern of A is what distinguishes explicit from implicit methods. Produced by companions/ch05/jax/stability_regions.py." />
 
@@ -195,7 +206,7 @@ Six problems. Short/numerical (5.1–5.3) have inline collapsible solutions; lon
 
 ### Exercise 5.1 (computation)
 
-Verify that classical RK4 satisfies the four order-conditions of order 4 — at least the simpler ones: $\sum b_i = 1$, $\sum b_i c_i = 1/2$, $\sum b_i c_i^2 = 1/3$. Use the tableau in §5.1.
+Verify that classical RK4 satisfies the order conditions through order 3: $\sum b_i = 1$ (order 1), $\sum b_i c_i = 1/2$ (order 2), $\sum b_i c_i^2 = 1/3$ (order 3). Use the tableau in §5.1. (RK4's fourth-order accuracy additionally requires the four order-4 conditions — one per order-4 rooted tree, e.g. $\sum_i b_i c_i^3 = 1/4$ — which make a good extension.)
 
 <details>
 <summary>Solution</summary>

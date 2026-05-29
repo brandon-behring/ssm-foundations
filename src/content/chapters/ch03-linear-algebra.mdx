@@ -4,6 +4,17 @@ part: foundations
 title: 'Linear algebra for sequence models: structured matrices and conditioning'
 status: implemented
 description: Eigenvalue and SVD decompositions, condition number, the four structured-matrix families (Toeplitz, Vandermonde, Cauchy, semiseparable), low-rank updates, and a Krylov-subspace primer — the linear-algebra vocabulary later chapters assume.
+# v4.8.0 provenance — process-as-artifact audit trail. Fields reference only
+# files that exist in this repo (no DECISIONS.md / docs/sessions here, so those
+# fields are omitted). audits/ are repo-wide passes covering Ch 1–6 (implemented).
+provenance:
+  ai_tools:
+    - Claude Code
+  audit_history:
+    - { date: 2026-05-25, type: standards, file: audits/2026-05-25_standards_vs_post_transformers.md }
+    - { date: 2026-05-27, type: deep-repo-audit, file: audits/2026-05-27_repo_audit_deeper.md }
+    - { date: 2026-05-29, type: reconciliation, file: audits/2026-05-29_reconciliation.md }
+  citation_backstop: research-kb
 ---
 
 {/*
@@ -68,7 +79,7 @@ $$
 
 which is the source of the polynomial-in-$t$ factors mentioned in Chapter 1, §1.2 — they appear exactly when there are Jordan blocks of size $> 1$.
 
-For SSM analysis, the diagonalizable case dominates. Almost every $\statemat$ arising from random initialization or from training is diagonalizable; the non-diagonalizable case is a codimension-one subset of parameter space and shows up only at carefully-tuned boundaries. **In practice the assumption "$\statemat$ is diagonalizable" is essentially always valid; the Jordan form is the worst-case fallback.**
+For SSM analysis, the diagonalizable case dominates. Almost every $\statemat$ arising from random initialization or from training is diagonalizable; the non-diagonalizable case is a codimension-one subset of parameter space and shows up only at carefully-tuned boundaries. **For generic random $\statemat$ the diagonalizable assumption holds (non-diagonalizability is measure-zero); but structured or learned $\statemat$ — HiPPO-LegS, S4's DPLR parametrization, the critically-damped regime of §1.3 — can carry Jordan structure by design, and Chapter 2's Lyapunov theorem explicitly handles the defective case.**
 
 <MarginNote>The polynomial-factor blow-up in defective Jordan blocks is the reason Chapter 2's Lyapunov stability theorem includes the caveat about defective imaginary eigenvalues — a defective $\lambda = 0$ produces $t^{k-1}$ growth.</MarginNote>
 
@@ -115,7 +126,7 @@ For SSMs, condition number matters in three places:
 
 1. **HiPPO matrix construction.** The HiPPO-LegS matrix has structure that keeps its condition number bounded as $N$ grows — this is *why* HiPPO is the standard initialization. Random initializations typically give $\kappa$ growing as $N^{O(1)}$ or worse.
 2. **S4 kernel computation.** S4's Vandermonde-Cauchy kernel construction requires inverting a matrix with structured but potentially ill-conditioned columns. The paper carefully handles the conditioning; naive implementations don't.
-3. **Mamba-3's complex-state design.** Chapter 10 discusses how Mamba-3 deliberately places eigenvalues in a region of the complex plane where the discrete-time map remains well-conditioned across the integration step.
+3. **Mamba-3's complex-state design.** Chapter 10 discusses how Mamba-3 deliberately places eigenvalues in a region of the complex plane where the discrete-time map remains well-conditioned across the integration step <Cite key="lahoti2026mamba3" />.
 
 <Figure src="/figures/ch03/condition_number_growth.png" alt="Growth of the condition number of various structured matrices as size N increases." caption="Condition number κ(A) as a function of matrix size N for: a random Gaussian matrix (κ grows roughly linearly in N, modulo log factors); a Hilbert matrix (κ grows exponentially — the textbook example of ill-conditioning); the HiPPO-LegS matrix (κ stays bounded as N grows — its design feature). Produced by companions/ch03/jax/condition_number.py." />
 

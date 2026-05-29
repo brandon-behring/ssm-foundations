@@ -13,6 +13,7 @@ provenance:
   audit_history:
     - { date: 2026-05-25, type: standards, file: audits/2026-05-25_standards_vs_post_transformers.md }
     - { date: 2026-05-27, type: deep-repo-audit, file: audits/2026-05-27_repo_audit_deeper.md }
+    - { date: 2026-05-29, type: reconciliation, file: audits/2026-05-29_reconciliation.md }
   citation_backstop: research-kb
 ---
 
@@ -118,7 +119,7 @@ So $e^{\statemat t}$ acts on the eigenbasis as independent scalar exponentials. 
 2. **At least one eigenvalue with positive real part** — the system is **unstable**: some initial conditions blow up. A trained SSM whose $\statemat$ drifts into this regime is the dominant numerical failure mode (Chapter 5).
 3. **Purely imaginary eigenvalues** — the system is **marginally stable** and oscillates without decay. These are the energy-preserving modes of Hamiltonian systems and are the natural home of symplectic discretization (Chapter 6).
 
-When $\statemat$ is not diagonalizable — when it has repeated eigenvalues with deficient eigenspaces — the matrix exponential picks up polynomial-in-$t$ factors on top of the $e^{\lambda_i t}$ terms. The Jordan normal form (Chapter 3, §3.1) gives the precise statement. In practice almost every $\statemat$ arising from random initialization or from physical systems is diagonalizable, and the polynomial-factor case shows up only at codimension-one boundaries in parameter space.
+When $\statemat$ is not diagonalizable — when it has repeated eigenvalues with deficient eigenspaces — the matrix exponential picks up polynomial-in-$t$ factors on top of the $e^{\lambda_i t}$ terms. The Jordan normal form (Chapter 3, §3.1) gives the precise statement. For *generic* dense random $\statemat$, non-diagonalizability is a measure-zero, codimension-one event. But it is not merely pathological: it appears *by design* in structured systems — the critically-damped oscillator of §1.3 (a repeated real eigenvalue), and the structured/learned $\statemat$ of HiPPO-LegS and S4 (Chapter 3). Where it occurs, those polynomial-in-$t$ factors are the whole story, not an edge case.
 
 ## 1.3 The damped harmonic oscillator
 

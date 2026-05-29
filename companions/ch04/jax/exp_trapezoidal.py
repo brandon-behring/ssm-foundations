@@ -75,7 +75,7 @@ def discretize_exp_trap(
 
     Builds the $(N + 2) \\times (N + 2)$ block matrix
     $$
-    M = \\begin{pmatrix} A \\Delta & B \\Delta & 0 \\\\ 0 & 0 & 1 \\\\ 0 & 0 & 0 \\end{pmatrix},
+    M = \\begin{pmatrix} A \\Delta & B \\Delta & 0 \\\\ 0 & 0 & \\Delta \\\\ 0 & 0 & 0 \\end{pmatrix},
     $$
     whose exponential has top-row blocks
     $$

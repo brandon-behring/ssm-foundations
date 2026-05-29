@@ -1,6 +1,6 @@
 # ssm-foundations — AI authoring guide
 
-A 17-chapter lens-led foundations book for sequence-model architectures, with the dynamical-systems perspective foregrounded. Built with `@brandon_m_behring/book-scaffold-astro` (academic preset, v4.2.0).
+A 17-chapter lens-led foundations book for sequence-model architectures, with the dynamical-systems perspective foregrounded. Built with `@brandon_m_behring/book-scaffold-astro` (academic preset, v4.8.0).
 
 **Status**: scaffold landed 2026-05-24 (Plan 3 launch). Chapters 1–6 are authored (`status: implemented`); Ch 7–17 are stubbed `planned`.
 
@@ -19,7 +19,7 @@ A 17-chapter lens-led foundations book for sequence-model architectures, with th
 
 - **Chapters**: `src/content/chapters/chXX-slug.mdx`. Frontmatter follows the academic schema. Filename uses `chXX-slug.mdx`; the schema field `week: N` carries the integer ordering (read as "chapter N" for this book).
 - **Companions**: `companions/chXX/{jax,julia,torch}/` — per-chapter, per-language code companions. Inline-companion routing wired via book-scaffold-astro 3.2's inline-companions feature.
-- **Exercises**: `src/content/chapters/chXX/exercises.mdx` (separate file per chapter; gated by `<BlockedByCallout>` until authored).
+- **Exercises**: embedded in each chapter MDX as a `## X.N Exercises` section (numbered problems with inline `<details>` solutions for short/numerical, plus a `## X.N+1 Full solutions` section for theory exercises). Not separate files.
 - **Bibliography**: `bibliography.bib` → `src/data/references.json` via `npm run build:bib`.
 - **Cross-references**: `id="..."` on `<Theorem>` / `<Figure>` → `src/data/labels.json` via `npm run build:labels`.
 
@@ -66,7 +66,7 @@ Ch 1–3 + Ch 6 should be authored with the C1 pilot's empirical needs as primar
 ```bash
 npm install
 npm run dev               # localhost:4321
-npm run ci:validate       # content checks (wraps build:bib + build:labels + validate)
+npm run validate          # content checks (prevalidate hook auto-runs build:bib + build:labels first)
 npm run build             # dist/
 npx wrangler deploy       # manual one-off (normally CI handles this)
 ```
@@ -76,7 +76,7 @@ npx wrangler deploy       # manual one-off (normally CI handles this)
 - **Worker name**: `brandon-behring-ssm-foundations` (person-prefixed flat per the brandon-behring.dev convention).
 - **Production URL**: <https://ssm-foundations.brandon-behring.dev> (custom domain bound in CF dashboard).
 - **Workers.dev preview URL**: <https://brandon-behring-ssm-foundations.brandon-m-behring.workers.dev>.
-- **First-deploy audit**: [`audits/2026-05-26_first-deploy.md`](audits/2026-05-26_first-deploy.md) — full Phase 1c decisions matrix + findings (including the latent `references.json` gap that drove the `ci:validate` script convention).
+- **First-deploy audit**: [`audits/2026-05-26_first-deploy.md`](audits/2026-05-26_first-deploy.md) — full Phase 1c decisions matrix + findings (including the latent `references.json` gap that drove the `ci:validate` script convention, since superseded by the `prevalidate` hook).
 
 **Deployment URL convention**: each book/project under `brandon-behring.dev` follows the per-project-subdomain pattern. See [the Subdomain convention in brandon-behring.dev/README.md](https://github.com/brandon-behring/brandon-behring.dev#subdomain-convention) for the slug rule, click-path, and registry.
 
@@ -105,4 +105,4 @@ Substantive adoption of `testing.md` is tracked via [audit F8](audits/2026-05-25
 ## Toolkit reference
 
 - v4 API: see [PACKAGE_DESIGN.md](https://github.com/brandon-behring/book-scaffold-astro/blob/main/PACKAGE_DESIGN.md) for the canonical contract.
-- v3→v4 migration: [`MIGRATION-v3-to-v4.md`](https://github.com/brandon-behring/book-scaffold-astro/blob/main/package/MIGRATION-v3-to-v4.md). (Not needed for this book — scaffolded fresh on v4.2.0.)
+- v3→v4 migration: [`MIGRATION-v3-to-v4.md`](https://github.com/brandon-behring/book-scaffold-astro/blob/main/package/MIGRATION-v3-to-v4.md). (Not needed for this book — scaffolded fresh on v4.2.0, now tracking v4.8.0.)

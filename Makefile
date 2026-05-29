@@ -24,7 +24,7 @@ help:
 	@echo "  check-bibkeys     - validate bibliography.bib + chapter citations (audit F6)"
 	@echo "  check-xrefs       - validate <Theorem id=...>  + <Figure id=...> (audit F7)"
 	@echo "  companion-julia-tests"
-	@echo "                    - run julia runtests.jl in ch04, ch05, ch06"
+	@echo "                    - run julia runtests.jl in ch05, ch06 (ch04 manual; needs Pkg.instantiate)"
 	@echo ""
 	@echo "  lint              - check-bibkeys + check-xrefs (fast)"
 	@echo "  check             - validate + lint + status-check (full gate)"

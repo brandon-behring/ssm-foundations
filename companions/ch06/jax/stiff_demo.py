@@ -8,7 +8,7 @@ $\\mu$), while an implicit method like backward Euler remains stable for
 
 Test problem: van der Pol oscillator
 $$\\dot q = p, \\qquad \\dot p = \\mu (1 - q^2) p - q,$$
-with $\\mu = 30$ (mildly stiff but well-behaved on float64). The limit
+with $\\mu = 10$ (mildly stiff but well-behaved on float64). The limit
 cycle period is $\\sim 2.0 \\mu$ for large $\\mu$, with rapid jumps lasting
 $\\sim 1/\\mu$ — the fast time scale that constrains explicit step sizes.
 
