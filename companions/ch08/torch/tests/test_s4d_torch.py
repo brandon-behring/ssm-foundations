@@ -33,7 +33,7 @@ def test_s4d_kernel_jax_torch_parity() -> None:
     K_torch = ts4d.s4d_kernel(
         ts4d.make_s4d_lin(n), torch.as_tensor(C_np, dtype=torch.complex128), dt, L
     ).numpy()
-    np.testing.assert_allclose(K_torch, K_jax, atol=1e-9)
+    np.testing.assert_allclose(K_torch, K_jax, atol=1e-9, rtol=0)
 
 
 def test_s4d_torch_stability_by_construction() -> None:
@@ -78,7 +78,7 @@ def test_s5_jax_torch_parity() -> None:
         dt,
         torch.as_tensor(u_np),
     ).numpy()
-    np.testing.assert_allclose(y_torch, y_jax, atol=1e-8)
+    np.testing.assert_allclose(y_torch, y_jax, atol=1e-8, rtol=0)
 
 
 def test_s5_layer_runs_and_is_real() -> None:

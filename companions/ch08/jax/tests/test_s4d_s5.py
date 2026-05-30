@@ -40,8 +40,8 @@ def test_s4d_real_part_negative_for_any_parameters() -> None:
 def test_s4d_lin_modes_and_zoh_stability() -> None:
     r"""S4D-Lin gives $A_n = -\tfrac12 + i\pi n$ and $|\bar A_n| = e^{-\Delta/2} < 1$."""
     A = np.asarray(s4d.make_s4d_lin(16))
-    np.testing.assert_allclose(A.real, -0.5, atol=1e-12)
-    np.testing.assert_allclose(A.imag, np.pi * np.arange(16), atol=1e-12)
+    np.testing.assert_allclose(A.real, -0.5, atol=1e-12, rtol=0)
+    np.testing.assert_allclose(A.imag, np.pi * np.arange(16), atol=1e-12, rtol=0)
     for dt in (0.01, 0.1, 1.0):
         Abar = np.exp(A * dt)
         assert np.max(np.abs(Abar)) < 1.0, f"S4D unstable at dt={dt}"
@@ -82,7 +82,7 @@ def test_s4d_kernel_matches_recurrence_oracle() -> None:
     C = jnp.asarray(rng.standard_normal(n_modes) + 1j * rng.standard_normal(n_modes))
     K_vander = np.asarray(s4d.s4d_kernel(A, C, dt, L))
     K_recur = _s4d_recurrence_kernel(np.asarray(A), np.asarray(C), dt, L)
-    np.testing.assert_allclose(K_vander, K_recur, atol=1e-9)
+    np.testing.assert_allclose(K_vander, K_recur, atol=1e-9, rtol=0)
 
 
 def test_s4d_kernel_validation() -> None:
@@ -91,6 +91,9 @@ def test_s4d_kernel_validation() -> None:
         s4d.s4d_kernel(A, A[:3], 0.1, 16)  # mismatched C length
     with pytest.raises(ValueError):
         s4d.s4d_kernel(A, A, 0.1, 0)  # L < 1
+    with pytest.raises(ValueError):
+        z = jnp.zeros(4, dtype=A.dtype)
+        s4d.s4d_kernel(z, jnp.ones(4, dtype=A.dtype), 0.1, 16)  # singular (zero) mode
 
 
 # ---------------------------------------------------------------------------
@@ -120,7 +123,7 @@ def test_s5_apply_parallel_equals_sequential() -> None:
     u = jnp.stack([jnp.sin(2 * jnp.pi * (k + 1) * z) for k in range(B.shape[1])], axis=1)
     y_par = s5.s5_apply(A, B, C, 0.1, u, parallel=True)
     y_seq = s5.s5_apply(A, B, C, 0.1, u, parallel=False)
-    np.testing.assert_allclose(np.asarray(y_par), np.asarray(y_seq), atol=1e-12)
+    np.testing.assert_allclose(np.asarray(y_par), np.asarray(y_seq), atol=1e-12, rtol=0)
 
 
 def test_s5_binary_operator_associative() -> None:
@@ -137,4 +140,36 @@ def test_s5_binary_operator_associative() -> None:
     left = s5.s5_binary_operator(s5.s5_binary_operator(x, y), z)
     right = s5.s5_binary_operator(x, s5.s5_binary_operator(y, z))
     for a, b in zip(left, right):
-        np.testing.assert_allclose(np.asarray(a), np.asarray(b), atol=1e-12)
+        np.testing.assert_allclose(np.asarray(a), np.asarray(b), atol=1e-12, rtol=0)
+
+
+def _s5_dense_oracle(
+    A: np.ndarray, B: np.ndarray, C: np.ndarray, dt: float, u: np.ndarray
+) -> np.ndarray:
+    """Independent dense reference for the S5 MIMO wiring (explicit per-step loop).
+
+    Reproduces the diagonal-ZOH discretization and the $B$/$C$ contractions by hand,
+    so a transpose/axis swap in ``s5_apply`` (e.g. ``u @ Bbar`` instead of
+    ``u @ Bbar.T``) diverges from this oracle even though parallel still equals
+    sequential.
+    """
+    A, B, C, u = (np.asarray(x) for x in (A, B, C, u))
+    Abar = np.exp(A * dt)
+    Bbar = ((Abar - 1.0) / A)[:, None] * B  # (P, H)
+    h = np.zeros(A.shape[0], dtype=complex)
+    ys = np.zeros((u.shape[0], B.shape[1]))
+    for k in range(u.shape[0]):
+        h = Abar * h + Bbar @ u[k]  # (P,)
+        ys[k] = 2.0 * np.real(C @ h)  # (H,)
+    return ys
+
+
+def test_s5_apply_matches_dense_mimo_oracle() -> None:
+    """S5 forward matches an explicit dense MIMO loop — pins the B/C wiring, not just parallel==sequential."""
+    A, B, C = s5._demo_system(n_modes=8, h_dim=4)
+    L = 120
+    z = jnp.linspace(0.0, 1.0, L)
+    u = jnp.stack([jnp.sin(2 * jnp.pi * (k + 1) * z) for k in range(B.shape[1])], axis=1)
+    y = np.asarray(s5.s5_apply(A, B, C, 0.1, u, parallel=True))
+    y_ref = _s5_dense_oracle(A, B, C, 0.1, u)
+    np.testing.assert_allclose(y, y_ref, atol=1e-12, rtol=0)

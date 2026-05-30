@@ -46,6 +46,10 @@ __all__ = ["discretize_s5", "s5_sequential_scan", "s5_apply", "S5Layer"]
 
 def discretize_s5(A: torch.Tensor, B: torch.Tensor, dt: float) -> tuple[torch.Tensor, torch.Tensor]:
     r"""Diagonal ZOH: $\bar A = e^{A\Delta}$, $\bar B = \frac{\bar A - 1}{A} B$."""
+    if torch.any(A == 0):
+        raise ValueError(
+            "diagonal modes A must be nonzero (a zero mode has no ZOH input (Abar-1)/A)"
+        )
     Abar = torch.exp(A * dt)
     Bbar = ((Abar - 1.0) / A).unsqueeze(-1) * B
     return Abar, Bbar

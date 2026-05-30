@@ -146,6 +146,10 @@ def s4d_kernel(
         raise ValueError(f"A and C must share shape, got {A.shape} vs {C.shape}")
     if L < 1:
         raise ValueError(f"L must be >= 1, got {L}")
+    if jnp.any(A == 0):
+        raise ValueError(
+            "diagonal modes A must be nonzero (a zero mode has no ZOH input (Abar-1)/A)"
+        )
     dtA = A * jnp.asarray(dt, dtype=A.dtype)
     Abar = jnp.exp(dtA)
     Ctilde = C * (Abar - 1.0) / A

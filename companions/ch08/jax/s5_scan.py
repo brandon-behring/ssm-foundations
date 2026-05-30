@@ -131,6 +131,10 @@ def discretize_s5(
     dt: jnp.ndarray | float,
 ) -> tuple[jnp.ndarray, jnp.ndarray]:
     r"""Diagonal ZOH: $\bar A = e^{A\Delta}$, $\bar B = \frac{\bar A - 1}{A}\,B$."""
+    if jnp.any(A == 0):
+        raise ValueError(
+            "diagonal modes A must be nonzero (a zero mode has no ZOH input (Abar-1)/A)"
+        )
     Abar = jnp.exp(A * jnp.asarray(dt, dtype=A.dtype))
     Bbar = ((Abar - 1.0) / A)[:, None] * B
     return Abar, Bbar

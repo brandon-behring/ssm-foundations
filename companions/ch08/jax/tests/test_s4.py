@@ -60,7 +60,9 @@ def test_hippo_spectrum_is_minus_one_to_minus_n() -> None:
     for n in (4, 8, 16, 32):
         eigs = np.linalg.eigvals(np.asarray(s4.make_hippo_legs(n)[0]))
         assert np.max(np.abs(eigs.imag)) < 1e-9, "eigenvalues should be real"
-        np.testing.assert_allclose(np.sort(eigs.real), np.sort(-(np.arange(n) + 1.0)), atol=1e-8)
+        np.testing.assert_allclose(
+            np.sort(eigs.real), np.sort(-(np.arange(n) + 1.0)), atol=1e-8, rtol=0
+        )
 
 
 def test_make_hippo_legs_validation() -> None:
@@ -105,7 +107,7 @@ def test_kernel_matches_power_iteration_oracle() -> None:
     ref = np.array(
         [float((C_np @ np.linalg.matrix_power(Ab_np, k) @ Bb_np).squeeze()) for k in range(L)]
     )
-    np.testing.assert_allclose(K, ref, atol=1e-9)
+    np.testing.assert_allclose(K, ref, atol=1e-9, rtol=0)
 
 
 def test_conv_recurrence_duality() -> None:
@@ -128,4 +130,13 @@ def test_fft_pad_matches_direct_convolution() -> None:
     K = np.asarray(s4.ssm_kernel_naive(Ab, Bb, C, L))
     y_fft = np.asarray(s4.causal_conv_fft(u, jnp.asarray(K)))
     y_direct = np.convolve(np.asarray(u), K)[:L]  # full linear conv, truncated to L
-    np.testing.assert_allclose(y_fft, y_direct, atol=1e-9)
+    np.testing.assert_allclose(y_fft, y_direct, atol=1e-9, rtol=0)
+
+
+def test_feedthrough_D_is_applied() -> None:
+    """D enters the output additively: y(D) - y(0) == D*u (the duality test cancels D)."""
+    Ab, Bb, C, _ = _siso_system()
+    u = _signal(64)
+    y0 = s4.ssm_recurrent(Ab, Bb, C, jnp.asarray(0.0), u)
+    yD = s4.ssm_recurrent(Ab, Bb, C, jnp.asarray(0.7), u)
+    np.testing.assert_allclose(np.asarray(yD - y0), 0.7 * np.asarray(u), atol=1e-12, rtol=0)
