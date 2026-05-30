@@ -21,3 +21,8 @@ __pycache__/
 # Python venv (uv-managed; companion test env) + editable-install artifacts
 .venv/
 *.egg-info/
+
+# Claude Code per-machine settings (the shared .claude/ tooling IS committed).
+# settings.local.json holds per-project permission grants Claude Code writes locally.
+.claude/settings.local.json
+.claude/settings.local.json.backup

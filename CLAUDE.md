@@ -43,6 +43,26 @@ Current state (2026-05-25): Ch 1–6 = `implemented`; Ch 7–17 = `planned`.
 
 ---
 
+## Project subagents (`.claude/agents/`)
+
+Four **read-only review/verify** subagents isolate high-volume, well-specified
+checks from the main authoring thread. They auto-fire (precise `description:`
+fields + a `PostToolUse` nudge hook in `.claude/settings.json`); all are
+findings-only and never edit files. Full index + invocation in
+[`.claude/README.md`](.claude/README.md).
+
+| Agent | Fires when | Does |
+|---|---|---|
+| `chapter-auditor` | a chapter `.mdx` is drafted/edited, before advancing `status:` | STYLE.md + `status:`-truthfulness audit; runs `make lint` / `make validate` |
+| `companion-verifier` | companion code under `companions/chXX/**` changes | runs jax/julia/torch suites, JAX↔Julia parity, figure/caption checks |
+| `prose-pedagogy-reviewer` | a prose draft reads complete | teaching-quality review vs STYLE.md §§9–10 + Ch 1–6 |
+| `citation-link-auditor` | `bibliography.bib` changes / pre-release | bibkey hygiene + `<Cite>` resolution + cross-repo URL freshness |
+
+Authoring stays in the main thread by design (review/verify only); escalate to a
+multi-agent **Workflow** if Ch 7–17 needs orchestrated fan-out.
+
+---
+
 ## Cross-repo link convention
 
 When referencing back to `post_transformers/` (dossier folders, kickoffs, watchlist), use **absolute GitHub URLs pinned to `main`**:

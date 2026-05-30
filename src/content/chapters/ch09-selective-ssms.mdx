@@ -1,15 +1,282 @@
 ---
-week: 09
+week: 9
 part: ssm-core
-title: 'Selective SSMs: Mamba-1, Mamba-2, SSD framework'
-status: planned
-description: Input-dependent parameters; selective scan; state-space duality with attention.
+status: implemented
+title: 'Selective SSMs: Mamba-1, Mamba-2, and the SSD framework'
+description: Making the SSM parameters input-dependent — selectivity breaks linear time-invariance, collapses the convolution–recurrence duality, and leaves the associative scan as the only route; the structured state-space duality then re-reads the selective scan as a semiseparable matrix and, for scalar state, as masked linear attention.
+provenance:
+  ai_tools:
+    - Claude Code
+  citation_backstop: research-kb
 ---
 
-import PreReleaseBanner from '@brandon_m_behring/book-scaffold-astro/components/PreReleaseBanner.astro';
+{/*
+  Math notation used in this chapter (auto-loaded via ssmMacros):
+    \statevec  = h     (state vector)
+    \statemat  = A     (continuous state matrix — diagonal in Mamba)
+    \inputmat  = B
+    \outputmat = C
+    \stepsize  = Δ     (step size / selective timescale)
+    \discA     = Ā     (discrete state matrix)
+    \discB     = B̄
+    \R, \C, \N — number sets
+    \norm{·}, \abs{·}, \Re, \diag — operators
+  Chapter-specific symbols written inline: input-dependent subscripts
+  \stepsize_t, \inputmat_t, \outputmat_t, \discA_t; the state-transition operator
+  Φ(k,j); the semiseparable matrix M; the decay mask L; the Hadamard product ∘;
+  the associative-scan operator •.
+*/}
 
-<PreReleaseBanner state="alpha" message="Chapter 09 is planned; not yet authored. See description above for scope. Authoring sequence: Ch 1–3 (foundations) → Ch 4–6 (discretization thread for C1) → remaining chapters per pilot needs." />
+import NoteBox from '@brandon_m_behring/book-scaffold-astro/components/NoteBox.astro';
+import Theorem from '@brandon_m_behring/book-scaffold-astro/components/Theorem.astro';
+import Cite from '@brandon_m_behring/book-scaffold-astro/components/Cite.astro';
+import MarginNote from '@brandon_m_behring/book-scaffold-astro/components/MarginNote.astro';
+import Figure from '@brandon_m_behring/book-scaffold-astro/components/Figure.astro';
 
-# Selective SSMs: Mamba-1, Mamba-2, SSD framework
+# Selective SSMs: Mamba-1, Mamba-2, and the SSD framework
 
-This chapter is planned. See the [chapter-at-a-glance](https://github.com/brandon-behring/post_transformers/blob/main/notes/foundations_curriculum_design_2026_05_20.md) (foundations §3) for the full design; the [crosswalk](https://github.com/brandon-behring/post_transformers/blob/main/notes/foundations_curriculum_design_2026_05_20.md) (foundations §22) maps this chapter to the relevant post_transformers/roadmap.md weeks.
+<NoteBox title="Chapter 9 — at a glance">
+**Goal**: take the linear time-invariant SSM Chapter 8 built and make its parameters depend on the input. Mamba <Cite key="gu2024mamba" /> lets $\stepsize$, $\inputmat$, and $\outputmat$ be functions of the current token, keeping only the diagonal $\statemat$ fixed. We show this single change is *destructive in a precise way*: it breaks the time-invariance the §8.3 convolution–recurrence duality relied on, so the convolutional view collapses and the §8.6 associative scan — now fed input-dependent transitions — is the parallel primitive that remains. We then read the selective scan as a matrix: the **structured state-space duality** (SSD) of Mamba-2 <Cite key="dao2024mamba2" /> identifies the layer with a *semiseparable matrix multiply*, and for scalar state with *masked linear attention*.
+
+**Reading time**: ~55 minutes prose; 90+ minutes with the JAX and PyTorch companions.
+
+**Looking ahead (C1 pilot)**: Chapter 8 noted that the symplectic-integrator pilot's empirical anchor is the *selective, complex-state* successor Mamba-3 (Chapter 10). This chapter is the structural step that introduces selectivity in the real-diagonal setting; Chapter 10 adds the complex state and the exponential-trapezoidal discretization (Chapter 4) the pilot scrutinizes. Selectivity is the property Mamba-3 inherits and the pilot stress-tests.
+
+**Key insight**: the LTI layer of §8.7 had *three* faces of one operator — a recurrence, a convolution, and a parallel scan. Making the parameters input-dependent **destroys the convolutional face** — a kernel exists only when the dynamics are time-invariant — leaving the recurrence and its parallel associative scan as how the layer is computed. Re-expressing that scan as a matrix multiply then adds a *second* parallel route and shows the selective SSM *is* a form of attention — the bridge to Chapter 11.
+</NoteBox>
+
+## 9.1 Breaking time-invariance: input-dependent $(\stepsize, \inputmat, \outputmat)$
+
+Chapter 8 ended on a layer with three computational faces and one weakness it never named: an LTI SSM applies the *same* dynamics to every token. The discrete map $\statevec_{k+1} = \discA\,\statevec_k + \discB\,u_k$ filters all inputs through one fixed kernel, so the layer cannot decide, based on content, what to keep and what to discard. On synthetic tasks that demand exactly that — selective copying, where only some tokens matter, or induction, where the model must latch onto a token seen once — a fixed kernel provably cannot route information by content <Cite key="gu2024mamba" />.
+
+Mamba's remedy is one structural change: make the parameters functions of the input. At step $t$,
+$$
+\stepsize_t = \mathrm{softplus}\!\big(\omega + s_\Delta(u_t)\big), \qquad
+\inputmat_t = s_B(u_t), \qquad
+\outputmat_t = s_C(u_t),
+$$
+with $s_\Delta, s_B, s_C$ linear projections and $\omega$ a bias; only the diagonal state matrix $\statemat = -e^{\,\log \statemat}$ stays a fixed parameter (kept stable by the §8.5 sign-by-construction trick). Discretizing per step — Mamba uses the simplified form $\discA_t = e^{\stepsize_t \statemat}$, $\discB_t = \stepsize_t \inputmat_t$ — gives a recurrence whose transition $\discA_t$ now *changes at every step*:
+$$
+\statevec_t = \discA_t \odot \statevec_{t-1} + \discB_t\, u_t, \qquad y_t = \outputmat_t \cdot \statevec_t + D\, u_t .
+$$
+
+<MarginNote>Stability survives selectivity for free. With $\statemat = -e^{(\cdot)} < 0$ and $\stepsize_t = \mathrm{softplus}(\cdot) > 0$, every $\discA_t = e^{\stepsize_t \statemat}$ satisfies $\abs{\discA_t} \le 1$ for *any* parameter value — strictly $< 1$ except in the hold limit $\stepsize_t \to 0$, where the gate closes and $\discA_t \to 1$ (the held state of §9.2). This is the §8.5 "sign trap, defused", carried into the time-varying setting; the companion's `test_selective_stable_for_any_parameters` checks $\Re(\statemat) < 0$ and $\abs{\discA_t} \le 1$ across extreme random parameters.</MarginNote>
+
+The cost of this freedom is the subject of the rest of the chapter, and it is exactly the structure Chapter 8 spent its length building. A single fixed $\discA$ is what let one kernel $K_i = \outputmat\,\discA^{\,i}\,\discB$ exist. Once $\discA_t$ varies, that kernel is gone.
+
+<Theorem id="ch09:lti-collapse" type="proposition">
+**(LTI collapse.)** If the discrete transition is input-dependent — $\discA_t \neq \discA_{t'}$ for some $t, t'$ — then the map $u \mapsto y - D u$ is causal and linear, hence lower-triangular, but **not Toeplitz**: there is no single kernel $K$ with $y = K * u + D u$. The convolutional view of §8.3 exists if and only if the system is time-invariant.
+</Theorem>
+
+The proof (Exercise 9.4, §9.9) is short: a causal linear map is a convolution exactly when its matrix has constant diagonals, and input-dependence makes even the main diagonal vary. The duality of §8.3 was a property of time-invariance all along; selectivity spends it.
+
+## 9.2 Selective SSMs as discretized linear time-varying systems
+
+The dynamical-systems name for what just happened is familiar. Chapter 8's LTI SSM is the discretization of an *autonomous* linear system $\dot{\statevec} = \statemat\,\statevec + \inputmat\,u$, whose coefficients do not depend on $t$. A selective SSM is the discretization of a **linear time-varying (LTV)**, or non-autonomous, system $\dot{\statevec}(t) = \statemat(t)\,\statevec(t) + \inputmat(t)\,u(t)$. The whole apparatus of §8.3 — a single $\discA$, its powers $\discA^{\,i}$, one kernel — assumed autonomy. LTV systems replace the matrix *power* with a matrix *product*.
+
+<Theorem id="ch09:ltv-transition" type="definition">
+**(Discrete state-transition operator.)** For the LTV recurrence $\statevec_t = \discA_t \statevec_{t-1} + \discB_t u_t$ with $\statevec_0 = 0$, the state is
+$$
+\statevec_k = \sum_{j=1}^{k} \Phi(k, j)\,\discB_j\, u_j, \qquad
+\Phi(k, j) = \discA_k \discA_{k-1} \cdots \discA_{j+1} \;\;(\Phi(k,k) = I),
+$$
+where $\Phi(k, j)$ is the **state-transition operator** carrying state from step $j$ to step $k$. The input$\to$output map therefore has $(k, j)$ entry $\outputmat_k\,\Phi(k, j)\,\discB_j$ — a *path-ordered product* of transitions, not the power $\discA^{\,k-j}$ of the LTI case.
+</Theorem>
+
+This is why no kernel exists: the tap from source $j$ to target $k$ depends on the entire path of step sizes between them, $\Phi(k,j)$, and not on the offset $k - j$. For a diagonal $\statemat$ the product is elementwise and the per-mode transition is a clean exponential of an accumulated step, $\Phi(k,j)_n = \exp\!\big(\statemat_n \sum_{i=j+1}^{k} \stepsize_i\big)$ — the companion's `segsum` computes exactly this cumulative decay. Reading the dynamics through the transition operator is the right altitude: it is what survives into §9.5 as the entries of a structured matrix, and it is what makes the LTV system *non-Toeplitz* but still *cheaply structured*.
+
+<MarginNote>The continuous LTV solution operator is the time-ordered exponential $\Phi(t,s) = \mathcal{T}\exp\!\int_s^t \statemat(\tau)\,d\tau$, whose log is the Magnus expansion; the discrete $\Phi(k,j)$ above is its zero-order-hold image. Non-autonomy is also where Chapter 10's stiffness enters: when $\stepsize_t$ spikes, the per-step problem can stiffen, which is the regime Mamba-3 meets with the exponential-trapezoidal scheme of Chapter 4.</MarginNote>
+
+Selectivity is visible already in a single mode. Drive one stable mode with a content impulse and contrast a fixed-$\stepsize$ LTI system against a selective one whose gate $\discA_t = e^{\stepsize_t \statemat}$ opens ($\stepsize_t$ large, $\discA_t \to 0$: overwrite) on the content token and closes ($\stepsize_t \to 0$, $\discA_t \to 1$: hold) elsewhere. The selective system writes once and holds; the LTI system, forced to apply the same decay everywhere, forgets.
+
+<Figure id="ch09:fig:selective-vs-lti" src="/figures/ch09/selective-vs-lti.png" alt="Two panels. Left: an input impulse at step 5 and a selective step-size that spikes there and is near zero elsewhere. Right: the selective state holds nearly flat after the impulse while the LTI state decays rapidly toward zero." caption="Selectivity as a content-dependent gate, single mode $\statemat = -1$. Left: the input impulse and the selective $\stepsize_t$ (large to write, near-zero to hold). Right: with the gate held, the selective state retains 84.4% of the written value 34 steps later; the fixed-$\stepsize$ LTI system, applying one decay everywhere, retains 0.004%. Produced by companions/ch09/jax/selective_vs_lti.py." />
+
+## 9.3 The selective scan: the §8.6 primitive, now the only route
+
+The convolution is gone (Proposition, §9.1), so the $O(L\log L)$ FFT path of training-time S4 has no analogue here. What does survive is the parallel scan of §8.6 — and it survives because it never needed time-invariance in the first place. Recall the associative operator on $(\text{transition}, \text{input})$ pairs,
+$$
+(a_1, b_1) \bullet (a_2, b_2) = (a_2 \odot a_1,\; a_2 \odot b_1 + b_2),
+$$
+which composes "apply the first affine update, then the second." Chapter 8 fed it the *same* $\discA$ at every step; nothing in the operator required that. Feeding it the *time-varying* pairs $(\discA_t,\; \discB_t u_t)$ scans the selective recurrence directly. This is the **selective scan**.
+
+<Theorem id="ch09:selective-scan-equivalence" type="proposition">
+**(Selective scan equivalence.)** The operator $\bullet$ is associative for arbitrary first components $a_t$ (not necessarily equal). Its inclusive prefix scan over $(\discA_1, \discB_1 u_1), \dots, (\discA_L, \discB_L u_L)$ has as its second components exactly the LTV states $\statevec_1, \dots, \statevec_L$, computed in parallel depth $O(\log L)$ <Cite key="blelloch1990prefix" />. Because no convolution exists (Proposition, §9.1), the $O(L\log L)$ FFT path of training-time S4 is gone; this scan recovers $O(\log L)$ depth at linear $O(L)$ work and is the primitive the layer is computed with. (Section 9.5 derives a *second* parallel route — a quadratic matrix multiply — from the same structure.)
+</Theorem>
+
+The proof (Exercise 9.5, §9.9) is the §8.6 argument with one observation added: the associativity computation never used $a_1 = a_2$, so the LTI assumption was load-bearing only for the *convolution*, never for the scan. The companion pins the equivalence to machine precision — the selective associative scan and the sequential recurrence agree to a measured residual $\sim 10^{-15}$ across sequence lengths, which `test_selective_scan_equals_sequential` holds below $10^{-12}$.
+
+<Figure id="ch09:fig:selective-scan" src="/figures/ch09/selective-scan.png" alt="Two panels. Left: the maximum difference between the selective associative scan and the sequential recurrence versus sequence length, flat near 1e-15. Right: log-log critical-path depth, the sequential curve rising as L and the selective-scan curve as log L." caption="The selective scan equals the sequential recurrence (left, residual $\sim 10^{-15}$, pinned below $10^{-12}$) while keeping the parallel critical-path depth $\lceil\log_2 L\rceil$ against the sequential $L$ (right). Unlike S4, there is no FFT-convolution fallback — the scan is the only parallel route. Produced by companions/ch09/jax/selective_scan_demo.py; pinned by test_selective_scan_equals_sequential." />
+
+<MarginNote>This is the primitive §8.6 said would "outlive time-invariance." Chapter 8 built S5's associative scan when a convolution was still available as an alternative; here the alternative is gone, and the same code becomes the load-bearing computation. PyTorch still has no native parallel scan, so the torch companion (`selective_ssm.py`) runs the recurrence as an eager loop — bit-for-bit identical states, sequential depth; in production a custom kernel supplies the parallel scan (§9.4).</MarginNote>
+
+## 9.4 The hardware-aware fused kernel
+
+Making the scan the *only* route raises the stakes on computing it efficiently, and the obstacle is memory, not arithmetic. The selective scan's state is $\statevec_t \in \R^N$ *per channel*: for a batch of $B$ sequences of length $L$ with $D$ channels and state size $N$, materializing every intermediate state — which the naive backward pass needs — costs $O(B L D N)$, an $N\times$ blow-up over the $O(B L D)$ inputs and outputs. At $B = 8$, $L = 2048$, $D = 1024$, $N = 16$ that is 1.1 GB of fp32 state against 0.067 GB of output (§9.4 figure) — at Mamba's working dimensions, the difference between fitting in memory and not.
+
+<Figure id="ch09:fig:memory-cost" src="/figures/ch09/memory-cost.png" alt="Two panels. Left: log-log memory in gigabytes versus state dimension N, the materialized line B·L·D·N rising linearly while the fused line B·L·D stays flat. Right: the ratio materialized-over-fused versus N, a straight line equal to N." caption="Why the selective scan needs a fused kernel. For $B=8$, $L=2048$, $D=1024$, materializing all states costs $B L D N$ — at $N=16$ that is 1.1 GB of fp32 against 0.067 GB for the $B L D$ outputs, a $16\times$ ($=N$) gap. Mamba avoids it by keeping the expanded state in SRAM and recomputing it in the backward pass. Produced by companions/ch09/jax/selective_scan_demo.py." />
+
+Mamba's selective-scan kernel resolves this with three hardware-aware moves <Cite key="gu2024mamba" />. It **fuses** discretization, scan, and output projection into a single GPU kernel, so the expanded $(B, L, D, N)$ state is formed and consumed in fast on-chip SRAM and never written to slow HBM. It **recomputes** that state in the backward pass instead of storing it — the activation-recomputation trade that pays compute to save memory, the same `jax.checkpoint` discipline the Mamba-1 reference implementation applies to its selective-scan body. And it exploits the fact, from §9.3, that there is no convolution to fall back on: the scan *must* be fast, so the engineering goes into the scan rather than into an alternative path. The companion does not implement a CUDA kernel — it makes the memory accounting concrete (the figure above), which is the part that explains *why* the kernel exists.
+
+<MarginNote>Quantization extends the same theme: because the selective scan's activations are heavy-tailed, off-the-shelf post-training quantization degrades Mamba, and methods tailored to the selective layer's statistics are needed to reach low-bit inference <Cite key="dao2024mamba2" />. The hardware story is not incidental to selective SSMs; it is part of why the architecture is practical at scale.</MarginNote>
+
+## 9.5 Mamba-2 and SSD: the semiseparable-matrix view
+
+Section 9.2 wrote the input$\to$output map entry by entry. Collect those entries into a matrix and a second, matmul-friendly computation appears. Stacking $y = M u + D u$ with
+$$
+M_{kj} = \outputmat_k\,\Phi(k, j)\,\discB_j
+       = \sum_{n} \outputmat_{k,n}\, \exp\!\Big(\statemat_n \sum_{i=j+1}^{k} \stepsize_i\Big)\, \stepsize_j\, \inputmat_{j,n}
+\quad (k \ge j),
+$$
+and $M_{kj} = 0$ for $k < j$, gives a lower-triangular $L \times L$ matrix. This is the object Mamba-2 organizes the layer around, and it has exactly the structure that makes both computations cheap.
+
+<Theorem id="ch09:ssd-semiseparable" type="theorem">
+**(Structured state-space duality.)** For a diagonal state matrix $\statemat \in \R^N$, the selective-SSM output map $M$ is **$N$-semiseparable**: every submatrix lying strictly below the diagonal has rank at most $N$. Consequently $y = M u$ admits two computations of the same result — a **linear** one, the recurrent scan of §9.3 in $O(L N)$ work and $O(N)$ memory, and a **quadratic** one, forming $M$ and multiplying, in $O(L^2 N)$ work using dense matrix multiplies.
+</Theorem>
+
+The rank bound is the duality's engine (Exercise 9.6, §9.9): writing the accumulated decay as $\exp(\statemat_n(c_k - c_j))$ with $c_k = \sum_{i \le k}\stepsize_i$ factors each strictly-lower block into a sum of $N$ rank-one outer products. The two computations trade off by regime: the recurrent (scan) mode wins for long sequences and autoregressive inference; the quadratic (matmul) mode wins for short chunks, because dense matrix multiplies are what tensor cores do fastest. Mamba-2's production algorithm chunks the sequence and uses the quadratic mode within chunks and the linear mode across them — both unlocked by the same structure. The companion confirms the two modes agree to a measured residual $\sim 10^{-13}$ (pinned below $10^{-12}$ by `test_recurrent_equals_matmul`) and certifies the rank bound numerically.
+
+<Figure id="ch09:fig:semiseparable" src="/figures/ch09/semiseparable.png" alt="Two panels. Left: a heatmap of the absolute SSD matrix M, nonzero on and below the diagonal, with magnitudes that vary along each diagonal. Right: the singular values of an off-diagonal block on a log scale, with a sharp cliff after index N." caption="The SSD matrix $M$ for a selective system with $N=4$ modes. Left: $M$ is lower-triangular and, because the system is time-varying, its diagonals are not constant (not Toeplitz, §9.1). Right: an off-diagonal block has exactly $N$ significant singular values then a cliff to machine zero — the $N$-semiseparable rank bound made visible. Produced by companions/ch09/jax/ssd_semiseparable.py; pinned by test_ssm_matrix_is_n_semiseparable." />
+
+## 9.6 Duality with linear attention
+
+The semiseparable view pays its largest dividend when the state matrix is a scalar. Mamba-2 restricts $\statemat = a\,I$ — one shared decay per head — which makes the accumulated decay a scalar, $L_{kj} = \exp\!\big(a \sum_{i=j+1}^{k}\stepsize_i\big)$, and factors the matrix entry into a decay times an inner product:
+$$
+M_{kj} = L_{kj}\,(\outputmat_k \cdot \inputmat_j)\,\stepsize_j
+\quad\Longleftrightarrow\quad
+M = L \circ (\outputmat\, \inputmat^{\top})\,\diag(\stepsize),
+$$
+with $\circ$ the Hadamard product. Read the right-hand side as attention: $\outputmat$ are queries, $\inputmat$ are keys, $\outputmat\,\inputmat^\top$ is the score matrix, $u$ are values, and $L$ is a causal decay mask in place of softmax. Two things separate it from softmax attention. The mask $L_{kj} = \exp(a\sum_{i=j+1}^{k}\stepsize_i)$ is fixed by the accumulated step sizes *between* the two positions, not by a content–content interaction of $k$ and $j$; and the scores enter **linearly** — there is no softmax nonlinearity — which is precisely what lets the same operator also run in the linear-cost recurrent mode (§9.5). It is *linear* attention, not softmax attention.
+
+<Theorem id="ch09:ssd-duality" type="theorem">
+**(Selective SSM as masked linear attention.)** For scalar $\statemat = a I$, the selective SSM output equals $y = \big(L \circ (\outputmat\,\inputmat^{\top})\big)\,\diag(\stepsize)\,u + D u$, a **masked linear attention** with decay mask $L_{kj} = \exp(a\sum_{i=j+1}^k \stepsize_i)$. The mask $L$ is **1-semiseparable** (rank-one strictly-lower blocks). The recurrent scan and this masked matmul are the SSM and attention faces of one operator.
+</Theorem>
+
+This is the formal sense in which "transformers are SSMs" <Cite key="dao2024mamba2" />: the linear-attention layer of Katharopoulos et al. <Cite key="katharopoulos2020transformers" /> and the selective scan compute the same family of contractions, distinguished only by which mode — recurrent or quadratic — is run. The companion verifies the identity as a matrix equation, with the directly-built $M$ and the masked-attention form agreeing to $\sim 10^{-14}$ (pinned below $10^{-12}$ by `test_scalar_A_equals_masked_attention`), and certifies that $L$ is 1-semiseparable. Chapter 11 enters this same duality from the attention side — linear attention and the delta-rule lineage are the "transformer" reading of the structure this section reached from the SSM side.
+
+## 9.7 What's next
+
+The thread of this chapter is one structural change and its consequences. Making $\stepsize, \inputmat, \outputmat$ depend on the input turns the LTI SSM into a linear *time-varying* system (§9.2); time-variance breaks the convolution–recurrence duality, so no single kernel exists (§9.1) and the §8.6 associative scan — fed input-dependent transitions — becomes the parallel primitive the layer is computed with (§9.3), which is why Mamba needs a fused, recompute-in-backward kernel (§9.4). Re-reading that scan as a matrix exposes its $N$-semiseparable structure and the recurrent/quadratic duality (§9.5), and for scalar state that matrix *is* masked linear attention (§9.6).
+
+**Chapter 10** keeps selectivity and changes the discretization: Mamba-3 moves to a complex state and replaces zero-order hold with the exponential-trapezoidal scheme of Chapter 4 when the selective dynamics turn stiff <Cite key="lahoti2026mamba3" />. That chapter is where the symplectic-integrator pilot finds its empirical anchor — the selective layer built here, run with a second-order geometric integrator. **Chapter 11** takes the §9.6 duality the other way, developing linear attention and the delta-rule lineage as the attention-side reading of the same structured contractions. The selective scan and the semiseparable matrix are the two objects everything downstream reuses.
+
+## 9.8 Exercises
+
+Six problems mixing computation and theory. Short/numerical (9.1–9.3) have inline collapsible solutions; the theory exercises (9.4–9.6) have full worked solutions in §9.9.
+
+### Exercise 9.1 (computation)
+
+Take one stable mode $\statemat = -1$ with $\inputmat = \outputmat = 1$, and two step sizes: a "write" step $\stepsize_{\text{w}} = 1.5$ and a "hold" step $\stepsize_{\text{h}} = 0.01$. (a) Compute the discrete transitions $\discA_{\text{w}} = e^{\stepsize_{\text{w}}\statemat}$ and $\discA_{\text{h}} = e^{\stepsize_{\text{h}}\statemat}$. (b) A value written into the state then held for $20$ steps is multiplied by $\discA_{\text{h}}^{20}$; compute the retained fraction. (c) Contrast with an LTI system that must use $\stepsize = \stepsize_{\text{w}}$ for all $20$ steps. What does this say about selectivity?
+
+<details>
+<summary>Solution</summary>
+
+(a) $\discA_{\text{w}} = e^{-1.5} = 0.2231$ (gate nearly open: most of the old state is overwritten), $\discA_{\text{h}} = e^{-0.01} = 0.9900$ (gate nearly closed: the state is held). (b) Holding for 20 steps retains $\discA_{\text{h}}^{20} = e^{-0.2} = 0.8187$, about $82\%$. (c) The LTI system stuck at $\stepsize_{\text{w}}$ retains $\discA_{\text{w}}^{20} = e^{-30} \approx 9\times10^{-14}$ — total forgetting. Selectivity is precisely the freedom to make $\discA_t$ near $1$ on tokens worth holding and near $0$ on tokens worth overwriting; a fixed $\stepsize$ cannot do both, which is the §9.2 figure in two numbers.
+</details>
+
+### Exercise 9.2 (code)
+
+Run `companions/ch09/jax/selective_scan_demo.py` and confirm the selective associative scan matches the sequential recurrence (the companion reports a residual $\sim 10^{-15}$). Then explain why the S4 trick of computing the same output by an FFT convolution is unavailable here, referencing Proposition (§9.1).
+
+<details>
+<summary>Solution</summary>
+
+The associative scan and the sequential recurrence compute the identical linear recurrence by different reduction orders, so for the same $(\discA_t, \discB_t u_t)$ they agree to floating-point error (the companion measures $\sim 10^{-15}$, pinned below $10^{-12}$). The FFT path is unavailable because it computes a *convolution* $y = K * u$, which requires a single kernel $K$. By Proposition (§9.1) no such kernel exists once $\discA_t$ is input-dependent: the map is not Toeplitz, so it is not a convolution, so there is nothing to transform. The scan, by contrast, only needs the per-step pairs and an associative operator, neither of which assumes time-invariance (§9.3).
+</details>
+
+### Exercise 9.3 (computation)
+
+Consider a scalar-state ($N = 1$) selective system of length $4$ with shared decay $a$, step sizes $\stepsize_1, \dots, \stepsize_4$, scalar projections $\inputmat_j, \outputmat_k$. Write the entry $M_{kj}$ of the SSD matrix for $k \ge j$, and argue that any strictly-lower block (e.g. rows $\{3,4\}$, columns $\{1,2\}$) has rank $1$.
+
+<details>
+<summary>Solution</summary>
+
+With $N=1$, $M_{kj} = \outputmat_k\,\exp\!\big(a\sum_{i=j+1}^k\stepsize_i\big)\,\stepsize_j\,\inputmat_j$ for $k\ge j$. Write $c_m = \sum_{i\le m}\stepsize_i$, so the accumulated decay is $\exp(a(c_k - c_j)) = e^{a c_k}\,e^{-a c_j}$. Then for $k\ge j$,
+$$
+M_{kj} = \underbrace{\big(\outputmat_k\, e^{a c_k}\big)}_{\phi(k)}\;\underbrace{\big(e^{-a c_j}\,\stepsize_j\,\inputmat_j\big)}_{\psi(j)} = \phi(k)\,\psi(j).
+$$
+The block on rows $\{3,4\}$, columns $\{1,2\}$ is $\big[\phi(k)\psi(j)\big]_{k\in\{3,4\},\,j\in\{1,2\}} = \phi_{\{3,4\}}\,\psi_{\{1,2\}}^\top$, an outer product of two vectors — rank $1$. Every strictly-lower block factors the same way, so the matrix is $1$-semiseparable.
+</details>
+
+### Exercise 9.4 (theory) — solution in §9.9
+
+Prove Proposition (§9.1): if the discrete transition $\discA_t$ is input-dependent, the causal linear map $u \mapsto y - Du$ is not Toeplitz, so no convolution kernel $K$ with $y = K*u + Du$ exists. (Hint: a causal linear map is a convolution iff its matrix has constant diagonals.)
+
+### Exercise 9.5 (theory) — solution in §9.9
+
+Prove Proposition (§9.3): the operator $(a_1,b_1)\bullet(a_2,b_2) = (a_2 a_1,\, a_2 b_1 + b_2)$ is associative for arbitrary $a_1, a_2$, and its inclusive prefix scan over $(\discA_t, \discB_t u_t)$ reproduces the LTV states $\statevec_t$. Identify the single place the §8.6 argument used time-invariance and confirm the selective scan does not need it.
+
+### Exercise 9.6 (theory) — solution in §9.9
+
+Prove Theorem (§9.5): for diagonal $\statemat \in \R^N$, every strictly-lower-triangular block of the SSD matrix $M_{kj} = \sum_n \outputmat_{k,n}\exp(\statemat_n\sum_{i=j+1}^k\stepsize_i)\stepsize_j\inputmat_{j,n}$ has rank $\le N$. Then specialize to scalar $\statemat = aI$ to derive the masked-attention form $M = L \circ (\outputmat\,\inputmat^\top)\diag(\stepsize)$ of Theorem (§9.6) and show $L$ is $1$-semiseparable.
+
+## 9.9 Full solutions to theory exercises
+
+### Solution to Exercise 9.4
+
+A causal linear map $u \mapsto v$ on sequences of length $L$ is represented by a lower-triangular matrix $M$ with $v_k = \sum_{j\le k} M_{kj} u_j$. It is a convolution $v = K * u$ — i.e. $v_k = \sum_{j\le k} K_{k-j} u_j$ — if and only if $M_{kj}$ depends only on the offset $k - j$, which is exactly the statement that $M$ is **Toeplitz** (constant along each diagonal $k - j = \text{const}$).
+
+For the selective system, the diagonal-$\statemat$ entry is
+$$
+M_{kj} = \sum_n \outputmat_{k,n}\,\exp\!\Big(\statemat_n\!\sum_{i=j+1}^k \stepsize_i\Big)\,\stepsize_j\,\inputmat_{j,n}, \qquad k \ge j .
+$$
+Consider the main diagonal $k = j$ (offset $0$): the accumulated sum is empty, so $M_{kk} = \sum_n \outputmat_{k,n}\,\stepsize_k\,\inputmat_{k,n} = \stepsize_k\,(\outputmat_k \cdot \inputmat_k)$. Because $\stepsize_k, \outputmat_k, \inputmat_k$ are input-dependent, $M_{kk}$ varies with $k$ whenever the input does, so the main diagonal is not constant and $M$ is not Toeplitz. (More strongly, for $k > j$ the factor $\sum_{i=j+1}^k \stepsize_i$ is not a function of $k - j$ once $\stepsize$ varies, so no off-diagonal is constant either.) A non-Toeplitz causal map is not a convolution, so no kernel $K$ exists; the time-invariant case, where $\discA_t \equiv \discA$ makes $M_{kj} = \outputmat\,\discA^{\,k-j}\discB$ depend only on $k-j$, is the sole case that is Toeplitz. $\blacksquare$
+
+### Solution to Exercise 9.5
+
+*Associativity.* Write a pair $(a, b)$ as the affine map $h \mapsto a h + b$ (with $a$ acting elementwise). Composition of affine maps is associative because function composition is; concretely, with $\bullet$ as defined,
+$$
+\big((a_1,b_1)\bullet(a_2,b_2)\big)\bullet(a_3,b_3) = (a_3 a_2 a_1,\; a_3 a_2 b_1 + a_3 b_2 + b_3),
+$$
+$$
+(a_1,b_1)\bullet\big((a_2,b_2)\bullet(a_3,b_3)\big) = (a_3 a_2 a_1,\; a_3 a_2 b_1 + a_3 b_2 + b_3),
+$$
+and the two agree. **Nowhere did this computation assume $a_1 = a_2 = a_3$** — that is the single place §8.6 silently used (and did not need) time-invariance. *Prefix scan.* Let $e_t = (\discA_t, \discB_t u_t)$ and let $s_k = e_1 \bullet \cdots \bullet e_k$ be the inclusive scan. By induction on $k$ the second component of $s_k$ equals $\statevec_k$: for $k=1$ it is $\discB_1 u_1 = \statevec_1$ (from $\statevec_0 = 0$); and $s_k = s_{k-1}\bullet e_k$ has second component $\discA_k\cdot(\text{2nd comp of }s_{k-1}) + \discB_k u_k = \discA_k \statevec_{k-1} + \discB_k u_k = \statevec_k$. Since $\bullet$ is associative, all prefixes are computable by a balanced reduction tree in depth $O(\log L)$ <Cite key="blelloch1990prefix" />. The selective scan is thus the §8.6 scan verbatim, with time-varying $\discA_t$ in place of a constant $\discA$ — the operator's associativity never cared. $\blacksquare$
+
+### Solution to Exercise 9.6
+
+*Semiseparability.* Fix a strictly-lower block: rows $k \in \mathcal{K}$ and columns $j \in \mathcal{J}$ with $\min\mathcal{K} > \max\mathcal{J}$, so $k > j$ throughout and the accumulated sum is nonempty. Write $c_m = \sum_{i=1}^m \stepsize_i$, so $\sum_{i=j+1}^k \stepsize_i = c_k - c_j$ and $\exp(\statemat_n(c_k - c_j)) = e^{\statemat_n c_k}\,e^{-\statemat_n c_j}$. Then
+$$
+M_{kj} = \sum_{n=1}^N \big(\outputmat_{k,n}\, e^{\statemat_n c_k}\big)\,\big(e^{-\statemat_n c_j}\,\stepsize_j\,\inputmat_{j,n}\big)
+= \sum_{n=1}^N \phi_n(k)\,\psi_n(j),
+$$
+with $\phi_n(k) = \outputmat_{k,n} e^{\statemat_n c_k}$ and $\psi_n(j) = e^{-\statemat_n c_j}\stepsize_j\inputmat_{j,n}$. As a matrix the block is $\sum_{n=1}^N \phi_n\,\psi_n^\top = \Phi\Psi^\top$ with $\Phi \in \R^{\abs{\mathcal{K}}\times N}$, $\Psi \in \R^{\abs{\mathcal{J}}\times N}$, hence rank $\le N$. Every strictly-lower block has this form, so $M$ is $N$-semiseparable. (The factorization is exactly what the chunked algorithm exploits: $\phi$ is read out from the per-chunk states, $\psi$ folded into them.)
+
+*Scalar specialization.* Put $\statemat = aI$, i.e. $\statemat_n = a$ for all $n$. The decay no longer depends on $n$, so it pulls out of the sum:
+$$
+M_{kj} = \exp\!\Big(a\!\sum_{i=j+1}^k \stepsize_i\Big)\,\stepsize_j \sum_{n=1}^N \outputmat_{k,n}\inputmat_{j,n}
+= L_{kj}\,(\outputmat_k \cdot \inputmat_j)\,\stepsize_j,
+$$
+with $L_{kj} = \exp(a(c_k - c_j))$. In matrix form $M = L \circ (\outputmat\,\inputmat^\top)\,\diag(\stepsize)$, the masked-attention form of Theorem (§9.6): $\outputmat\,\inputmat^\top$ is the score matrix and $L$ the decay mask. Finally $L_{kj} = e^{a c_k}e^{-a c_j}$ for $k\ge j$, so any strictly-lower block of $L$ is the outer product $(e^{a c_k})_{k}\,(e^{-a c_j})_{j}^\top$ — rank one. Thus $L$ is $1$-semiseparable, and the full $M$ is $N$-semiseparable with $N$ the state size (here the rank of the score matrix). $\blacksquare$
+
+## 9.10 Companion code
+
+Two language tracks for Chapter 9 — JAX (the reference, with the parallel selective scan and the semiseparable-matrix tools) and PyTorch (the `nn.Module` layers and the masked-attention dual). Julia is omitted, as in Chapter 8: the selective scan and the SSD matrix are the same algorithm in any language, and the JAX/PyTorch pair already carries the cross-framework lesson. The two tracks are pinned bit-for-bit against each other in float64.
+
+**JAX** (`companions/ch09/jax/`):
+
+- `selective_ssm.py` — the SISO selective-SSM core: the selection mechanism, the per-step ZOH discretization, and the selective scan via `jax.lax.associative_scan` with its sequential oracle. The §9.3 equivalence lives here.
+- `selective_vs_lti.py` — emits `selective-vs-lti.png` (§9.2): the held-vs-forgotten single-mode contrast.
+- `selective_scan_demo.py` — emits `selective-scan.png` (§9.3) and `memory-cost.png` (§9.4): scan-vs-sequential agreement and depth, and the materialized-vs-fused memory accounting.
+- `ssd_semiseparable.py` — the SSD tools: `segsum`, the semiseparable matrix `build_ssm_matrix`, the rank certificate `is_n_semiseparable`, and the scalar-$\statemat$ `masked_attention_form`; emits `semiseparable.png` (§9.5).
+- `tests/` — `test_selective.py` pins the selective scan-equivalence, stability by construction, and the not-Toeplitz collapse; `test_ssd.py` pins the recurrent-vs-matmul duality, $N$-semiseparability, and the scalar-$\statemat$ masked-attention identity.
+
+**PyTorch** (`companions/ch09/torch/`):
+
+- `selective_ssm.py` — the selective SSM as an `nn.Module` (`A_log` a learnable `nn.Parameter`, selection projections as `nn.Linear`, eager sequential scan), plus the functional core mirrored from JAX.
+- `ssd_matmul.py` — the scalar-$\statemat$ dual form as `SSDAttention`: masked linear attention with the decay mask in place of softmax.
+- `tests/test_selective_torch.py` — cross-framework parity: the torch selective scan and SSD matrices equal their JAX counterparts to within $10^{-9}$.
+
+To run from the repo root:
+
+```bash
+# JAX (uses the uv .venv with jax, numpy, matplotlib)
+PYTHONPATH=. python companions/ch09/jax/selective_vs_lti.py
+PYTHONPATH=. python companions/ch09/jax/selective_scan_demo.py
+PYTHONPATH=. python companions/ch09/jax/ssd_semiseparable.py
+
+# PyTorch (needs the .venv [torch] extra)
+PYTHONPATH=. python companions/ch09/torch/selective_ssm.py
+PYTHONPATH=. python companions/ch09/torch/ssd_matmul.py
+```
+
+All figures emit to `public/figures/ch09/`.
