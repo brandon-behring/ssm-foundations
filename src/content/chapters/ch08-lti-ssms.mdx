@@ -1,15 +1,290 @@
 ---
-week: 08
+week: 8
 part: ssm-core
+status: implemented
 title: 'LTI SSMs: S4, S4D, S5 as discretized continuous systems'
-status: planned
-description: Three discrete realizations of the same continuous SSM; convolutional vs recurrent views.
+description: The S4 architecture as a discretized HiPPO LTI system — the convolution–recurrence duality and its FFT kernel, the diagonal-plus-low-rank structure behind S4's fast kernel, S4D's diagonal restriction with by-construction stability, and S5's parallel associative scan.
+# v4.8.0 provenance — process-as-artifact audit trail. Chapter 8 is newly authored
+# (2026-05-29) and post-dates the Ch 1–6 audit passes, so audit_history is omitted
+# until the next repo-wide pass covers it (same convention Ch 4 and Ch 7 use). ai_tools
+# + citation_backstop apply now.
+provenance:
+  ai_tools:
+    - Claude Code
+  citation_backstop: research-kb
 ---
 
-import PreReleaseBanner from '@brandon_m_behring/book-scaffold-astro/components/PreReleaseBanner.astro';
+{/*
+  Math notation used in this chapter (auto-loaded via ssmMacros):
+    \statevec  = h     (state vector)
+    \statemat  = A     (continuous state matrix — HiPPO from Chapter 7)
+    \inputmat  = B
+    \outputmat = C
+    \stepsize  = Δ     (step size / learnable timescale)
+    \discA     = Ā     (discrete state matrix)
+    \discB     = B̄
+    \R, \C, \N — number sets
+    \norm{·}, \abs{·}, \Re, \diag — operators
+  Chapter-specific symbols written inline: kernel K, complex diagonal Λ (eigenvalues
+  λ_n), the DPLR decomposition A = Λ − P Q*, the associative-scan operator •.
+*/}
 
-<PreReleaseBanner state="alpha" message="Chapter 08 is planned; not yet authored. See description above for scope. Authoring sequence: Ch 1–3 (foundations) → Ch 4–6 (discretization thread for C1) → remaining chapters per pilot needs." />
+import NoteBox from '@brandon_m_behring/book-scaffold-astro/components/NoteBox.astro';
+import Theorem from '@brandon_m_behring/book-scaffold-astro/components/Theorem.astro';
+import Cite from '@brandon_m_behring/book-scaffold-astro/components/Cite.astro';
+import MarginNote from '@brandon_m_behring/book-scaffold-astro/components/MarginNote.astro';
+import Figure from '@brandon_m_behring/book-scaffold-astro/components/Figure.astro';
 
 # LTI SSMs: S4, S4D, S5 as discretized continuous systems
 
-This chapter is planned. See the [chapter-at-a-glance](https://github.com/brandon-behring/post_transformers/blob/main/notes/foundations_curriculum_design_2026_05_20.md) (foundations §3) for the full design; the [crosswalk](https://github.com/brandon-behring/post_transformers/blob/main/notes/foundations_curriculum_design_2026_05_20.md) (foundations §22) maps this chapter to the relevant post_transformers/roadmap.md weeks.
+<NoteBox title="Chapter 8 — at a glance">
+**Goal**: take the HiPPO recurrence Chapter 7 ended on and build the S4 architecture <Cite key="gu2022s4" /> on top of it. An S4 layer *is* the zero-order-hold discretization (Chapter 4) of the HiPPO LTI system (Chapter 7) with a learnable timescale. We prove the **convolution–recurrence duality** that lets the same layer train as an FFT convolution and run as a scan, sketch the diagonal-plus-low-rank structure behind S4's fast kernel, then specialize twice: **S4D** drops the low-rank term for a diagonal model whose stability is enforced by construction, and **S5** keeps the diagonal but computes it with a parallel associative scan.
+
+**Reading time**: ~50 minutes prose; 90+ minutes with the JAX and PyTorch companions.
+
+**Looking ahead (C1 pilot)**: S4, S4D, and S5 are all *linear time-invariant* — one fixed $(\statemat, \inputmat, \outputmat)$. The symplectic-integrator pilot's empirical anchor is the *selective*, complex-state successor, Mamba-3 (Chapter 10); this chapter is the structural prerequisite that pilot reasons backward from, not itself a direct-transfer target.
+
+**Key insight**: an LTI SSM has *three* computational faces of one operator — a recurrent scan ($O(L)$ sequential, for inference), a convolution ($O(L\log L)$ via FFT, for training), and a parallel associative scan ($O(\log L)$ depth). S4 exploits the first two, S5 the third. The single thing that breaks this freedom — making the parameters depend on the input — is exactly what Chapter 9 does.
+</NoteBox>
+
+## 8.1 State-space to discrete: the S4 setup
+
+Chapter 7 closed on a recurrence and called it the recurrent view of an S4 layer. Make the layer explicit. S4 fixes a single-input, single-output (SISO) continuous system
+$$
+\ddt \statevec(t) = \statemat\, \statevec(t) + \inputmat\, u(t), \qquad y(t) = \outputmat\, \statevec(t) + D\, u(t),
+$$
+with $\statemat \in \R^{N\times N}$ the HiPPO-LegS matrix of §7.3, $\inputmat \in \R^{N\times 1}$, $\outputmat \in \R^{1\times N}$, and $D$ a scalar feedthrough. To run it on a sampled sequence $u_0, u_1, \dots$ we discretize with Chapter 4's **zero-order hold** at step $\stepsize$,
+$$
+\discA = e^{\statemat \stepsize}, \qquad \discB = \statemat^{-1}\!\left(e^{\statemat\stepsize} - I\right)\inputmat, \qquad
+\statevec_{k+1} = \discA\, \statevec_k + \discB\, u_k, \quad y_k = \outputmat\, \statevec_{k+1} + D\, u_k,
+$$
+computed through the augmented matrix-exponential trick of §4.3 (the companion's `discretize_zoh` stacks $\big[\begin{smallmatrix}\statemat\stepsize & \inputmat\stepsize\\ 0 & 0\end{smallmatrix}\big]$ and exponentiates, sidestepping $\statemat^{-1}$).
+
+What makes this an *architecture* rather than a fixed filter is which parts train. S4 learns $\outputmat$, $D$, and $\log\stepsize$ (the timescale, kept positive by the log), while $\statemat, \inputmat$ are initialized from HiPPO and often frozen or updated slowly. Stability is inherited for free: by the §7.7 spectrum every eigenvalue of $\statemat$ has negative real part, so Chapter 4's ZOH proposition gives $\abs{\lambda(\discA)} = e^{\Re(\lambda(\statemat))\stepsize} < 1$ for every $\stepsize > 0$. The slowest mode (eigenvalue $-1$) decays per step by $e^{-\stepsize}$ — for the companion's default $\stepsize = 0.1$ that is $0.905$, a long but strictly contracting memory.
+
+<MarginNote>"Learnable $\stepsize$" is the dynamical-systems knob. Because the discrete eigenvalues are $e^{\lambda_n \stepsize}$, raising $\stepsize$ shortens every mode's memory at once and lowering it lengthens memory — $\stepsize$ slides the whole multi-timescale schedule of §7.7 along a single axis. It is the one continuous-time quantity the network is allowed to tune.</MarginNote>
+
+This is one way to compute the layer. The rest of the chapter is, in large part, *other ways to compute the same thing* — and the surprising fact that they are equal.
+
+## 8.2 The structured state matrix, revisited
+
+Before the second view, recall why the HiPPO $\statemat$ is special enough to deserve fast algorithms. It is dense and lower-triangular (§7.3), so a black-box $e^{\statemat\stepsize}$ and a black-box kernel would cost more than the structure warrants. The structure S4 exploits is that the HiPPO-LegS matrix is **normal-plus-low-rank** (NPLR): up to an orthogonal change of basis it is a normal matrix plus a rank-one correction, and after diagonalizing the normal part it becomes **diagonal-plus-low-rank** (DPLR),
+$$
+\statemat = \Lambda - P\,Q^{*}, \qquad \Lambda = \diag(\lambda_1, \dots, \lambda_N)\in\C^{N\times N}, \quad P, Q \in \C^{N\times 1},
+$$
+with $\Lambda$ the (complex) diagonal of eigenvalues and $P Q^*$ a rank-one term <Cite key="gu2022s4" />. That the HiPPO-LegS matrix admits this diagonal-plus-rank-one form is not evident from the §7.3 closed form — it is a construction of the S4 paper, which we take as given rather than re-derive here. This is the same non-normality that §7.5 flagged as a conditioning hazard, now read constructively: the eigenvector basis is oblique (hence ill-conditioned), but the *correction* that makes $\statemat$ non-normal is only rank one, and a rank-one correction is exactly what the Woodbury identity handles cheaply.
+
+The DPLR form is the hinge for the rest of the chapter. Section 8.4 uses the full $\Lambda - PQ^*$ to compute S4's kernel quickly; §8.5 throws away the $PQ^*$ term entirely and keeps only $\Lambda$, which is S4D.
+
+## 8.3 The convolution–recurrence duality
+
+The recurrence of §8.1 is sequential: $\statevec_{k+1}$ needs $\statevec_k$. Unrolling it from zero initial state exposes a second, fully parallel description. With $\statevec_0 = 0$,
+$$
+\statevec_{k+1} = \sum_{j=0}^{k} \discA^{\,k-j}\, \discB\, u_j
+\quad\Longrightarrow\quad
+y_k = \sum_{j=0}^{k} \big(\outputmat\, \discA^{\,k-j}\, \discB\big)\, u_j + D\, u_k.
+$$
+Define the **SSM convolution kernel** $K \in \R^{L}$ by $K_i = \outputmat\, \discA^{\,i}\, \discB$. Then the output is a causal convolution plus the feedthrough:
+$$
+y = K * u + D\, u.
+$$
+
+<Theorem id="ch08:conv-recurrence-duality" type="proposition">
+**(Convolution–recurrence duality.)** For zero initial state, the SISO recurrence $\statevec_{k+1} = \discA\statevec_k + \discB u_k$, $\,y_k = \outputmat\statevec_{k+1} + D u_k$ produces exactly the convolution $y = K * u + D u$ with kernel $K_i = \outputmat\, \discA^{\,i}\, \discB$, $\,i = 0, \dots, L-1$. The recurrent form costs $O(L)$ sequential steps; the convolution, computed by FFT, costs $O(L\log L)$ parallel work.
+</Theorem>
+
+The proof (Exercise 8.4, §8.9) is the unrolling above made rigorous by induction. The two forms are not approximations of each other — they are the same numbers. The companion confirms it to machine precision: the recurrent `lax.scan` output and the FFT convolution agree to a measured residual $\sim 10^{-15}$ in float64, which `test_conv_recurrence_duality` pins below $10^{-12}$.
+
+<Figure id="ch08:fig:kernel-duality" src="/figures/ch08/kernel-duality.png" alt="Left: the SSM convolution kernel as a smooth decaying sequence of taps. Right: the recurrent-scan output and the FFT-convolution output plotted on top of each other, indistinguishable, with the maximum residual annotated below 1e-15." caption="The convolution–recurrence duality for an $N=16$ HiPPO-S4 system. Left: the kernel $K_i = \outputmat\,\discA^{\,i}\,\discB$, a decaying tap sequence. Right: the recurrent-scan output (solid) and the FFT-convolution output (dashed) coincide to machine precision (measured residual $\sim 10^{-15}$, pinned below $10^{-12}$). Produced by companions/ch08/jax/s4_duality.py; pinned by test_conv_recurrence_duality in companions/ch08/jax/tests/test_s4.py." />
+
+The duality is why S4 is practical: **train as a convolution, deploy as a recurrence.** Training sees whole sequences at once, so the parallel $O(L\log L)$ FFT wins; autoregressive inference produces one token at a time, so the $O(L)$ scan with its $O(N)$ state wins. One set of parameters, two runtimes.
+
+<MarginNote>This freedom is exactly what Chapter 9 gives up. Mamba makes $\statemat, \inputmat, \outputmat$ depend on the input $u_k$, so $\discA$ changes every step and there is no *single* kernel $K$ to convolve with — the convolutional view collapses and only a (selective) scan survives. The duality is a property of *time-invariance*; §8.6 builds the scan that outlives it.</MarginNote>
+
+## 8.4 The Cauchy kernel: structure buys speed
+
+The duality leaves one cost open: building the kernel $K$. Naively, $K_i = \outputmat\,\discA^{\,i}\,\discB$ iterates the state vector $\discA^{\,i}\discB$ — one $N\times N$ mat-vec per tap, $O(N^2 L)$ in total. For the teaching regime $N \le 64$ that is exactly what the companion does, and it is plenty fast. S4's published contribution is to compute the *same* kernel in $O(N\log^2 N)$ by using the DPLR structure of §8.2 <Cite key="gu2022s4" />.
+
+The route is a generating function. Collect the taps into a polynomial and evaluate it on the unit circle: the truncated generating function is
+$$
+\hat K(z) = \sum_{i=0}^{L-1} \outputmat\,\discA^{\,i}\,\discB\; z^{i} \;\approx\; \outputmat\,(I - \discA\, z)^{-1}\,\discB,
+$$
+a geometric series in the matrix $\discA z$. Recovering $K$ from $\hat K$ evaluated at the $L$-th roots of unity is one inverse FFT. The remaining cost is the resolvent $(I - \discA z)^{-1}$, and here DPLR pays off: with $\discA$ built from $\Lambda - PQ^*$ the Woodbury identity turns the resolvent into a **Cauchy matrix–vector product** — entries $1/(\zeta_k - \lambda_n)$ — plus a rank-one correction, computable in $O(N)$ per frequency and $O(N\log^2 N)$ overall. The dense $\discA^{\,i}$ never appears.
+
+We present this kernel but do **not** implement it: the companions use the transparent naive kernel throughout (§8.10). The point of §8.4 is the *shape* of the cost, not the engineering — and the shape is what motivates S4D.
+
+<Figure id="ch08:fig:kernel-vs-n" src="/figures/ch08/kernel-vs-n.png" alt="Log-log plot of kernel computation time versus state dimension N. The measured naive-kernel times track a slope-2 reference line; a much shallower N-log-squared reference line sits below it." caption="Why S4 needs structure. Measured wall-clock of the naive $O(N^2 L)$ kernel ($L=512$) tracks the $N^2$ reference; an $O(N\log^2 N)$ reference slope (analytic, not a timed implementation — the Cauchy kernel of §8.4 is not built here) sits asymptotically far below. For $N \le 64$ the naive kernel is more than adequate and far clearer. Produced by companions/ch08/jax/s4_kernel_cost.py." />
+
+## 8.5 S4D: the diagonal restriction
+
+The Cauchy machinery is the price of keeping the rank-one term $PQ^*$. **S4D** asks what happens if we simply drop it <Cite key="gu2022s4d" /> — keep the diagonal $\Lambda$, discard the low-rank correction. The state matrix is now genuinely diagonal, $\statemat = \Lambda = \diag(\lambda_1, \dots, \lambda_N)$, and everything decouples mode by mode. The kernel collapses from a Cauchy computation to a **Vandermonde** sum:
+$$
+K_l = \sum_{n} \outputmat_n\, \bar B_n\, \bar\Lambda_n^{\,l}, \qquad \bar\Lambda_n = e^{\lambda_n \stepsize}, \quad \bar B_n = \frac{\bar\Lambda_n - 1}{\lambda_n},
+$$
+with $\bar B_n$ the per-mode diagonal ZOH input. In practice the $N$ real states are carried as $N/2$ complex conjugate pairs and the real kernel is reconstructed as $K_l = 2\,\Re\!\big(\sum_n \outputmat_n \bar B_n \bar\Lambda_n^{\,l}\big)$.
+
+<Theorem id="ch08:s4d-vandermonde" type="proposition">
+**(S4D Vandermonde kernel and stability.)** For diagonal $\statemat = \diag(\lambda_n)$ the kernel is the Vandermonde sum $K_l = \sum_n \outputmat_n \bar B_n \bar\Lambda_n^{\,l}$ with $\bar\Lambda_n = e^{\lambda_n\stepsize}$. The discrete system is stable — every $\abs{\bar\Lambda_n} < 1$ — if and only if $\Re(\lambda_n) < 0$ for all $n$.
+</Theorem>
+
+The derivation and the stability claim are Exercise 8.5 (§8.9). What makes S4D more than "S4 with worse expressivity" is *how* it secures the stability condition. The **S4D-Lin** initialization places the modes at $\lambda_n = -\tfrac12 + i\pi n$, and — crucially — stores them in the parameterization
+$$
+\lambda_n = -e^{(\,\log A_{\text{real}})_n} + i\,(A_{\text{imag}})_n,
+$$
+so that $\Re(\lambda_n) = -e^{(\log A_{\text{real}})_n} < 0$ for **any** real value the parameters take. Stability is not hoped for; it is structural.
+
+This is the constructive answer to the §7.5 conditioning hazard: where S4 must diagonalize an ill-conditioned non-normal matrix and hope the basis behaves, S4D never forms that basis at all — it parameterizes the eigenvalues directly and pins their real parts negative.
+
+<MarginNote>**The sign trap, defused.** Chapter 7's companion hit a sign bug because the HiPPO routine returns the *stable* $\statemat$ (eigenvalues $-1,\dots,-N$), and feeding the positive-eigenvalue variant to ZOH gives $\abs{\discA} > 1$ and an exploding kernel. S4D makes that bug unrepresentable: $-e^{(\cdot)}$ is negative for every input, so no setting of the weights can push a mode out of the unit disk. The companion's `test_s4d_real_part_negative_for_any_parameters` checks exactly this across random extreme parameters.</MarginNote>
+
+Diagonal state space models are not a downgrade in practice: with the right initialization they match full S4 on long-range benchmarks while being markedly simpler to implement <Cite key="gupta2022diagonal" />. The companion plots the S4D-Lin spectrum against the full HiPPO spectrum to make the restriction visible.
+
+<Figure id="ch08:fig:s4d-spectrum" src="/figures/ch08/s4d-spectrum.png" alt="Complex plane scatter. Gray points: the HiPPO-LegS eigenvalues spread along the negative real axis from minus 1 to minus 32. Navy points: the S4D-Lin modes at real part minus one-half, stepping up the imaginary axis at multiples of pi." caption="S4D-Lin diagonal initialization ($M=16$ complex modes at $-\tfrac12 + i\pi n$, navy) against the full HiPPO-LegS spectrum ($N=32$ real eigenvalues $-1,\dots,-N$, gray). S4D abandons HiPPO's real integer spectrum for a fixed-real-part comb up the imaginary axis; the common feature is $\Re(\lambda) < 0$, here enforced by construction. Produced by companions/ch08/jax/s4d_kernel.py." />
+
+## 8.6 S5: the parallel associative scan
+
+S4D made the state diagonal but still computed it as a convolution. **S5** keeps the diagonal state and abandons the convolution for a *parallel scan* <Cite key="smith2023simplified" />. Two changes. First, S5 is **MIMO**: one shared diagonal state of size $P$ drives $H$ input/output channels through $\inputmat \in \C^{P\times H}$ and $\outputmat \in \C^{H\times P}$, instead of $H$ independent SISO systems. Second, it computes the recurrence
+$$
+\statevec_k = \discA \odot \statevec_{k-1} + \discB\, u_k
+$$
+(diagonal $\discA$, so $\odot$ is elementwise) with an **associative scan**. The trick is that a linear recurrence is an associative operation on $(\text{transition}, \text{input})$ pairs:
+$$
+(a_1, b_1) \bullet (a_2, b_2) = (a_2 \odot a_1,\; a_2 \odot b_1 + b_2),
+$$
+which composes "apply the first affine update, then the second." Scanning $\bullet$ over the pairs $(\discA, \discB u_k)$ yields every state $\statevec_k$ at once.
+
+<Theorem id="ch08:scan-equivalence" type="proposition">
+**(Scan equivalence.)** The operator $\bullet$ above is associative, and the inclusive prefix scan of $(\discA, \discB u_0), \dots, (\discA, \discB u_{L-1})$ under $\bullet$ has as its second components exactly the sequential states $\statevec_0, \dots, \statevec_{L-1}$. A balanced reduction computes all prefixes in parallel depth $O(\log L)$ <Cite key="blelloch1990prefix" />, versus the $O(L)$ depth of the sequential recurrence.
+</Theorem>
+
+The proof is Exercise 8.6 (§8.9). The companion pins the equivalence to machine precision — the associative scan and the sequential scan agree to about $3\times10^{-15}$ (pinned below $10^{-12}$) — and contrasts the two on the algorithmic cost that actually differs: critical-path depth.
+
+<Figure id="ch08:fig:s5-scan-depth" src="/figures/ch08/s5-scan-depth.png" alt="Two panels. Left: log-log plot of parallel steps versus sequence length; the sequential curve rises linearly as L while the parallel curve rises as log L. Right: semilog plot of the maximum state difference between the two methods versus L, flat near 1e-15." caption="S5's parallel scan vs the sequential recurrence. Left: critical-path depth — sequential $O(L)$ against parallel $\lceil\log_2 L\rceil$. Right: the two compute identical states, agreeing to $\sim 10^{-15}$ (pinned below $10^{-12}$) across sequence lengths. The depth advantage is realized on parallel hardware (GPU/TPU). Produced by companions/ch08/jax/s5_scan.py; pinned by test_s5_parallel_equals_sequential_states." />
+
+<MarginNote>**No free scan in PyTorch.** JAX has `lax.associative_scan`; PyTorch has no native parallel-scan primitive, so the torch companion (`s5_sequential.py`) runs the recurrence as an eager loop — correct, and bit-for-bit identical to the JAX states, but sequential. The $O(\log L)$ depth is a JAX/parallel-hardware story; in production a custom CUDA or Triton kernel supplies the scan.</MarginNote>
+
+S5 deliberately stops at *one diagonal SSM run in parallel*. Its MIMO channel mixing and, above all, the move to **input-dependent** transitions are Chapter 9's subject — and that move is what makes the associative scan indispensable rather than merely convenient.
+
+## 8.7 What's next
+
+The thread of this chapter is that S4, S4D, and S5 are three computational treatments of *one* linear time-invariant system: a convolution and a recurrence that the duality proves equal (§8.3), a diagonal restriction whose stability is free (§8.5), and a parallel scan that reorders the same arithmetic into $O(\log L)$ depth (§8.6). Time-invariance is what every one of these relies on — a fixed $\discA$ is what lets a single kernel exist and a single transition seed the scan.
+
+**Chapter 9** breaks time-invariance on purpose: Mamba makes $\statemat, \inputmat, \outputmat$ functions of the input <Cite key="gu2024mamba" /> (and the structured state-space duality <Cite key="dao2024mamba2" /> later reframes the result), which destroys the convolutional view and leaves the selective scan — the §8.6 primitive, now load-bearing — as the only way to compute the layer. **Chapter 10** then replaces ZOH with the exponential-trapezoidal scheme of Chapter 4 when the selective dynamics turn stiff, in Mamba-3 <Cite key="lahoti2026mamba3" />; that chapter is where the symplectic-integrator pilot finds its empirical anchor. Everything downstream inherits the discretized-LTI scaffold built here.
+
+## 8.8 Exercises
+
+Six problems mixing computation and theory. Short/numerical (8.1–8.3) have inline collapsible solutions; the theory exercises (8.4–8.6) have full worked solutions in §8.9.
+
+### Exercise 8.1 (computation)
+
+Take a diagonal toy system $\statemat = \diag(-1, -2)$, $\inputmat = (1, 1)^\top$, $\outputmat = (1, 1)$, $D = 0$, and step $\stepsize = 0.1$. Compute $\discA$ and $\discB$ by the diagonal ZOH, then the first four kernel taps $K_0, \dots, K_3$. Confirm the taps decay.
+
+<details>
+<summary>Solution</summary>
+
+Diagonal ZOH acts mode-by-mode: $\bar A_n = e^{\lambda_n \stepsize}$ and $\bar B_n = (\bar A_n - 1)/\lambda_n \cdot B_n$. So $\bar A = (e^{-0.1}, e^{-0.2}) = (0.9048, 0.8187)$, and $\bar B_1 = (1 - e^{-0.1})/1 = 0.0952$, $\bar B_2 = (1 - e^{-0.2})/2 = 0.0906$. With $\outputmat = (1,1)$ the taps are $K_k = \sum_n \bar A_n^{\,k}\, \bar B_n = 0.0952\,(0.9048)^k + 0.0906\,(0.8187)^k$:
+$$
+K_0 = 0.1858,\quad K_1 = 0.1603,\quad K_2 = 0.1387,\quad K_3 = 0.1202.
+$$
+Each tap is a sum of two decaying geometric sequences (rates $e^{-0.1}$ and $e^{-0.2}$), so the kernel decays monotonically — a discrete sum of exponentials, one per mode.
+</details>
+
+### Exercise 8.2 (computation + code)
+
+The S4D kernel sums one geometric sequence per mode. (a) Show that $\abs{\bar\Lambda_n^{\,l}} = e^{\Re(\lambda_n)\stepsize\, l}$, so each mode decays at its own rate. (b) Show that a complex mode $\lambda$ with weight $w = \outputmat\bar B$ and its conjugate $\bar\lambda$ with weight $\bar w$ together contribute $w\,\bar\Lambda^{\,l} + \bar w\,\overline{\bar\Lambda}^{\,l} = 2\Re(w\,\bar\Lambda^{\,l})$, explaining the real $2\Re$ form. (c) Run `companions/ch08/jax/s4d_kernel.py` and confirm the Vandermonde kernel matches the recurrence oracle.
+
+<details>
+<summary>Solution</summary>
+
+(a) $\bar\Lambda_n = e^{\lambda_n\stepsize}$, so $\bar\Lambda_n^{\,l} = e^{\lambda_n\stepsize l}$ and $\abs{\bar\Lambda_n^{\,l}} = e^{\Re(\lambda_n)\stepsize l}$; with $\Re(\lambda_n) < 0$ this decays geometrically at rate $e^{\Re(\lambda_n)\stepsize}$ per tap. (b) For any complex $\zeta$, $w\zeta + \bar w\bar\zeta = 2\Re(w\zeta)$ since a number plus its conjugate is twice its real part; applying it with $\zeta = \bar\Lambda^{\,l}$ (and noting $\overline{\bar\Lambda}^{\,l} = \overline{\bar\Lambda^{\,l}}$) gives the claim. Carrying $N/2$ conjugate pairs and taking $2\Re$ thus reproduces the $N$-real-state kernel while storing only half as many complex numbers. (c) `test_s4d_kernel_matches_recurrence_oracle` pins the closed-form Vandermonde kernel against an independent complex-diagonal recurrence impulse response to $10^{-9}$.
+</details>
+
+### Exercise 8.3 (code)
+
+Run `companions/ch08/jax/s4_duality.py` and confirm the recurrent and convolutional outputs agree (the companion reports a residual below $10^{-15}$). Then explain why the agreement would break if the FFT used length $L$ instead of $2L$.
+
+<details>
+<summary>Solution</summary>
+
+The FFT computes a *circular* convolution of length equal to the transform size. With a length-$L$ transform, output position $0$ receives a contribution from kernel tap $L-1$ wrapped around the end of the sequence — a spurious term that the causal linear convolution does not contain, corrupting the early outputs. Zero-padding both signals to $2L$ before the FFT makes the circular convolution agree with the causal linear one on the first $L$ positions (the wrapped terms land in the padded tail, which is discarded). The companion's `causal_conv_fft` uses `n = 2*L` for exactly this reason; `test_fft_pad_matches_direct_convolution` pins the padded FFT against a direct convolution.
+</details>
+
+### Exercise 8.4 (theory) — solution in §8.9
+
+Prove the convolution–recurrence duality (Proposition, §8.3): for zero initial state, the SISO recurrence equals $y = K * u + D u$ with $K_i = \outputmat\,\discA^{\,i}\,\discB$.
+
+### Exercise 8.5 (theory) — solution in §8.9
+
+Derive the S4D Vandermonde kernel from the diagonal recurrence, prove the discrete system is stable iff $\Re(\lambda_n) < 0$ for all $n$, and show that the S4D-Lin parameterization $\lambda_n = -e^{(\log A_{\text{real}})_n} + i(A_{\text{imag}})_n$ enforces stability for every parameter value.
+
+### Exercise 8.6 (theory) — solution in §8.9
+
+Prove that the scan operator $(a_1,b_1)\bullet(a_2,b_2) = (a_2 a_1,\, a_2 b_1 + b_2)$ is associative, that its inclusive prefix scan reproduces the sequential states $\statevec_k$, and that a balanced reduction achieves parallel depth $O(\log L)$.
+
+## 8.9 Full solutions to theory exercises
+
+### Solution to Exercise 8.4
+
+Start from $\statevec_0 = 0$ and $\statevec_{k+1} = \discA\statevec_k + \discB u_k$. Claim: $\statevec_{k+1} = \sum_{j=0}^{k} \discA^{\,k-j}\discB\, u_j$. Induct on $k$. Base ($k=0$): $\statevec_1 = \discA\cdot 0 + \discB u_0 = \discA^{\,0}\discB\, u_0$. Step: assuming $\statevec_k = \sum_{j=0}^{k-1}\discA^{\,k-1-j}\discB u_j$,
+$$
+\statevec_{k+1} = \discA\statevec_k + \discB u_k = \sum_{j=0}^{k-1}\discA^{\,k-j}\discB u_j + \discA^{\,0}\discB u_k = \sum_{j=0}^{k}\discA^{\,k-j}\discB u_j.
+$$
+Now the output, using $y_k = \outputmat\statevec_{k+1} + D u_k$:
+$$
+y_k = \sum_{j=0}^{k}\outputmat\discA^{\,k-j}\discB\, u_j + D u_k = \sum_{j=0}^{k} K_{k-j}\, u_j + D u_k,
+$$
+with $K_i = \outputmat\discA^{\,i}\discB$. The sum $\sum_{j=0}^k K_{k-j} u_j$ is precisely the causal convolution $(K * u)_k$, so $y = K * u + D u$. The lower-triangular Toeplitz structure of the map $u \mapsto y - Du$ is the convolution. $\blacksquare$
+
+### Solution to Exercise 8.5
+
+For diagonal $\statemat = \diag(\lambda_n)$ the matrix exponential is diagonal, $\discA = \diag(e^{\lambda_n\stepsize})$, and the ZOH input $\discB = \statemat^{-1}(e^{\statemat\stepsize} - I)\inputmat$ acts mode-by-mode: $\bar B_n = (e^{\lambda_n\stepsize} - 1)/\lambda_n \cdot B_n$. The kernel inherits the diagonality,
+$$
+K_l = \outputmat\,\discA^{\,l}\,\discB = \sum_n \outputmat_n\, e^{\lambda_n\stepsize l}\, \bar B_n = \sum_n \outputmat_n\,\bar B_n\,\bar\Lambda_n^{\,l},
+$$
+a sum of geometric sequences — the Vandermonde form (the real $2\Re$ version follows by pairing conjugates, Exercise 8.2). Stability: the kernel and the state stay bounded iff each geometric ratio satisfies $\abs{\bar\Lambda_n} < 1$. Since $\abs{\bar\Lambda_n} = \abs{e^{\lambda_n\stepsize}} = e^{\Re(\lambda_n)\stepsize}$ and $\stepsize > 0$, this holds iff $\Re(\lambda_n) < 0$ for every $n$. Finally, under S4D-Lin the real part is $\Re(\lambda_n) = -e^{(\log A_{\text{real}})_n}$, and a negative exponential is strictly negative for *every* real exponent — so $\Re(\lambda_n) < 0$ holds for all parameter values, with no constraint to enforce during training. Stability is built into the parameterization rather than maintained by it. $\blacksquare$
+
+### Solution to Exercise 8.6
+
+*Associativity.* Write the action of a pair $(a, b)$ on a state $h$ as the affine map $h \mapsto a h + b$. Composition of affine maps is associative because function composition is. Concretely, with $\bullet$ elementwise,
+$$
+\big((a_1,b_1)\bullet(a_2,b_2)\big)\bullet(a_3,b_3) = (a_2 a_1,\, a_2 b_1 + b_2)\bullet(a_3,b_3) = (a_3 a_2 a_1,\; a_3 a_2 b_1 + a_3 b_2 + b_3),
+$$
+$$
+(a_1,b_1)\bullet\big((a_2,b_2)\bullet(a_3,b_3)\big) = (a_1,b_1)\bullet(a_3 a_2,\, a_3 b_2 + b_3) = (a_3 a_2 a_1,\; a_3 a_2 b_1 + a_3 b_2 + b_3),
+$$
+and the two right-hand sides are identical. *Prefix scan reproduces the states.* Let $e_k = (\discA, \discB u_k)$ and $s_k = e_0 \bullet \cdots \bullet e_k$ be the inclusive scan. By induction the second component of $s_k$ equals $\statevec_k$: for $k = 0$ it is $\discB u_0 = \statevec_0$ (with $\statevec_{-1}=0$); and $s_k = s_{k-1} \bullet e_k$ has second component $\discA\cdot(\text{2nd comp of } s_{k-1}) + \discB u_k = \discA\statevec_{k-1} + \discB u_k = \statevec_k$. *Depth.* Because $\bullet$ is associative, computing all prefixes is a prefix-sum problem, which a balanced binary reduction tree evaluates in $O(\log L)$ sequential rounds with $O(L)$ total work <Cite key="blelloch1990prefix" /> — versus the $O(L)$ rounds of the naive recurrence. $\blacksquare$
+
+## 8.10 Companion code
+
+Two language tracks for Chapter 8 — JAX (the reference, with the parallel scan) and PyTorch (the `nn.Module` operators). Julia is omitted here: the S4D reference and the associative-scan primitive both live in the JAX/PyTorch world, and a stdlib-Julia rebuild would add a third spelling without a third lesson. The JAX and torch companions are pinned bit-for-bit against each other, the cross-framework lesson Chapter 7 introduced.
+
+**JAX** (`companions/ch08/jax/`):
+
+- `s4_core.py` — the harness-free S4 numerical core ported from the Week 4 source: `make_hippo_legs`, `discretize_zoh` / `discretize_bilinear`, the naive $O(N^2 L)$ kernel, and the recurrent and convolutional views. The §8.3 duality lives here.
+- `s4_duality.py` — emits `kernel-duality.png` (§8.3): kernel taps plus the two views overlaid.
+- `s4_kernel_cost.py` — times the naive kernel across $N$; emits `kernel-vs-n.png` (§8.4).
+- `s4d_kernel.py` — the S4D-Lin diagonal init and Vandermonde kernel (§8.5), complex128; emits `s4d-spectrum.png`.
+- `s5_scan.py` — the S5 associative scan via `jax.lax.associative_scan`, with the sequential reference; emits `s5-scan-depth.png` (§8.6).
+- `tests/` — `test_s4.py` pins the duality (recurrent $\equiv$ convolutional), the kernel oracle, ZOH stability, and the FFT-pad guard; `test_s4d_s5.py` pins S4D by-construction stability, the Vandermonde-vs-recurrence cross-check, and S5 scan-equivalence.
+
+**PyTorch** (`companions/ch08/torch/`):
+
+- `s4d_kernel.py` — the S4D kernel as an `nn.Module` (fixed-init buffers), the Vandermonde computation ported from the reference S4D, in complex128.
+- `s5_sequential.py` — the diagonal MIMO S5 as a sequential scan (PyTorch has no native parallel scan); the states match the JAX associative scan bit-for-bit.
+- `tests/test_s4d_torch.py` — cross-framework parity: the torch S4D kernel and S5 states equal their JAX counterparts to within $10^{-8}$.
+
+To run from the repo root:
+
+```bash
+# JAX (uses the uv .venv with jax, numpy, matplotlib)
+PYTHONPATH=. python companions/ch08/jax/s4_duality.py
+PYTHONPATH=. python companions/ch08/jax/s4_kernel_cost.py
+PYTHONPATH=. python companions/ch08/jax/s4d_kernel.py
+PYTHONPATH=. python companions/ch08/jax/s5_scan.py
+
+# PyTorch (needs the .venv [torch] extra)
+PYTHONPATH=. python companions/ch08/torch/s4d_kernel.py
+PYTHONPATH=. python companions/ch08/torch/s5_sequential.py
+```
+
+All figures emit to `public/figures/ch08/`.
