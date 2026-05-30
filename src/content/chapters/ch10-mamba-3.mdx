@@ -1,15 +1,448 @@
 ---
 week: 10
 part: ssm-core
+status: implemented
 title: 'Mamba-3 and the exponential-trapezoidal integrator'
-status: planned
-description: Complex-valued state, second-order discretization, MIMO formulation — ICLR 2026 Oral; C1 empirical anchor.
+description: How Mamba-3 keeps selectivity and changes two things — a second-order exponential-trapezoidal integrator and a complex state — turning the dynamical-systems lens of Chapters 4-6 onto a production sequence model.
+provenance:
+  ai_tools:
+    - Claude Code
+  citation_backstop: research-kb
 ---
 
-import PreReleaseBanner from '@brandon_m_behring/book-scaffold-astro/components/PreReleaseBanner.astro';
+import NoteBox from '@brandon_m_behring/book-scaffold-astro/components/NoteBox.astro';
+import Theorem from '@brandon_m_behring/book-scaffold-astro/components/Theorem.astro';
+import Cite from '@brandon_m_behring/book-scaffold-astro/components/Cite.astro';
+import MarginNote from '@brandon_m_behring/book-scaffold-astro/components/MarginNote.astro';
+import Figure from '@brandon_m_behring/book-scaffold-astro/components/Figure.astro';
 
-<PreReleaseBanner state="alpha" message="Chapter 10 is planned; not yet authored. See description above for scope. Authoring sequence: Ch 1–3 (foundations) → Ch 4–6 (discretization thread for C1) → remaining chapters per pilot needs." />
+{/*
+  Math macros (auto-loaded via ssmMacros in astro.config):
+    \statevec=h \statemat=A \inputmat=B \outputmat=C \feedmat=D
+    \stepsize=Δ \discA=Ā \discB=B̄ \seqlen=L
+  Chapter-local symbols declared inline: interpolation λ; trapezoid triple
+  (α, β, γ); complex eigenvalue ρ e^{iθ}; the φ-functions φ₁, φ₂.
+*/}
 
 # Mamba-3 and the exponential-trapezoidal integrator
 
-This chapter is planned. See the [chapter-at-a-glance](https://github.com/brandon-behring/post_transformers/blob/main/notes/foundations_curriculum_design_2026_05_20.md) (foundations §3) for the full design; the [crosswalk](https://github.com/brandon-behring/post_transformers/blob/main/notes/foundations_curriculum_design_2026_05_20.md) (foundations §22) maps this chapter to the relevant post_transformers/roadmap.md weeks.
+<NoteBox title="Chapter 10 — at a glance">
+**Goal**: see how Mamba-3 keeps the selectivity of Chapter 9 and changes exactly
+two things — the *integrator* (zero-order hold becomes the second-order
+exponential-trapezoidal scheme of Chapter 4) and the *state* (real diagonal
+becomes complex, so one head can both decay and oscillate). This is where the
+numerical-analysis machinery of Chapters 4-6 meets a production architecture.
+
+**Reading time**: ~45 minutes prose; 2 hours with the companions.
+
+**Direct-transfer hook (C1 pilot)**: Mamba-3 is the symplectic-integrator pilot's
+empirical anchor. The pilot's question is exactly the one this chapter sets up —
+does a higher-order, structure-aware integrator help a selective SSM, and at what
+stability cost? Exp-trapezoidal is the *first* step (a second-order exponential
+integrator); §10.3 marks where the *geometric* integrators of Chapter 6 take over
+as the open research direction (revisited in Chapter 17).
+
+**Key insight**: for an *exponential* integrator the state transition
+$\discA = e^{\statemat \stepsize}$ is computed exactly, so **stability is decided
+by $\statemat$ alone and accuracy is decided by the input quadrature alone** —
+the two concerns that are entangled for Runge-Kutta methods here come apart. The
+order upgrade lives entirely in how the forcing is approximated.
+</NoteBox>
+
+## 10.1 Two upgrades to the selective SSM
+
+Chapter 9 built the selective SSM: input-dependent $(\stepsize_t, \inputmat_t,
+\outputmat_t)$ make the dynamics linear time-varying, the convolution view
+collapses, and the selective scan plus the semiseparable-matrix view (SSD) carry
+the computation. Mamba-1 and Mamba-2 both discretize with **zero-order hold**
+(ZOH) and keep a **real** diagonal state matrix $\statemat$.
+
+Mamba-3 <Cite key="lahoti2026mamba3" /> changes precisely two things and leaves
+the rest of the SSD scaffold (the semiseparable structure of `ch09:ssd-semiseparable`,
+the scan, the attention duality of `ch09:ssd-duality`) intact:
+
+1. **A second-order integrator.** ZOH is first-order accurate; Mamba-3 adopts the
+   **exponential-trapezoidal** scheme of Chapter 4 §4.5, which is second-order
+   accurate while keeping ZOH's exact treatment of the homogeneous dynamics
+   (§10.2-10.3).
+2. **A complex state.** A real diagonal mode $\statemat < 0$ can only decay;
+   a complex mode $\statemat = \log\rho + i\theta$ decays *and* rotates, so a
+   single head becomes a damped oscillator (§10.4).
+
+Both changes are dynamical-systems moves, and both have been waiting since the
+foundations chapters: the integrator is the Chapter 4-5 story applied to a real
+architecture, and the complex state is the spiral phase portrait of Chapters 1-2.
+The C1 pilot's empirical question — whether a second-order, structure-preserving
+integrator actually buys accuracy on a selective SSM without costing stability —
+is the through-line.
+
+## 10.2 The exponential-trapezoidal scheme
+
+Recall the continuous mode $\dot{\statevec} = \statemat \statevec + u(t)$, whose
+exact one-step map is $\statevec_k = e^{\statemat\stepsize}\statevec_{k-1} +
+\int_0^{\stepsize} e^{\statemat(\stepsize - s)}\, u(t_{k-1}+s)\,ds$. Every
+exponential integrator keeps the transition $e^{\statemat\stepsize}$ exact (the
+philosophy of Chapter 4 §4.5) and approximates only the forcing integral. ZOH
+holds the input constant at the left endpoint; the exponential-trapezoidal scheme
+applies the **trapezoidal quadrature rule** to the forcing integral — averaging
+the integrand at the two endpoints. The integrand is $e^{\statemat\stepsize}
+u_{k-1}$ at $s = 0$ and $u_k$ at $s = \stepsize$, so the rule gives
+$\tfrac{\stepsize}{2}(e^{\statemat\stepsize} u_{k-1} + u_k)$. Weighting the two
+endpoints by $\lambda \in [0,1]$ gives the three-term update
+$$
+\statevec_k = \alpha\, \statevec_{k-1} + \beta\, u_{k-1} + \gamma\, u_k,
+\qquad
+\alpha = e^{\statemat \stepsize},\;
+\beta = (1-\lambda)\,\stepsize\,\alpha,\;
+\gamma = \lambda\,\stepsize .
+$$
+The contrast with ZOH is the *third term*: where ZOH reads only the left endpoint
+$u_{k-1}$, the trapezoid reads *both* endpoints. At $\lambda = \tfrac12$ this is the
+symmetric trapezoidal rule (globally second-order); at $\lambda = 1$ it collapses
+to a shifted ZOH (first order). Mamba-3 makes $\lambda$ itself input-dependent (a
+sigmoid of a learned projection), one more selective knob.
+
+<MarginNote>Chapter 4 §4.5 derives a *different* second-order exponential
+integrator — the $\varphi_1, \varphi_2$ family, which integrates the linear
+interpolant of $u$ *exactly*. Mamba-3 instead applies the trapezoidal *quadrature*
+rule to the forcing integral (the form above); the two agree to $O(\stepsize^2)$
+and differ at $O(\stepsize^3)$, so both are globally second-order. The quadrature
+form is what keeps the SSD pass of §10.5 a sum of two clean streams.</MarginNote>
+
+<MarginNote>The exact same $\alpha = e^{\statemat \stepsize}$ appears in ZOH and
+in exp-trapezoidal. Only $\beta, \gamma$ — the *forcing* coefficients — differ.
+That is the entire mechanical difference between first and second order here.</MarginNote>
+
+This single fact — that $\alpha$ is identical for the two schemes — has a sharp
+consequence for how the order can be *measured*.
+
+<Theorem id="ch10:exp-trap-order" title="Second order lives in the forcing, and is invisible without it">
+For $\lambda = \tfrac12$ the exponential-trapezoidal scheme has local truncation
+error $O(\stepsize^3)$ per step, hence global order 2, **provided the input
+$u$ is non-constant and $C^1$**. On the homogeneous system ($u \equiv 0$) both
+ZOH and exp-trapezoidal reproduce the exact solution $\statevec_k = e^{\statemat
+t_k} \statevec_0$ to machine precision, so the order difference is *unobservable*
+there.
+</Theorem>
+
+The proof is Exercise 10.4 (§10.9). The practical reading is a trap worth naming:
+because the homogeneous transition is exact, a convergence study run on an
+*autonomous* system shows ZOH and exp-trapezoidal as identical lines at roundoff —
+the second order is simply not visible. The companion confirms this directly: on
+the autonomous mode both schemes sit at $\sim 2 \times 10^{-15}$, while on the
+*forced* mode the fitted convergence slopes separate cleanly into $1.00$ (ZOH) and
+$2.00$ (exp-trapezoidal). This is the same lesson Chapter 4 flagged in Exercise
+4.3 ("setting $u \equiv 0$ makes ZOH exact; the slope is meaningless"), now
+load-bearing for verifying a real architecture's headline claim.
+
+<Figure id="ch10:fig:lte-order" src="/figures/ch10/lte-order.png" alt="Log-log plot of maximum error versus step size on a forced complex mode, ZOH at slope 1 and exponential-trapezoidal at slope 2." caption="Global error versus step size on the forced mode $\dot{x} = A x + \sin(\omega t)$ with $A = -0.5 + 2i$. ZOH (navy) fits slope 1.00; exponential-trapezoidal (rose) fits slope 2.00; dotted guides mark the reference slopes. The order separation appears only because the input is non-constant — on the homogeneous system both lines collapse to roundoff. Produced by companions/ch10/jax/discretization.py; the slopes are pinned in tests/test_discretization.py." />
+
+## 10.3 Stability and accuracy decouple
+
+Why adopt an *exponential* integrator rather than a higher-order Runge-Kutta
+method? Because the exponential transition is exact, the discrete amplification
+factor is $|\alpha| = e^{\operatorname{Re}(\statemat)\stepsize}$, which is $< 1$
+for any stable mode ($\operatorname{Re}(\statemat) < 0$) at *any* step size. ZOH
+and exp-trapezoidal are therefore unconditionally stable on the homogeneous part —
+A-stable over the entire left half-plane — and, crucially, **stability is set by
+$\statemat$ alone, independent of the order of the forcing quadrature**. For a
+Runge-Kutta method a single stability polynomial controls both accuracy and the
+stability region; the exponential integrator decouples them.
+
+<Theorem id="ch10:exp-trap-stability" title="Exponential schemes are A-stable and damp stiff modes">
+For $\operatorname{Re}(\statemat) < 0$, the exponential-trapezoidal (and ZOH)
+amplification factor satisfies $|\alpha| = e^{\operatorname{Re}(\statemat)
+\stepsize} < 1$ for every $\stepsize > 0$, and $|\alpha| \to 0$ as the mode
+stiffens ($\operatorname{Re}(\statemat)\stepsize \to -\infty$). The bilinear
+(Tustin) scheme is also A-stable but uses the $(1,1)$-Padé approximation
+$\alpha = (1 + \statemat\stepsize/2)/(1 - \statemat\stepsize/2)$, for which
+$|\alpha| \to 1$ as the mode stiffens: stiff modes are left undamped.
+</Theorem>
+
+The proof is Exercise 10.6 (§10.9). The companion makes the contrast quantitative:
+at a stiff $\statemat\stepsize = -30$, the exponential schemes give $|\alpha|
+\approx 9.4 \times 10^{-14}$ (fully damped) while bilinear gives $|\alpha| =
+0.875$ (still ringing). This is why an exponential integrator is the right tool
+when the input-dependent $\statemat(u_t)$ of a selective SSM produces stiff
+dynamics, as Chapter 4 §4.7 anticipated for exactly this chapter. One caveat
+matters for §10.4: the theorem bounds the *magnitude* $|\alpha|$ only. For a
+complex mode it says nothing about how faithfully the discrete rotation tracks the
+continuous phase $\theta\stepsize$ — phase fidelity is a separate question, and the
+open one the frontier paragraph below raises.
+
+<Figure id="ch10:fig:stability-regions" src="/figures/ch10/stability-regions.png" alt="Two panels: left, A-stability regions in the complex plane; right, amplification magnitude versus stiffness for exponential versus bilinear schemes." caption="Left: the exponential schemes are A-stable on the whole left half-plane ($\operatorname{Re}(A\Delta) \le 0$), whereas forward Euler is stable only inside its unit disk. Right: along the negative real axis the exponential amplification $e^z$ decays to zero (stiff modes damped, navy) while the bilinear Padé factor tends to one (stiff modes undamped, rose). Produced by companions/ch10/jax/discretization.py; the stiff-mode contrast is pinned in tests/test_discretization.py." />
+
+**The geometric-integrator frontier (where the pilot goes next).** Exp-trapezoidal
+is a second-order *exponential* integrator; it is not *symplectic*. For the
+oscillatory complex modes introduced in §10.4, the question the symplectic-integrator
+pilot asks is whether a geometric integrator (Chapter 6) — one that preserves a
+phase-space invariant rather than merely a damping bound — controls long-horizon
+phase error better than exp-trapezoidal does. That is an open empirical question,
+not a settled result, and it is the heart of the "discretization stability atlas"
+the pilot pursues; Chapter 17 returns to it. This chapter establishes the settled
+part: exp-trapezoidal is second-order, A-stable, and exact on the homogeneous part.
+
+<MarginNote>Bilinear's redeeming property (Chapter 4 §4.4) is that it maps the
+imaginary axis *exactly* to the unit circle — it preserves undamped oscillations
+on the nose. That is precisely the structure-preservation theme Chapter 6 develops
+and the pilot generalizes.</MarginNote>
+
+## 10.4 Complex state: decay and oscillation in one head
+
+A real diagonal mode $\statemat < 0$ gives $\alpha = e^{\statemat\stepsize} \in
+(0,1)$: pure geometric decay, a single forgetting timescale. Mamba-3 lets the mode
+be **complex**, $\statemat = \log\rho + i\theta$, so
+$$
+\alpha = e^{\statemat\stepsize}
+= \underbrace{\rho^{\stepsize}}_{\text{decay}}\;
+  \underbrace{e^{i\theta\stepsize}}_{\text{rotation}} .
+$$
+The magnitude decays at rate $\log\rho$ per unit step and the phase advances by
+$\theta\stepsize$: a single head is now a *damped oscillator*, tracing the
+logarithmic spiral of Chapters 1-2 rather than a monotone decay. This lets one
+head represent an oscillatory feature — a frequency — instead of only a timescale.
+
+In production Mamba-3 never stores a complex dtype. It keeps a real state and
+applies **rotary position embeddings (RoPE)** — 2-D rotations — to the projections
+$\inputmat, \outputmat$. The justification is the elementary isomorphism between
+complex multiplication and $2\times 2$ rotation-scaling.
+
+<Theorem id="ch10:rope-complex-equivalence" title="RoPE rotation equals complex multiplication">
+Representing $z = a + bi$ as the real vector $[a, b]^\top$, multiplication by
+$\rho e^{i\theta}$ equals applying the scaled rotation
+$\rho R(\theta) = \rho\left(\begin{smallmatrix}\cos\theta & -\sin\theta\\ \sin\theta &
+\cos\theta\end{smallmatrix}\right)$. Consequently the complex recurrence $x_k = (\rho
+e^{i\theta}) x_{k-1} + b_k$ and the real 2-D recurrence $s_k = \rho R(\theta)
+s_{k-1} + [\operatorname{Re} b_k, \operatorname{Im} b_k]^\top$ produce identical
+trajectories.
+</Theorem>
+
+The proof is Exercise 10.5 (§10.9). The companion pins the two recurrences equal
+to $\sim 3 \times 10^{-15}$ under a random complex drive, and confirms the spiral's
+decay rate equals $\log\rho$ exactly — the empirical content of "decay and
+oscillation in one head."
+
+<MarginNote>Chapter 8's S4D was already complex — but linear time-*invariant*.
+Mamba-3 is the synthesis: **complex** state (Chapter 8) *and* **selective**
+(time-varying) parameters (Chapter 9), discretized to second order (this chapter).</MarginNote>
+
+<Figure id="ch10:fig:complex-spiral" src="/figures/ch10/complex-spiral.png" alt="Left, the spiral trajectory of a complex mode in the real-imaginary plane; right, its magnitude decaying geometrically on a log scale." caption="A single complex mode $\rho = 0.95$, $\theta = 20^\circ$ per step. Left: the state spirals inward in the $(\operatorname{Re}, \operatorname{Im})$ plane — simultaneous decay and rotation. Right: the magnitude follows the $\rho^k$ envelope exactly (measured per-step decay rate $-0.0513 = \log\rho$). Produced by companions/ch10/jax/complex_state.py; the decay rate and RoPE equivalence are pinned in tests/test_complex_state.py." />
+
+## 10.5 The trapezoidal SSD pass
+
+The second-order stencil must coexist with the SSD machinery of Chapter 9 — the
+semiseparable matrix that lets the layer run as a parallel matmul or a linear-time
+scan. It does, because only the *injection stencil* changes. Unrolling the
+trapezoidal recurrence with the state-transition operator $\Phi(k,j) =
+\prod_{i=j+1}^{k} \alpha_i = \exp(\statemat \sum_{i=j+1}^{k}\stepsize_i)$ (the same
+$\Phi$ as `ch09:ltv-transition`) splits the output into **two semiseparable streams
+that share the one decay $\Phi$**: a right-endpoint stream weighting source $j$ by
+$\lambda\stepsize_j$, and a left-endpoint stream weighting source $j$ by
+$(1-\lambda)\stepsize_{j+1}$ across the strictly-lower triangle. Both reuse the
+Chapter 9 segment-sum decay; the order-2 upgrade is two cheap masked matmuls in
+place of one.
+
+<MarginNote>A tempting shortcut — folding each stream's weight into the $\stepsize$
+passed to a ZOH-style SSD kernel — corrupts the decay to $\Phi^{\lambda}$, because
+that kernel uses $\stepsize$ for *both* the decay and the source weight. The decay
+must be built once from the true $\stepsize$ and shared. The companion documents
+this and tests against the corruption.</MarginNote>
+
+The companion verifies that the dense two-stream matmul reproduces the sequential
+trapezoidal recurrence to $\sim 2 \times 10^{-14}$ (for both real and complex
+modes), and that the end-to-end output is genuinely second-order — halving the
+step size cuts the error by a factor of four. The SSD duality of §9.5 survives the
+integrator upgrade intact: same matrix, two schedules, now order 2.
+
+## 10.6 MIMO and the production block
+
+Two further Mamba-3 changes are engineering rather than dynamics, and we treat
+them briefly. **MIMO rank-$R$ state mixing** ($R > 1$ output channels mixed per
+step) is a hardware-utilization improvement that does not change the
+discretization or stability story. The **full production block** — SwiGLU gating,
+QK-normalization, the $\inputmat\outputmat$ bias — wraps the layer studied here;
+those are orthogonal to the integrator-and-state question and we point to the
+reference implementation rather than reproduce them <Cite key="lahoti2026mamba3" />.
+
+What this chapter isolates is the dynamical-systems substance: a selective SSM
+(Chapter 9) run with a second-order exponential integrator (Chapters 4-5) and a
+complex state (Chapters 1-2, 8). The open program — whether *geometric* integrators
+(Chapter 6) preserve long-horizon phase structure better than the exponential
+scheme over the *learned* eigenvalue spectrum — is the discretization stability
+atlas the C1 pilot builds, and Chapter 17 returns to it.
+
+## 10.7 What's next
+
+Mamba-3 kept Chapter 9's selectivity and changed two things: a second-order
+exponential-trapezoidal integrator (accuracy in the forcing, stability from the
+exact exponential) and a complex state (decay and oscillation in one head),
+realized via RoPE and computed through the trapezoidal SSD pass. This closes the
+core SSM line — HiPPO (Chapter 7) to LTI S4/S4D/S5 (Chapter 8) to selective Mamba
+(Chapter 9) to Mamba-3 (here).
+
+**Chapter 11** opens the "beyond SSM" part by taking the SSD duality of §9.6 the
+other way: linear attention and the Hyena long-convolution lineage enter from the
+attention side of `ch09:ssd-duality`, where the structured contractions of these
+four chapters reappear wearing transformer clothing.
+
+## 10.8 Exercises
+
+Six problems: three short (inline solutions), three longer (full solutions in
+§10.9).
+
+### Exercise 10.1 (short)
+
+For a complex mode $\statemat = \log\rho + i\theta$ with $\rho = 0.9$, $\theta =
+\pi/6$, and step $\stepsize = 1$, compute $|\alpha|$ and the phase advance of
+$\alpha = e^{\statemat\stepsize}$ over two steps. Which is the decay timescale and
+which is the oscillation frequency?
+
+<details>
+<summary>Solution</summary>
+
+$\alpha = \rho\, e^{i\theta} = 0.9\, e^{i\pi/6}$, so $|\alpha| = 0.9$ per step and
+the phase advances $\theta = \pi/6 = 30^\circ$ per step. Over two steps
+$|\alpha^2| = 0.81$ and the phase advances $60^\circ$. The magnitude $\rho = 0.9$
+sets the decay timescale; $\theta = \pi/6$ sets the oscillation frequency. They are
+independent — that is the point of a complex mode.
+
+</details>
+
+### Exercise 10.2 (short, code)
+
+Run `companions/ch10/jax/discretization.py`. Confirm the fitted convergence slopes
+are $\approx 1$ for ZOH and $\approx 2$ for exp-trapezoidal on the *forced* system.
+Then explain, in one sentence, why the same script reports both schemes at
+$\sim 10^{-15}$ on the homogeneous system.
+
+<details>
+<summary>Solution</summary>
+
+The script prints ZOH slope $1.00$ and exp-trapezoidal slope $2.00$ on the forced
+mode. On the homogeneous mode the transition $\alpha = e^{\statemat\stepsize}$ is
+exact for both schemes, so both reproduce $\statevec_0 e^{\statemat t_k}$ to
+floating-point roundoff and the order difference — which lives entirely in the
+forcing coefficients $\beta, \gamma$ — never enters (`ch10:exp-trap-order`).
+
+</details>
+
+### Exercise 10.3 (short)
+
+Write the exp-trapezoidal coefficients $(\alpha, \beta, \gamma)$ for $\lambda = 0$,
+$\lambda = \tfrac12$, and $\lambda = 1$. Show that $\lambda = 1$ reduces to a
+first-order shifted ZOH (no current-input term carrying the decay).
+
+<details>
+<summary>Solution</summary>
+
+$\alpha = e^{\statemat\stepsize}$ throughout. $\lambda = 0$: $\beta =
+\stepsize\,\alpha$, $\gamma = 0$ (pure left endpoint). $\lambda = \tfrac12$:
+$\beta = \tfrac{\stepsize}{2}\alpha$, $\gamma = \tfrac{\stepsize}{2}$ (symmetric).
+$\lambda = 1$: $\beta = 0$, $\gamma = \stepsize$ — only the current input $u_k$
+enters, with no decay applied to it, which is a first-order ZOH shifted by one
+step. The symmetric $\lambda = \tfrac12$ is the only second-order member.
+
+</details>
+
+### Exercise 10.4 (theory) — solution in §10.9
+
+Prove `ch10:exp-trap-order`: for $\lambda = \tfrac12$ the exponential-trapezoidal
+scheme has local truncation error $O(\stepsize^3)$ on a forced system, and show
+that on the homogeneous system both ZOH and exp-trapezoidal are exact.
+
+### Exercise 10.5 (theory) — solution in §10.9
+
+Prove `ch10:rope-complex-equivalence`: that a 2-D rotation by $\theta$ on
+$[\operatorname{Re} z, \operatorname{Im} z]$ equals multiplication of $z$ by
+$e^{i\theta}$, and conclude the complex and real-RoPE recurrences coincide.
+
+### Exercise 10.6 (theory) — solution in §10.9
+
+Prove `ch10:exp-trap-stability`: that the exponential schemes are A-stable with
+$|\alpha| \to 0$ on stiff modes, and contrast the bilinear Padé factor, showing
+$|\alpha| \to 1$ as $\statemat\stepsize \to -\infty$.
+
+## 10.9 Full solutions to theory exercises
+
+### Solution to Exercise 10.4
+
+Write the exact one-step map by variation of constants over $[t_{k-1}, t_k]$:
+$$
+\statevec(t_k) = e^{\statemat\stepsize}\statevec(t_{k-1})
+  + \int_0^{\stepsize} e^{\statemat(\stepsize - s)}\, u(t_{k-1}+s)\,ds .
+$$
+The transition $e^{\statemat\stepsize}$ is reproduced *exactly* by both schemes, so
+all error is in the forcing integral. Exp-trapezoidal approximates $\int_0^{\stepsize}
+g(s)\,ds$, with integrand $g(s) = e^{\statemat(\stepsize-s)}\,u(t_{k-1}+s)$, by the
+trapezoidal quadrature rule $\tfrac{\stepsize}{2}\big(g(0) + g(\stepsize)\big)$ — the
+$\lambda = \tfrac12$ endpoint weights of §10.2. The trapezoidal rule on an interval
+of width $\stepsize$ has error $-\tfrac{\stepsize^3}{12}\,g''(\xi)$ for some interior
+$\xi$; since $g$ is $C^2$ whenever $u$ is, the local truncation error is
+$O(\stepsize^3)$ per step, and summing $O(\stepsize^{-1})$ steps over a fixed horizon
+yields global order 2.
+For the homogeneous system $u \equiv 0$ the forcing integral vanishes identically
+and $\statevec_k = e^{\statemat t_k}\statevec_0$ exactly for both schemes,
+regardless of order — there is no forcing term to approximate, so the order
+distinction disappears. $\blacksquare$
+
+### Solution to Exercise 10.5
+
+Let $z = a + bi$ and write $[z] = [a, b]^\top$. Then
+$$
+e^{i\theta} z = (\cos\theta + i\sin\theta)(a + bi)
+= (a\cos\theta - b\sin\theta) + i(a\sin\theta + b\cos\theta),
+$$
+whose real-vector form is $[a\cos\theta - b\sin\theta,\; a\sin\theta +
+b\cos\theta]^\top = R(\theta)[z]$ with $R(\theta) =
+\left(\begin{smallmatrix}\cos\theta & -\sin\theta\\ \sin\theta &
+\cos\theta\end{smallmatrix}\right)$. Scaling by $\rho$ commutes with the real
+isomorphism, so multiplication by $\rho e^{i\theta}$ is $\rho R(\theta)$ on $[z]$.
+Applying this at every step of the affine recurrence (the additive drive $b_k$ maps
+to $[b_k]$ componentwise, which the isomorphism also preserves) shows the complex
+recurrence $x_k = (\rho e^{i\theta})x_{k-1} + b_k$ and the real recurrence $s_k =
+\rho R(\theta) s_{k-1} + [b_k]$ produce identical trajectories under $[\cdot]$.
+$\blacksquare$
+
+### Solution to Exercise 10.6
+
+For the exponential schemes $\alpha = e^{\statemat\stepsize}$, so $|\alpha| =
+e^{\operatorname{Re}(\statemat)\stepsize}$. If $\operatorname{Re}(\statemat) < 0$
+and $\stepsize > 0$ then the exponent is negative and $|\alpha| < 1$ for every
+$\stepsize$ (A-stability over the whole left half-plane), and as the mode stiffens
+($\operatorname{Re}(\statemat)\stepsize \to -\infty$) we have $|\alpha| \to 0$. For
+the bilinear scheme $\alpha = (1 + z/2)/(1 - z/2)$ with $z = \statemat\stepsize$;
+writing $z = x + iy$ with $x < 0$, $|1 + z/2| < |1 - z/2|$ (the left point is
+closer to $-2$, the right to $+2$), so $|\alpha| < 1$ — also A-stable. But as
+$x \to -\infty$ the ratio $(1 + z/2)/(1 - z/2) \to -1$, so $|\alpha| \to 1$: stiff
+modes are mapped to the unit circle and ring rather than decaying. This is the
+qualitative gap the exponential transition closes. $\blacksquare$
+
+## 10.10 Companion code
+
+The companions live in `companions/ch10/{jax,julia,torch}/`. The JAX and torch
+modules cover the integrator, the complex state, and the trapezoidal SSD pass; the
+Julia module is the discretization atlas only — the numerical-analysis core — and
+joins the Chapter 4-6 Julia family that the C1 pilot's stability atlas builds on.
+
+The discretization study (order slopes, homogeneous-blindness, stability regions):
+```bash
+PYTHONPATH=. python companions/ch10/jax/discretization.py
+julia --project=companions/ch10/julia companions/ch10/julia/discretization.jl
+```
+
+The complex state and RoPE equivalence (the spiral figure):
+```bash
+PYTHONPATH=. python companions/ch10/jax/complex_state.py
+```
+
+The trapezoidal SSD pass (matmul equals the sequential oracle):
+```bash
+PYTHONPATH=. python companions/ch10/jax/trapezoidal_ssd.py
+```
+
+Run the suites — JAX and Julia in the fast loop, torch separately:
+```bash
+make companion-jax-tests
+make companion-julia-tests
+make companion-torch-tests
+```
