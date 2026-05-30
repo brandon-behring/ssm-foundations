@@ -24,7 +24,7 @@ help:
 	@echo "  check-bibkeys     - validate bibliography.bib + chapter citations (audit F6)"
 	@echo "  check-xrefs       - validate <Theorem id=...>  + <Figure id=...> (audit F7)"
 	@echo "  companion-julia-tests"
-	@echo "                    - run julia runtests.jl in ch05, ch06 (ch04 manual; needs Pkg.instantiate)"
+	@echo "                    - run julia runtests.jl in ch05, ch06, ch07 (ch04 manual; needs Pkg.instantiate)"
 	@echo "  companion-jax-tests   - run JAX companion pytest suites (.venv; excludes torch)"
 	@echo "  companion-torch-tests - run PyTorch companion pytest suites (.venv [torch] extra)"
 	@echo ""
@@ -71,14 +71,14 @@ check-xrefs:
 
 # Companion testing (audit F8 — Julia track).
 #
-# Runs in ch05 + ch06 (no DifferentialEquations.jl dependency, so quick).
+# Runs in ch05 + ch06 + ch07 (no DifferentialEquations.jl dependency, so quick).
 # ch04 requires Pkg.instantiate first; we don't include it in the default
 # loop. To run ch04: julia --project=companions/ch04/julia -e 'using Pkg;
 # Pkg.instantiate()' first, then julia --project=companions/ch04/julia
 # companions/ch04/julia/runtests.jl.
 
 companion-julia-tests:
-	@for ch in ch05 ch06; do \
+	@for ch in ch05 ch06 ch07; do \
 		echo "==> $$ch julia tests"; \
 		julia --project=companions/$$ch/julia companions/$$ch/julia/runtests.jl || exit 1; \
 	done
@@ -94,7 +94,7 @@ companion-jax-tests:
 #   uv pip install -e 'companions/_shared[torch]'
 # Local gate only; never wired into `check` (CI stays jax/torch-free).
 companion-torch-tests:
-	@.venv/bin/pytest companions/ch01/torch companions/ch02/torch companions/ch03/torch -q
+	@.venv/bin/pytest companions/ch01/torch companions/ch02/torch companions/ch03/torch companions/ch07/torch -q
 
 # Composite gates.
 
