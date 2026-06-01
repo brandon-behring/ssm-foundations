@@ -1,0 +1,23 @@
+cff-version: 1.2.0
+message: "If you use this book, please cite it as below."
+type: software
+title: "ssm-foundations"
+abstract: >-
+  17-chapter lens-led foundations book bridging numerical analysis and
+  dynamical systems to modern sequence-model architectures (SSMs, Mamba,
+  S4, Hyena, DeltaNet).
+authors:
+  - family-names: Behring
+    given-names: Brandon
+    email: brandon.m.behring@gmail.com
+repository-code: "https://github.com/brandon-behring/ssm-foundations"
+url: "https://ssm-foundations.brandon-behring.dev"
+license: MIT
+keywords:
+  - state-space-models
+  - sequence-models
+  - numerical-analysis
+  - dynamical-systems
+  - mamba
+  - s4
+  - deep-learning
