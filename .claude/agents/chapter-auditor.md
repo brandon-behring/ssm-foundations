@@ -36,12 +36,13 @@ and stop.
 
 `STYLE.md` §11 "Authoring checklist for Ch 7–17" is your spine. Check:
 
-1. **Frontmatter** — 5 required fields (`week`, `part`, `title`, `status`,
+1. **Truthfulness of `status:`** (check this FIRST) — does the claim match
+   reality? `implemented` requires prose + 6 exercises (3 short inline + 3 long
+   with full solutions) + companions present. Flag any gap between the claimed
+   status and the artifacts. This is historically the #1 audit-finding category
+   (docs that overclaim), so it leads the pass — not buried mid-checklist.
+2. **Frontmatter** — 5 required fields (`week`, `part`, `title`, `status`,
    `description`); `status` ∈ the 7-state taxonomy. (STYLE.md §1)
-2. **Truthfulness of `status:`** — does the claim match reality? `implemented`
-   requires prose + 6 exercises (3 short inline + 3 long with full solutions) +
-   companions present. Flag any gap between the claimed status and the artifacts.
-   This is historically the #1 audit-finding category (docs that overclaim).
 3. **Section structure** — positional order: content → What's next → Exercises →
    Full solutions → Companion code. (STYLE.md §1)
 4. **Opening NoteBox** — "Chapter X — at a glance" with Goal + Reading time +

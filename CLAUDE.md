@@ -2,7 +2,7 @@
 
 A 17-chapter lens-led foundations book for sequence-model architectures, with the dynamical-systems perspective foregrounded. Built with `@brandon_m_behring/book-scaffold-astro` (academic preset, v4.8.0).
 
-**Status**: scaffold landed 2026-05-24 (Plan 3 launch). Chapters 1–6 are authored (`status: implemented`); Ch 7–17 are stubbed `planned`.
+**Status**: scaffold landed 2026-05-24 (Plan 3 launch). Chapters 1–10 are authored (`status: implemented`) — foundations (1–6) + SSM-core (7–10) shipped and deployed; Ch 11–17 are stubbed `planned`. (Status line updated 2026-06-04.)
 
 ---
 
@@ -25,6 +25,31 @@ A 17-chapter lens-led foundations book for sequence-model architectures, with th
 
 ---
 
+## Authoring standards (STYLE.md at a glance)
+
+`STYLE.md` is the authoritative authoring contract; this index tells you what to read before drafting. §11 (the Ch 7–17 checklist) is the spine the `chapter-auditor` enforces; §13 lists the sanctioned Ch 1 / Ch 5 deviations.
+
+| § | Topic | § | Topic |
+|---|---|---|---|
+| 1 | Chapter skeleton (frontmatter + positional sections) | 8 | Companion code (`## X.10`) |
+| 2 | Math notation (KaTeX macros, declared in frontmatter) | 9 | Margin notes (~3, ≤80 words, nothing load-bearing) |
+| 3 | Components vocabulary | 10 | Voice and pedagogy (rigor-first, specialist audience) |
+| 4 | Theorem cross-references (`id=` / `<XRef>`) | 11 | Authoring checklist for Ch 7–17 |
+| 5 | Citations (`<Cite>` + bibkey format) | 12 | Drift and updates |
+| 6 | Figures (caption credits the producer script) | 13 | Known exceptions (Ch 1, Ch 5) |
+| 7 | Exercises (3 short inline + 3 long) | | |
+
+---
+
+## Memory & session continuity
+
+Session state lives in two places — read both when resuming authoring:
+
+- **`CURRENT_WORK.md`** (repo root) — a one-screen "right now / why / next step" snapshot; the fastest resume context.
+- **Claude Code project-memory** — the `MEMORY.md` index under `~/.claude/projects/.../memory/` links the Ch 7–17 roadmap, the chapter-authoring playbook, per-chapter pre-recon, and feedback/convention memories. (Auto-injected at session start; named here so it's discoverable, and so its existence is not invisible to a human reader.)
+
+---
+
 ## Status taxonomy (7-state)
 
 Migrated from `post_transformers/roadmap.md`:
@@ -39,13 +64,13 @@ Migrated from `post_transformers/roadmap.md`:
 | `scaffolded` | Skeleton file with frontmatter + outline, no real content |
 | `planned` | No file yet, or a stub with PreReleaseBanner only |
 
-Current state (2026-05-25): Ch 1–6 = `implemented`; Ch 7–17 = `planned`.
+Current state (2026-06-04): Ch 1–10 = `implemented`; Ch 11–17 = `planned`.
 
 ---
 
 ## Project subagents (`.claude/agents/`)
 
-Four **read-only review/verify** subagents isolate high-volume, well-specified
+Five **read-only review/verify** subagents isolate high-volume, well-specified
 checks from the main authoring thread. They auto-fire (precise `description:`
 fields + a `PostToolUse` nudge hook in `.claude/settings.json`); all are
 findings-only and never edit files. Full index + invocation in
@@ -57,9 +82,10 @@ findings-only and never edit files. Full index + invocation in
 | `companion-verifier` | companion code under `companions/chXX/**` changes | runs jax/julia/torch suites, JAX↔Julia parity, figure/caption checks |
 | `prose-pedagogy-reviewer` | a prose draft reads complete | teaching-quality review vs STYLE.md §§9–10 + Ch 1–6 |
 | `citation-link-auditor` | `bibliography.bib` changes / pre-release | bibkey hygiene + `<Cite>` resolution + cross-repo URL freshness |
+| `claim-skeptic` | a chapter's math is drafted/edited, before advancing `status:` | adversarial **claim-truth** check: theorem/derivation soundness, attributions, numeric-claim↔companion parity, overclaimed generality |
 
 Authoring stays in the main thread by design (review/verify only); escalate to a
-multi-agent **Workflow** if Ch 7–17 needs orchestrated fan-out.
+multi-agent **Workflow** if Ch 11–17 needs orchestrated fan-out.
 
 ---
 
