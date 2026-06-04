@@ -1,6 +1,6 @@
 # `.claude/` — project subagents for ssm-foundations
 
-Four **read-only review/verify** subagents that isolate high-volume,
+Five **read-only review/verify** subagents that isolate high-volume,
 well-specified, verifiable checks from the main authoring thread. The principle:
 delegate when *intermediate work ≫ conclusion* and the task is specified by a
 pointer (a chapter slug), not by the conversation. Authoring stays in the main
@@ -14,6 +14,7 @@ thread by design — these agents review and verify; they never write.
 | **companion-verifier** | companion code under `companions/chXX/**` changes | runs jax/julia/torch suites, checks JAX↔Julia numeric parity, verifies figures exist + caption numbers match. Returns pass/fail + failures only. | Read, Grep, Bash | sonnet |
 | **prose-pedagogy-reviewer** | a prose draft reads complete (before the audit) | qualitative teaching-quality review vs STYLE.md §§9–10 and the Ch 1–6 exemplars (voice, narrative, pilot hook, references). | Read, Grep, Glob | inherit |
 | **citation-link-auditor** | `bibliography.bib` changes / periodic pre-release | bibkey hygiene + `<Cite>` resolution + unused-entry detection + cross-repo URL freshness (WebFetch). Repo-wide, deliberate cadence. | Read, Grep, Bash, WebFetch | sonnet |
+| **claim-skeptic** | a chapter's math content is drafted/edited, before advancing `status:` | adversarial **claim-truth** check: theorem/derivation soundness, missing hypotheses, attributions, numeric-claim↔companion parity, overclaimed generality. Refute-by-default; verify against the artifact. | Read, Grep, Glob | inherit |
 
 All four are **findings-only**: they report; the main thread decides what to fix.
 None has `Write`/`Edit`.
@@ -44,12 +45,14 @@ or *"run companion-verifier on ch07"*.
 
 - **Why no authoring agents?** Drafting prose/exercises produces output that *is*
   the deliverable — nothing to isolate, and it's collaborative. It stays in the
-  main thread. If Ch 7–17 ever needs orchestrated fan-out, reach for a multi-agent
+  main thread. If Ch 11–17 ever needs orchestrated fan-out, reach for a multi-agent
   **Workflow** (stateful, multi-stage), not a stateless subagent.
 - **Division of labor** — `chapter-auditor` = mechanical/standards;
   `prose-pedagogy-reviewer` = qualitative teaching; `companion-verifier` = code +
-  figures; `citation-link-auditor` = repo-wide citation/link. They deliberately
-  do not overlap (auditor checks per-chapter `<Cite>` resolution; the
-  citation-link-auditor owns the repo-wide + URL-freshness sweep).
+  figures; `citation-link-auditor` = repo-wide citation/link; `claim-skeptic` =
+  mathematical claim-*truth* (theorem/derivation soundness, attributions,
+  numeric-claim parity). They deliberately do not overlap — e.g. the auditor checks
+  a `<Cite>` *resolves*, `claim-skeptic` checks the cited attribution is *correct*,
+  and `citation-link-auditor` owns the repo-wide + URL-freshness sweep.
 - All checks **reuse existing repo tooling** (`Makefile`, `scripts/*.mjs`) rather
   than reimplementing — see `../STYLE.md`, `../Makefile`, `../audits/`.
