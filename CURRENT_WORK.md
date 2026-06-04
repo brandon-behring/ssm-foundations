@@ -3,10 +3,10 @@
 One-screen resume context (the `sessions.md` §1 pattern). Update on context switch / session end.
 For the durable index, see the Claude Code project-memory `MEMORY.md`.
 
-**Right now:** Ch-11 **runway cleared** on branch `chore/ch11-runway` (F4 XRef adopted forward-only;
-F26 importlib test mode + bar codified; F27 ch04–06 torch parity → torch now complete ch01–10;
-`docs/DASHBOARD.md` + chapter-research-brief template added). PR open — **merging deploys** (ch04–06
-§X.10 edits touch `src/`). Ch 1–10 `implemented`/shipped; `main` at `4dbcd92` (PR #15 merged).
+**Right now:** Ch-11 **runway cleared, merged, and deployed** — PR #16 → `main` `cd5a5fb`; production
+deploy green at <https://ssm-foundations.brandon-behring.dev>. F4 XRef adopted forward-only; F26 importlib
+test mode + bar codified; F27 ch04–06 torch parity → torch complete ch01–10; `docs/DASHBOARD.md` +
+chapter-research-brief template added. Ch 1–10 `implemented`/shipped (no chapter in flight).
 
 **Why:** Foundations + the SSM spine (HiPPO → S4/S4D/S5 → Selective → Mamba-3) are done. Part IV
 (beyond-ssm) is next, opening with Ch 11.
