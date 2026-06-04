@@ -187,9 +187,24 @@ elided. Both forms are accepted; future xref-label lint (audit F7)
 will accept both.
 
 The build pipeline collects IDs via `npm run build:labels` →
-`src/data/labels.json`. References resolve through whatever
-cross-reference component book-scaffold-astro provides; check examples
-in Ch 1–6.
+`src/data/labels.json`, which feeds anchor links and the displayed
+number for each labelled object.
+
+**Cross-reference policy (audit 0527-F4 — adopted).** `book-scaffold-astro`
+ships an `<XRef>` component that resolves an id to a clickable, auto-numbered
+link (`<XRef id="ch09:ssd-duality" />` renders e.g. "Theorem 9.2" linked to its
+anchor). `npm run validate` **fails the build** on an `<XRef>` whose id is absent
+from `labels.json`, so cross-references stay correct under renumbering. Apply it
+as follows:
+
+- **Use `<XRef>`** for *backward* references to a labelled object (Theorem /
+  Figure / Definition) whose id already exists — the preferred form from Ch 11 on.
+- **Keep prose** for section references ("§9.6"), chapter references
+  ("Chapter 11"), and *forward* references to a not-yet-authored target: `<XRef>`
+  renders a `[?id]` placeholder and the validator fails until the target lands, so
+  use prose (or a commented `{/* <XRef … /> */}`) until then.
+- **Retrofit Ch 1–10 opportunistically** — upgrade object references to `<XRef>`
+  when a chapter is edited for other reasons; it is not a blocking backfill.
 
 ---
 
@@ -299,6 +314,24 @@ julia --project=companions/chXX/julia companions/chXX/julia/<script>.jl
 
 Tests (when present): `julia --project=companions/chXX/julia
 companions/chXX/julia/runtests.jl`.
+
+**PyTorch companions** (parity track). When a chapter ships torch companions
+(`companions/chXX/torch/`), list them in their own **PyTorch** subsection in
+§X.10 — mirroring the JAX entries — with run lines `PYTHONPATH=. python
+companions/chXX/torch/<script>.py`. Torch is compute-and-parity only; figures
+stay JAX-produced (the caption credits the JAX script). See Ch 7–10 §X.10 for
+the established shape.
+
+**Companion test bar (audit 0527-F26).** Every companion ships a real test
+suite — pytest for JAX/torch, `runtests.jl` for Julia — with *numeric*
+assertions, never smoke tests: exact identities to `< 1e-12`, cross-framework
+JAX↔PyTorch parity to `< 1e-9` at float64, and every figure's load-bearing
+quantity pinned by a test (the caption names it). Test collection runs in
+pytest's `--import-mode=importlib` (set in `pytest.ini`), so identically-named
+test modules in different chapters (e.g. `test_discretization.py` in ch04 and
+ch10) coexist with **no** `__init__.py` shims and no `sys.path` collisions. Run
+locally via `make companion-jax-tests` / `make companion-torch-tests`; both are
+deliberately local-only (CI stays jax/torch-free).
 
 **Port-credit convention.** Any companion file derived from
 `post_transformers/` must cite source in its first docstring/comment

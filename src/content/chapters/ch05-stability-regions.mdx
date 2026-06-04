@@ -309,7 +309,7 @@ This rules out L-stability: L-stability requires $\stabfn \to 0$, not $\to -1$. 
 
 ## 5.9 Companion code
 
-Two JAX companions and one Julia companion for Chapter 5.
+Two JAX companions, two PyTorch companions, and one Julia companion for Chapter 5.
 
 **JAX** (`companions/ch05/jax/`):
 
@@ -321,12 +321,22 @@ Two JAX companions and one Julia companion for Chapter 5.
 - `butcher_tableau_zoo.jl` — uses `DifferentialEquations.jl` solver tables (`OrdinaryDiffEqTsit5`, etc.) to extract Butcher coefficients programmatically and print them side-by-side with the analytic forms used in §5.1.
 - `Project.toml` / `Manifest.toml` — companion-local Julia environment.
 
+**PyTorch** (`companions/ch05/torch/`):
+
+- `stability_regions.py` — the RK Butcher tableaux and stability functions $R(z)$ over the complex grid (compute-only; the JAX companion produces the figures).
+- `order_verification.py` — the tableau-driven RK1/RK2/RK4 integrator and empirical-slope routine.
+- `tests/` — cross-framework parity: the torch $R(z)$ grids and RK trajectories equal their JAX counterparts to within $10^{-9}$ (float64).
+
 To run from the repo root:
 
 ```bash
 # JAX
 PYTHONPATH=. python companions/ch05/jax/stability_regions.py
 PYTHONPATH=. python companions/ch05/jax/order_verification.py
+
+# PyTorch (needs the .venv [torch] extra; parity only, no figures)
+PYTHONPATH=. python companions/ch05/torch/stability_regions.py
+PYTHONPATH=. python companions/ch05/torch/order_verification.py
 
 # Julia (first run will precompile DifferentialEquations.jl)
 julia --project=companions/ch05/julia companions/ch05/julia/butcher_tableau_zoo.jl

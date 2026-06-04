@@ -324,7 +324,7 @@ The local truncation error is $O(\stepsize^3)$ for $C^1$ inputs (the linear inte
 
 ## 4.10 Companion code
 
-Three runnable companions for Chapter 4:
+Two JAX companions, two PyTorch companions, and one Julia companion for Chapter 4:
 
 **JAX** (`companions/ch04/jax/`):
 
@@ -336,12 +336,22 @@ Three runnable companions for Chapter 4:
 - `discretization_atlas.jl` — ports the post_transformers Week-9 reference implementation to ssm-foundations; uses `DifferentialEquations.jl` `Tsit5` as the ground-truth reference solver and reports the empirical slope per scheme.
 - `Project.toml` / `Manifest.toml` — companion-local Julia environment pinning `DifferentialEquations` and `LinearAlgebra`.
 
+**PyTorch** (`companions/ch04/torch/`):
+
+- `discretization_comparison.py` — the forward-Euler / ZOH / bilinear discretizers and the error-vs-step sweep (compute-only; the JAX companion produces the figures).
+- `exp_trapezoidal.py` — the exp-trapezoidal scheme via the augmented matrix exponential, with ZOH and bilinear baselines.
+- `tests/` — cross-framework parity: the torch discretizers and trajectories equal their JAX counterparts to within $10^{-9}$ (float64).
+
 To run from the repo root:
 
 ```bash
 # JAX (uses post_transformers .venv with scipy, numpy, matplotlib, jax pre-installed)
 PYTHONPATH=. python companions/ch04/jax/discretization_comparison.py
 PYTHONPATH=. python companions/ch04/jax/exp_trapezoidal.py
+
+# PyTorch (needs the .venv [torch] extra; parity only, no figures)
+PYTHONPATH=. python companions/ch04/torch/discretization_comparison.py
+PYTHONPATH=. python companions/ch04/torch/exp_trapezoidal.py
 
 # Julia (first run will precompile DifferentialEquations.jl; ~2–5 minutes)
 julia --project=companions/ch04/julia companions/ch04/julia/discretization_atlas.jl
