@@ -79,7 +79,7 @@ Documented here as an available follow-on; **not executed this session** (scope 
 - **To Ch 11 start:** `docs/DASHBOARD.md` release-trust scoreboard; `docs/templates/chapter-research-brief.md`
   (templates the per-chapter prep doc = lightweight context profile).
 - **To a separate `lever_of_archimedes` session:** the guide-making orchestrating pattern + dossier
-  template; and a **hub-pattern staleness/currency audit** (are the hub's 13 patterns + 9 guides still
-  used / current / good — it is the best-practices reservoir for all spokes, but its advice may be stale).
+  template. (A hub-pattern staleness/currency audit was considered but is owned elsewhere by the user —
+  not tracked here.)
 - **Out of scope:** control-theory wiring; `package.json` bump (v4.8.0 → v4.14.2 available, incl. the
   v4.14.1 `astro dev` fix — `0604-F2 [OPEN, low]`); `post_transformers/` edits; full repo-wide audit run.
