@@ -266,7 +266,7 @@ since $\statemat^\top + \statemat = 0$ by skew-symmetry. So $\hamilton(\statevec
 
 ## 6.10 Companion code
 
-Two JAX companions and two Julia companions for Chapter 6.
+Two JAX companions, two PyTorch companions, and two Julia companions for Chapter 6.
 
 **JAX** (`companions/ch06/jax/`):
 
@@ -279,12 +279,22 @@ Two JAX companions and two Julia companions for Chapter 6.
 - `symplectic_methods.jl` — symplectic Euler, Störmer–Verlet, and the 2-stage Gauss–Legendre IRK method on a Hamiltonian test; emits empirical order-of-accuracy table.
 - `Project.toml` / `Manifest.toml`.
 
+**PyTorch** (`companions/ch06/torch/`):
+
+- `stiff_demo.py` — the van der Pol RHS/Jacobian with RK4 and backward-Euler steppers (compute-only; the JAX companion produces the figure).
+- `symplectic_demo.py` — the RK4 and Störmer–Verlet steppers on the harmonic oscillator and pendulum.
+- `tests/` — cross-framework parity: the torch trajectories and energy-drift quantities equal their JAX counterparts to within $10^{-9}$ (float64).
+
 To run from the repo root:
 
 ```bash
 # JAX
 PYTHONPATH=. python companions/ch06/jax/stiff_demo.py
 PYTHONPATH=. python companions/ch06/jax/symplectic_demo.py
+
+# PyTorch (needs the .venv [torch] extra; parity only, no figures)
+PYTHONPATH=. python companions/ch06/torch/stiff_demo.py
+PYTHONPATH=. python companions/ch06/torch/symplectic_demo.py
 
 # Julia (lightweight — no DifferentialEquations.jl dependency)
 julia --project=companions/ch06/julia companions/ch06/julia/implicit_methods.jl
