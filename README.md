@@ -58,7 +58,7 @@ A lens-led 17-chapter foundations book for post-transformer sequence-model archi
 
 ## Author
 
-Brandon Behring (PhD applied math, NJIT 2020; vortex-dynamics specialization). The book's dynamical-systems framing draws on the user's research background applying symplectic integrators to Hamiltonian systems.
+Brandon Behring (PhD applied math, NJIT 2020; vortex-dynamics specialization). The book's dynamical-systems framing draws on the author's research background applying symplectic integrators to Hamiltonian systems.
 
 ---
 
