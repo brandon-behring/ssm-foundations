@@ -1,6 +1,6 @@
 # ssm-foundations — AI authoring guide
 
-A 17-chapter lens-led foundations book for sequence-model architectures, with the dynamical-systems perspective foregrounded. Built with `@brandon_m_behring/book-scaffold-astro` (academic preset, v4.8.0).
+A 17-chapter lens-led foundations book for sequence-model architectures, with the dynamical-systems perspective foregrounded. Built with `@brandon_m_behring/book-scaffold-astro` (academic preset, v4.16.0).
 
 **Status**: scaffold landed 2026-05-24 (Plan 3 launch). Chapters 1–10 are authored (`status: implemented`) — foundations (1–6) + SSM-core (7–10) shipped and deployed; Ch 11–17 are stubbed `planned`. (Status line updated 2026-06-04.)
 
@@ -151,4 +151,4 @@ Substantive adoption of `testing.md` is tracked via [audit F8](audits/2026-05-25
 ## Toolkit reference
 
 - v4 API: see [PACKAGE_DESIGN.md](https://github.com/brandon-behring/book-scaffold-astro/blob/main/PACKAGE_DESIGN.md) for the canonical contract.
-- v3→v4 migration: [`MIGRATION-v3-to-v4.md`](https://github.com/brandon-behring/book-scaffold-astro/blob/main/package/MIGRATION-v3-to-v4.md). (Not needed for this book — scaffolded fresh on v4.2.0, now tracking v4.8.0.)
+- v3→v4 migration: [`MIGRATION-v3-to-v4.md`](https://github.com/brandon-behring/book-scaffold-astro/blob/main/package/MIGRATION-v3-to-v4.md). (Not needed for this book — scaffolded fresh on v4.2.0, now tracking v4.16.0.)

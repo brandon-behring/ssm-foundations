@@ -71,4 +71,4 @@ npm run build             # → dist/
 npx wrangler deploy       # → Cloudflare Workers
 ```
 
-Built with [`@brandon_m_behring/book-scaffold-astro`](https://github.com/brandon-behring/book-scaffold-astro) (academic preset, v4.8.0).
+Built with [`@brandon_m_behring/book-scaffold-astro`](https://github.com/brandon-behring/book-scaffold-astro) (academic preset, v4.16.0).

@@ -116,7 +116,7 @@ That is the entire mechanical difference between first and second order here.</M
 This single fact — that $\alpha$ is identical for the two schemes — has a sharp
 consequence for how the order can be *measured*.
 
-<Theorem id="ch10:exp-trap-order" title="Second order lives in the forcing, and is invisible without it">
+<Theorem id="ch10:exp-trap-order" type="theorem" title="Second order lives in the forcing, and is invisible without it">
 For $\lambda = \tfrac12$ the exponential-trapezoidal scheme has local truncation
 error $O(\stepsize^3)$ per step, hence global order 2, **provided the input
 $u$ is non-constant and $C^1$**. On the homogeneous system ($u \equiv 0$) both
@@ -149,7 +149,7 @@ $\statemat$ alone, independent of the order of the forcing quadrature**. For a
 Runge-Kutta method a single stability polynomial controls both accuracy and the
 stability region; the exponential integrator decouples them.
 
-<Theorem id="ch10:exp-trap-stability" title="Exponential schemes are A-stable and damp stiff modes">
+<Theorem id="ch10:exp-trap-stability" type="theorem" title="Exponential schemes are A-stable and damp stiff modes">
 For $\operatorname{Re}(\statemat) < 0$, the exponential-trapezoidal (and ZOH)
 amplification factor satisfies $|\alpha| = e^{\operatorname{Re}(\statemat)
 \stepsize} < 1$ for every $\stepsize > 0$, and $|\alpha| \to 0$ as the mode
@@ -207,7 +207,7 @@ applies **rotary position embeddings (RoPE)** — 2-D rotations — to the proje
 $\inputmat, \outputmat$. The justification is the elementary isomorphism between
 complex multiplication and $2\times 2$ rotation-scaling.
 
-<Theorem id="ch10:rope-complex-equivalence" title="RoPE rotation equals complex multiplication">
+<Theorem id="ch10:rope-complex-equivalence" type="theorem" title="RoPE rotation equals complex multiplication">
 Representing $z = a + bi$ as the real vector $[a, b]^\top$, multiplication by
 $\rho e^{i\theta}$ equals applying the scaled rotation
 $\rho R(\theta) = \rho\left(\begin{smallmatrix}\cos\theta & -\sin\theta\\ \sin\theta &

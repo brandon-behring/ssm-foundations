@@ -15,6 +15,7 @@ import Theorem from '@brandon_m_behring/book-scaffold-astro/components/Theorem.a
 import Cite from '@brandon_m_behring/book-scaffold-astro/components/Cite.astro';
 import MarginNote from '@brandon_m_behring/book-scaffold-astro/components/MarginNote.astro';
 import Figure from '@brandon_m_behring/book-scaffold-astro/components/Figure.astro';
+import XRef from '@brandon_m_behring/book-scaffold-astro/components/XRef.astro';
 
 {/*
   Math macros (auto-loaded via ssmMacros in astro.config):
@@ -54,7 +55,7 @@ connective tissue that makes the "beyond-SSM" family legible as one structure.
 ## 11.1 From softmax to separable scores
 
 Chapter 9 reached a striking identity from the state-space side: a scalar-state
-selective SSM *is* masked linear attention (`ch09:ssd-duality`). The
+selective SSM *is* masked linear attention (<XRef id="ch09:ssd-duality" />). The
 scan's path-ordered taps reassemble into a single lower-triangular matrix
 $M = L \circ (\outputmat \inputmat^\top)\,\mathrm{diag}(\stepsize)$, with $L$ a
 causal decay mask replacing the softmax. This chapter enters that same duality
@@ -108,7 +109,7 @@ The same operator has a second, parallel face. Stacking $Q_\phi = [\phi(q_1);
 \dots; \phi(q_\seqlen)]$ and $K_\phi = [\phi(k_1); \dots; \phi(k_\seqlen)]$, the
 unnormalized output is a masked matrix product.
 
-<Theorem id="ch11:recurrent-parallel-equivalence" title="Linear attention: two faces of one operator">
+<Theorem id="ch11:recurrent-parallel-equivalence" type="theorem" title="Linear attention: two faces of one operator">
 For any feature map $\phi$, the recurrent form ($S_t = S_{t-1} + \phi(k_t)v_t^\top$,
 output $S_t^\top \phi(q_t)$) and the parallel form
 $$
@@ -116,7 +117,7 @@ Y = \big(L \circ (Q_\phi K_\phi^\top)\big)\, V, \qquad L_{tj} = \mathbb{1}[\,j \
 $$
 with $L$ the **all-ones causal mask**, compute the identical output. The recurrent
 form costs $O(\seqlen\, d_k\, d_v)$ time and $O(d_k\, d_v)$ memory; the parallel
-form costs $O(\seqlen^2 d)$. This is exactly `ch09:ssd-duality` with
+form costs $O(\seqlen^2 d)$. This is exactly <XRef id="ch09:ssd-duality" /> with
 the decay mask specialized to ones.
 </Theorem>
 
@@ -175,13 +176,13 @@ cumulative log-gate $g_t = \sum_{i \le t} \log \gamma_i$, set $\tilde q_t =
 $\tilde q_t^\top \tilde k_j = \phi(q_t)^\top \mathrm{diag}\!\big(\prod_{i=j+1}^t
 \gamma_i\big) \phi(k_j)$ is the gated score. This is what makes the duality exact.
 
-<Theorem id="ch11:gla-ltv-duality" title="Gated linear attention is masked linear attention with a semiseparable decay mask">
+<Theorem id="ch11:gla-ltv-duality" type="theorem" title="Gated linear attention is masked linear attention with a semiseparable decay mask">
 The gated recurrence $S_t = \mathrm{diag}(\gamma_t) S_{t-1} + \phi(k_t)v_t^\top$,
 $y_t = S_t^\top \phi(q_t)$, has a masked-parallel form. For a **scalar** per-step
 gate $\gamma_i$ it is exactly $Y = (L_\gamma \circ (Q_\phi K_\phi^\top))\,V$ with
 the **1-semiseparable** decay mask $L_{\gamma,\,tj} = \prod_{i=j+1}^{t} \gamma_i$,
 and under $\log \gamma_i = \statemat_i\, \stepsize_i$ this $L_\gamma$ coincides
-*exactly* with the decay mask of `ch09:ssd-duality` — gated linear attention and
+*exactly* with the decay mask of <XRef id="ch09:ssd-duality" /> — gated linear attention and
 the scalar-state selective SSM are the same operator, read from opposite sides.
 For a **per-feature** gate $\gamma_t \in (0,1)^{d_k}$ the decay acts per channel
 and does not collapse to a single scalar mask; the parallel form instead rescales
@@ -192,7 +193,7 @@ recurrence (§11.9).
 
 The proof is Exercise 11.5 (§11.9): unroll the gated recurrence, contract with
 $\phi(q_t)$, and recognize the product-of-gates as the cumulative decay that
-`ch09:ssd-semiseparable`'s `segsum` exponentiates. The companion both
+<XRef id="ch09:ssd-semiseparable" />'s `segsum` exponentiates. The companion both
 checks the recurrent–masked identity ($\max$ difference $2.8 \times 10^{-14}$ for
 a data-dependent gate) and verifies the cross-chapter bridge against the *actual*
 Chapter 9 code: the GLA scalar mask and Chapter 9's `segsum` mask agree to
@@ -209,7 +210,7 @@ explicit. Hyena
 <Cite key="poli2023hyena" /> interleaves implicit **long convolutions** with
 elementwise multiplicative gating. The convolution is the object to teach: a
 causal long convolution is a *linear time-invariant* operator — the convolutional
-view of an SSM (`ch08:conv-recurrence-duality`) — computable in
+view of an SSM (<XRef id="ch08:conv-recurrence-duality" />) — computable in
 $O(\seqlen \log \seqlen)$ by the FFT rather than the $O(\seqlen^2)$ explicit
 Toeplitz product. For input $u \in \mathbb{R}^{B \times \seqlen \times D}$ and a
 per-channel filter $k$,
@@ -225,7 +226,7 @@ is a free function of position.</MarginNote>
 
 The one subtlety is causality under the cyclic FFT.
 
-<Theorem id="ch11:fftconv-causal" title="Zero-padding to 2L computes the causal convolution">
+<Theorem id="ch11:fftconv-causal" type="theorem" title="Zero-padding to 2L computes the causal convolution">
 Padding $u$ and the filter $k$ to length $2\seqlen$, multiplying their real FFTs
 pointwise, inverse-transforming, and truncating to the first $\seqlen$ samples
 yields exactly the lower-triangular Toeplitz product above. Padding to $2\seqlen$
@@ -251,12 +252,12 @@ book? Everything hinges on whether the filter is fixed or input-dependent.
 
 When the filter $k$ is **static** across the batch and sequence, $y = k * u$ is a
 single linear time-invariant convolution — one kernel, the convolutional face of
-an SSM (`ch08:conv-recurrence-duality`). S4 lives exactly here: its
+an SSM (<XRef id="ch08:conv-recurrence-duality" />). S4 lives exactly here: its
 kernel $K = (\outputmat \discB, \outputmat \discA \discB, \outputmat \discA^2
 \discB, \dots)$ is materialized from a structured continuous-time ODE, and the
 same FFT machinery of §11.4 applies. Hyena keeps the *unrestricted* kernel and
 pays the $\log$ factor, where S4 and Mamba fix the kernel shape — a structured
-semiseparable matrix (`ch09:ssd-semiseparable`) — to buy $O(\seqlen)$.
+semiseparable matrix (<XRef id="ch09:ssd-semiseparable" />) — to buy $O(\seqlen)$.
 
 When the filter is made **input-dependent** — the "selective Hyena" variant, where
 the convolution kernel itself is a function of the input — time-invariance breaks,
@@ -389,7 +390,7 @@ the time/memory cost of each. *(Solution in §11.9.)*
 
 **Exercise 11.5.** Prove the gated-linear-attention duality of §11.3, and identify the exact
 correspondence $\log \gamma_i = \statemat_i \stepsize_i$ under which the scalar-gate
-GLA mask coincides with the Chapter 9 decay mask of `ch09:ssd-duality`.
+GLA mask coincides with the Chapter 9 decay mask of <XRef id="ch09:ssd-duality" />.
 *(Solution in §11.9.)*
 
 **Exercise 11.6.** (a) Prove the FFT-causality theorem of §11.4 — that padding past
@@ -430,7 +431,7 @@ e^{-g_j}$ we get $y_t = \sum_{j\le t}(\tilde q_t^\top \tilde k_j) v_j = [(L_\gam
 For a scalar gate $\gamma_{i,c} = \gamma_i$, the mask is $L_{\gamma,tj} =
 \prod_{i=j+1}^t \gamma_i$; under $\log\gamma_i = \statemat_i \stepsize_i$ this is
 $\exp(\sum_{i=j+1}^t \statemat_i \stepsize_i)$, exactly the
-`ch09:ssd-duality` mask $L_{tj} = \exp(\statemat \sum_{i=j+1}^t
+<XRef id="ch09:ssd-duality" /> mask $L_{tj} = \exp(\statemat \sum_{i=j+1}^t
 \stepsize_i)$. The off-diagonal blocks of $L_\gamma$ have rank one (a product of a
 column $e^{g_t}$ and a row $e^{-g_j}$), so $L_\gamma$ is 1-semiseparable. The
 companion confirms the masks are bit-identical ($0.0$ difference). $\blacksquare$
@@ -485,7 +486,7 @@ julia --project=companions/ch11/julia companions/ch11/julia/runtests.jl
   twin (§11.2), the capacity-rank object (§11.6), and the float64-vs-float32
   normalizer demonstration.
 - `gated_linear_attention.py` — GLA/RetNet gating, the decay masks, and the
-  cross-chapter bridge to `ch09:ssd-duality` built on Chapter 9's own
+  cross-chapter bridge to <XRef id="ch09:ssd-duality" /> built on Chapter 9's own
   `segsum` (§11.3).
 - `fftconv.py` — Hyena's $2\seqlen$-padded FFT convolution against the explicit
   Toeplitz oracle, plus the un-padded variant that fails causality
