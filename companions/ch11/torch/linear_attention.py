@@ -25,6 +25,7 @@ from torch import Tensor
 __all__ = [
     "feature_map_elu",
     "feature_map_relu",
+    "resolve_phi",
     "linear_attention_recurrent",
     "linear_attention_parallel",
     "linear_attention_state",
@@ -46,7 +47,7 @@ def feature_map_relu(x: Tensor) -> Tensor:
 _PHI = {"elu": feature_map_elu, "relu": feature_map_relu}
 
 
-def _resolve_phi(feature_map):
+def resolve_phi(feature_map):
     if callable(feature_map):
         return feature_map
     if feature_map not in _PHI:
@@ -66,7 +67,7 @@ def _check_qkv(q: Tensor, k: Tensor, v: Tensor) -> None:
 def linear_attention_recurrent(q: Tensor, k: Tensor, v: Tensor, feature_map="elu", normalize: bool = True) -> Tensor:
     r"""Eager matrix-state recurrence $S_t = S_{t-1} + \phi(k_t)v_t^\top$, $y_t = S_t^\top\phi(q_t)$."""
     _check_qkv(q, k, v)
-    phi = _resolve_phi(feature_map)
+    phi = resolve_phi(feature_map)
     qf, kf = phi(q), phi(k)
     length, d_k = qf.shape
     d_v = v.shape[1]
@@ -84,7 +85,7 @@ def linear_attention_recurrent(q: Tensor, k: Tensor, v: Tensor, feature_map="elu
 def linear_attention_parallel(q: Tensor, k: Tensor, v: Tensor, feature_map="elu", normalize: bool = True) -> Tensor:
     r"""Masked-parallel form $Y = (L \circ (Q_\phi K_\phi^\top))V$ with $L$ the all-ones causal mask."""
     _check_qkv(q, k, v)
-    phi = _resolve_phi(feature_map)
+    phi = resolve_phi(feature_map)
     qf, kf = phi(q), phi(k)
     length = qf.shape[0]
     scores = qf @ kf.t()
@@ -100,5 +101,5 @@ def linear_attention_state(k: Tensor, v: Tensor, feature_map="elu") -> Tensor:
     r"""The final matrix state $S = \sum_i \phi(k_i)v_i^\top = \Phi_K^\top V$ (rank $\le \min(K, d_k)$)."""
     if k.ndim != 2 or v.ndim != 2 or k.shape[0] != v.shape[0]:
         raise ValueError(f"k (K, d) and v (K, d_v) must share K; got {k.shape} and {v.shape}")
-    kf = _resolve_phi(feature_map)(k)
+    kf = resolve_phi(feature_map)(k)
     return kf.t() @ v

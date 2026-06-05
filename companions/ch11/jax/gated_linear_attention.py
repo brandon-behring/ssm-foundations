@@ -60,7 +60,7 @@ jax.config.update("jax_enable_x64", True)
 import jax.numpy as jnp  # noqa: E402
 
 from companions.ch09.jax.ssd_semiseparable import segsum  # noqa: E402
-from companions.ch11.jax.linear_attention import _resolve_phi  # noqa: E402
+from companions.ch11.jax.linear_attention import resolve_phi  # noqa: E402
 
 if TYPE_CHECKING:
     from matplotlib.figure import Figure
@@ -124,7 +124,7 @@ def gated_recurrent(
         raise ValueError(f"q, k, v must be 2D; got {q.shape}, {k.shape}, {v.shape}")
     if q.shape != k.shape or v.shape[0] != q.shape[0]:
         raise ValueError(f"need q.shape==k.shape and matching L; got {q.shape}, {k.shape}, {v.shape}")
-    phi = _resolve_phi(feature_map)
+    phi = resolve_phi(feature_map)
     qf, kf = phi(q), phi(k)  # (L, d_k)
     length, d_k = qf.shape
     d_v = v.shape[1]
@@ -156,7 +156,7 @@ def gated_masked(
     score, masked causally. Equals :func:`gated_recurrent` to ``< 1e-12``
     (Theorem ``ch11:gla-ltv-duality``).
     """
-    phi = _resolve_phi(feature_map)
+    phi = resolve_phi(feature_map)
     qf, kf = phi(q), phi(k)
     length, d_k = qf.shape
     g = jnp.cumsum(_broadcast_log_gamma(log_gamma, length, d_k), axis=0)  # (L, d_k)

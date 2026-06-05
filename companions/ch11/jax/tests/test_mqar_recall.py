@@ -19,7 +19,6 @@ jax.config.update("jax_enable_x64", True)
 
 import numpy as np  # noqa: E402
 import pytest  # noqa: E402
-from numpy.testing import assert_allclose  # noqa: E402
 
 from companions.ch11.jax.mqar_recall import (  # noqa: E402
     linear_retrieval_error,

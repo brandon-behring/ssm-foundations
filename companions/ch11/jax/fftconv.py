@@ -14,9 +14,9 @@ $k\in\mathbb{R}^{D\times L}$, feedthrough $b\in\mathbb{R}^{D}$,
 
 Theorem ``ch11:fftconv-causal`` (pinned here): zero-padding both sequences to
 length $2L$, multiplying their real FFTs, inverse-transforming and truncating to
-$L$ computes exactly that lower-triangular Toeplitz product. The $2L$ padding is
-**necessary and sufficient** — a length-$L$ (un-padded) cyclic FFT wraps the
-late taps around onto early outputs, destroying causality
+$L$ computes exactly that lower-triangular Toeplitz product. Padding to length
+$2L$ (in fact any $N \ge 2L-1$) is **sufficient**; the un-padded length-$L$ cyclic
+FFT wraps the late taps around onto early outputs, destroying causality
 (``test_2L_padding_necessary``).
 
 S4 vs Hyena: S4's kernel $K = (C\bar B, C\bar A\bar B, \ldots)$ is *materialized*
@@ -193,11 +193,11 @@ def make_fftconv_figure() -> Figure:
 
     apply_style()
     lengths = np.asarray(_LENGTHS)
-    resid = []
+    resid_list = []
     for length in lengths:
         u, k, bias = _demo_inputs(int(length))
-        resid.append(float(jnp.max(jnp.abs(fftconv(u, k, bias) - causal_conv1d_naive(u, k, bias)))))
-    resid = np.asarray(resid)
+        resid_list.append(float(jnp.max(jnp.abs(fftconv(u, k, bias) - causal_conv1d_naive(u, k, bias)))))
+    resid = np.asarray(resid_list)
 
     fig, (ax1, ax2) = create_tufte_figure(ncols=2, figsize=(11.0, 4.2))
     ax1.semilogy(lengths, np.maximum(resid, 1e-18), "o-", color=SSM_COLORS["accent"])

@@ -16,7 +16,7 @@ from __future__ import annotations
 import torch
 from torch import Tensor
 
-from companions.ch11.torch.linear_attention import _resolve_phi
+from companions.ch11.torch.linear_attention import resolve_phi
 
 __all__ = [
     "gated_recurrent",
@@ -45,7 +45,7 @@ def gated_recurrent(q: Tensor, k: Tensor, v: Tensor, log_gamma: Tensor, feature_
         raise ValueError(f"q, k, v must be 2D; got {q.shape}, {k.shape}, {v.shape}")
     if q.shape != k.shape or v.shape[0] != q.shape[0]:
         raise ValueError(f"need q.shape==k.shape and matching L; got {q.shape}, {k.shape}, {v.shape}")
-    phi = _resolve_phi(feature_map)
+    phi = resolve_phi(feature_map)
     qf, kf = phi(q), phi(k)
     length, d_k = qf.shape
     d_v = v.shape[1]
@@ -60,7 +60,7 @@ def gated_recurrent(q: Tensor, k: Tensor, v: Tensor, log_gamma: Tensor, feature_
 
 def gated_masked(q: Tensor, k: Tensor, v: Tensor, log_gamma: Tensor, feature_map="elu") -> Tensor:
     r"""Masked-parallel gated form via the $e^{\pm g_t}$ rescaling (equals the recurrence)."""
-    phi = _resolve_phi(feature_map)
+    phi = resolve_phi(feature_map)
     qf, kf = phi(q), phi(k)
     length, d_k = qf.shape
     g = torch.cumsum(_broadcast_log_gamma(log_gamma, length, d_k), dim=0)

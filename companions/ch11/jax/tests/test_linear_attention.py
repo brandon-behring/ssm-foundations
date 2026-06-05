@@ -74,6 +74,17 @@ def test_float64_vs_float32_normalizer():
     assert r32 / r64 > 1e4, f"float32 should be >=1e4x worse than float64; got ratio {r32 / r64:.1e}"
 
 
+@pytest.mark.parametrize("fn", [linear_attention_recurrent, linear_attention_parallel])
+def test_relu_normalize_raises(fn):
+    """relu + normalize=True is guarded with an explicit error (no silent NaN)."""
+    q, k, v = _qkv(length=8)
+    with pytest.raises(ValueError, match="strictly positive"):
+        fn(q, k, v, feature_map="relu", normalize=True)
+    # but unnormalized relu and normalized elu are both fine
+    fn(q, k, v, feature_map="relu", normalize=False)
+    fn(q, k, v, feature_map="elu", normalize=True)
+
+
 def test_shape_validation():
     q, k, v = _qkv(length=8)
     with pytest.raises(ValueError):

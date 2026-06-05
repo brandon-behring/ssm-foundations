@@ -177,13 +177,17 @@ $\tilde q_t^\top \tilde k_j = \phi(q_t)^\top \mathrm{diag}\!\big(\prod_{i=j+1}^t
 
 <Theorem id="ch11:gla-ltv-duality" title="Gated linear attention is masked linear attention with a semiseparable decay mask">
 The gated recurrence $S_t = \mathrm{diag}(\gamma_t) S_{t-1} + \phi(k_t)v_t^\top$,
-$y_t = S_t^\top \phi(q_t)$, equals the parallel form $Y = (L_\gamma \circ (Q_\phi
-K_\phi^\top))\,V$ with decay mask $L_{\gamma,\,tj} = \prod_{i=j+1}^{t} \gamma_i$
-(entrywise along the key dimension). For a scalar per-step gate this $L_\gamma$ is
-**1-semiseparable**, and under $\log \gamma_i = \statemat_i\, \stepsize_i$ it
-coincides *exactly* with the decay mask of `ch09:ssd-duality`: gated
-linear attention and the scalar-state selective SSM are the same operator, read
-from opposite sides.
+$y_t = S_t^\top \phi(q_t)$, has a masked-parallel form. For a **scalar** per-step
+gate $\gamma_i$ it is exactly $Y = (L_\gamma \circ (Q_\phi K_\phi^\top))\,V$ with
+the **1-semiseparable** decay mask $L_{\gamma,\,tj} = \prod_{i=j+1}^{t} \gamma_i$,
+and under $\log \gamma_i = \statemat_i\, \stepsize_i$ this $L_\gamma$ coincides
+*exactly* with the decay mask of `ch09:ssd-duality` — gated linear attention and
+the scalar-state selective SSM are the same operator, read from opposite sides.
+For a **per-feature** gate $\gamma_t \in (0,1)^{d_k}$ the decay acts per channel
+and does not collapse to a single scalar mask; the parallel form instead rescales
+features by the cumulative gate ($\tilde q_t = \phi(q_t)\odot e^{g_t}$, $\tilde k_j
+= \phi(k_j)\odot e^{-g_j}$, $g_t = \sum_{i\le t}\log\gamma_i$), recovering the same
+recurrence (§11.9).
 </Theorem>
 
 The proof is Exercise 11.5 (§11.9): unroll the gated recurrence, contract with

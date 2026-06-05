@@ -74,6 +74,7 @@ if TYPE_CHECKING:
 __all__ = [
     "feature_map_elu",
     "feature_map_relu",
+    "resolve_phi",
     "linear_attention_recurrent",
     "linear_attention_parallel",
     "linear_attention_state",
@@ -116,7 +117,7 @@ _PHI: dict[str, Callable[[jnp.ndarray], jnp.ndarray]] = {
 }
 
 
-def _resolve_phi(feature_map: str | Callable[[jnp.ndarray], jnp.ndarray]):
+def resolve_phi(feature_map: str | Callable[[jnp.ndarray], jnp.ndarray]):
     if callable(feature_map):
         return feature_map
     if feature_map not in _PHI:
@@ -131,6 +132,16 @@ def _check_qkv(q: jnp.ndarray, k: jnp.ndarray, v: jnp.ndarray) -> None:
         raise ValueError(f"q and k must share shape (L, d); got {q.shape} and {k.shape}")
     if v.shape[0] != q.shape[0]:
         raise ValueError(f"v must have the same length L as q/k; got {v.shape[0]} vs {q.shape[0]}")
+
+
+def _require_positive_features(feature_map: str | Callable, normalize: bool) -> None:
+    """Guard the normalized path: a non-strictly-positive map (relu) can zero the
+    normalizer $z_t^\\top\\phi(q_t)$ and return a silent NaN. Fail loudly instead."""
+    if normalize and feature_map == "relu":
+        raise ValueError(
+            "normalize=True requires a strictly positive feature map; feature_map='relu' "
+            "can zero the normalizer z·φ(q) and return NaN. Use normalize=False or feature_map='elu'."
+        )
 
 
 # ---------------------------------------------------------------------------
@@ -169,7 +180,8 @@ def linear_attention_recurrent(
     y : jnp.ndarray, shape (L, d_v)
     """
     _check_qkv(q, k, v)
-    phi = _resolve_phi(feature_map)
+    _require_positive_features(feature_map, normalize)
+    phi = resolve_phi(feature_map)
     qf, kf = phi(q), phi(k)  # (L, d_k)
     d_k, d_v = qf.shape[1], v.shape[1]
 
@@ -183,8 +195,10 @@ def linear_attention_recurrent(
             return (s, z), num / (z @ qf_t)
         return (s, z), num
 
-    s0 = jnp.zeros((d_k, d_v), dtype=v.dtype)
-    z0 = jnp.zeros((d_k,), dtype=qf.dtype)
+    # Carry dtypes must match the (possibly promoted) update dtypes so a mixed-precision
+    # (e.g. float32 v, float64 q/k) call does not trip lax.scan's carry-invariance check.
+    s0 = jnp.zeros((d_k, d_v), dtype=jnp.result_type(kf.dtype, v.dtype))
+    z0 = jnp.zeros((d_k,), dtype=kf.dtype)
     _, ys = jax.lax.scan(step, (s0, z0), (kf, v, qf))
     return ys
 
@@ -207,7 +221,8 @@ def linear_attention_parallel(
     machine precision in float64 (Theorem ``ch11:recurrent-parallel-equivalence``).
     """
     _check_qkv(q, k, v)
-    phi = _resolve_phi(feature_map)
+    _require_positive_features(feature_map, normalize)
+    phi = resolve_phi(feature_map)
     qf, kf = phi(q), phi(k)
     length = qf.shape[0]
     scores = qf @ kf.T  # (L, L); scores[t, j] = phi(q_t).phi(k_j)
@@ -245,7 +260,7 @@ def linear_attention_state(
     """
     if k.ndim != 2 or v.ndim != 2 or k.shape[0] != v.shape[0]:
         raise ValueError(f"k (K, d) and v (K, d_v) must share K; got {k.shape} and {v.shape}")
-    phi = _resolve_phi(feature_map)
+    phi = resolve_phi(feature_map)
     kf = phi(k)  # (K, d_k)
     return kf.T @ v  # (d_k, d_v)
 
