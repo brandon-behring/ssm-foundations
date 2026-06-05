@@ -17,7 +17,7 @@ Reference
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Any
+from typing import Any, Literal, overload
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -116,6 +116,20 @@ def apply_tufte_style(ax: Axes) -> Axes:
     return ax
 
 
+@overload
+def create_tufte_figure(
+    nrows: Literal[1] = 1,
+    ncols: Literal[1] = 1,
+    figsize: tuple[float, float] | None = None,
+    **kwargs: Any,
+) -> tuple[Figure, Axes]: ...
+@overload
+def create_tufte_figure(
+    nrows: int = 1,
+    ncols: int = 1,
+    figsize: tuple[float, float] | None = None,
+    **kwargs: Any,
+) -> tuple[Figure, np.ndarray]: ...
 def create_tufte_figure(
     nrows: int = 1,
     ncols: int = 1,

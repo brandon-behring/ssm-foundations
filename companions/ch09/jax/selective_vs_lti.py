@@ -123,7 +123,6 @@ def make_selectivity_figure() -> Figure:
 
 def main() -> None:
     import matplotlib.pyplot as plt
-    import numpy as np
 
     from companions._shared.plot_utils import save_figure
 
