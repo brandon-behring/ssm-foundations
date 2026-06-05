@@ -1,15 +1,492 @@
 ---
 week: 11
 part: beyond-ssm
+status: implemented
 title: 'Linear attention and Hyena: long convolution and gated recurrence'
-status: planned
-description: Katharopoulos lineage; Hyena operator; gated linear attention (GLA/RetNet/HGRN2).
+description: Linear attention read as a matrix-state linear recurrence — the dual of Chapter 9's scan, entered from the attention side — then gated into the LTV/selectivity face (GLA, RetNet), pivoted to Hyena's implicit LTI long convolution, and landed honestly on the associative-recall capacity limit of any finite state.
+provenance:
+  ai_tools:
+    - Claude Code
+  citation_backstop: research-kb
 ---
 
-import PreReleaseBanner from '@brandon_m_behring/book-scaffold-astro/components/PreReleaseBanner.astro';
+import NoteBox from '@brandon_m_behring/book-scaffold-astro/components/NoteBox.astro';
+import Theorem from '@brandon_m_behring/book-scaffold-astro/components/Theorem.astro';
+import Cite from '@brandon_m_behring/book-scaffold-astro/components/Cite.astro';
+import MarginNote from '@brandon_m_behring/book-scaffold-astro/components/MarginNote.astro';
+import Figure from '@brandon_m_behring/book-scaffold-astro/components/Figure.astro';
 
-<PreReleaseBanner state="alpha" message="Chapter 11 is planned; not yet authored. See description above for scope. Authoring sequence: Ch 1–3 (foundations) → Ch 4–6 (discretization thread for C1) → remaining chapters per pilot needs." />
+{/*
+  Math macros (auto-loaded via ssmMacros in astro.config):
+    \statevec=h \statemat=A \inputmat=B \outputmat=C \feedmat=D
+    \stepsize=Δ \discA=Ā \discB=B̄ \seqlen=L
+  Chapter-local symbols (declared in prose):
+    φ — kernel feature map ℝ^d → ℝ^{d_k};  S_t — matrix state ℝ^{d_k×d_v};
+    z_t — normalizer ℝ^{d_k};  γ_t — gate ∈ (0,1)^{d_k};  d_k — feature dimension
+    (kept distinct from Chapter 9's state dimension N).
+*/}
 
 # Linear attention and Hyena: long convolution and gated recurrence
 
-This chapter is planned. See the [chapter-at-a-glance](https://github.com/brandon-behring/post_transformers/blob/main/notes/foundations_curriculum_design_2026_05_20.md) (foundations §3) for the full design; the [crosswalk](https://github.com/brandon-behring/post_transformers/blob/main/notes/foundations_curriculum_design_2026_05_20.md) (foundations §22) maps this chapter to the relevant post_transformers/roadmap.md weeks.
+<NoteBox title="Chapter 11 — at a glance">
+**Goal**: read linear attention as a *matrix-valued-state linear recurrence* —
+the exact dual of Chapter 9's scan, approached from the attention side — then add
+gating (GLA, RetNet) as the selectivity/LTV move read from that side, pivot to
+Hyena's implicit long convolution (an LTI operator in the sense of Chapter 8), and
+land honestly on where linear attention *fails*: multi-query associative recall.
+
+**Reading time**: ~45 minutes prose; ~2 hours with the companions.
+
+**Key insight**: **softmax attention has no fixed-size state; linear attention
+does.** Replacing the score $\exp(q^\top k)$ with a *separable* surrogate
+$\phi(q)^\top \phi(k)$ collapses the $O(\seqlen^2)$ attention into an $O(\seqlen)$
+recurrence on a **matrix state** $S_t = \sum_{j \le t} \phi(k_j) v_j^\top$. That
+state is finite-rank memory — the same boundedness Chapters 7 and 9 live inside —
+which is exactly why associative recall eventually breaks (§11.6).
+
+**Looking ahead**: this is the gateway chapter of the beyond-SSM part. The linear-attention +
+gating vocabulary built here is the prerequisite for Chapter 12's delta-rule
+lineage (the *overwrite* answer to §11.6's capacity limit) and for the hybrid and
+benchmark chapters (14, 16). Ch 11 has no pilot anchor of its own — it is the
+connective tissue that makes the "beyond-SSM" family legible as one structure.
+</NoteBox>
+
+## 11.1 From softmax to separable scores
+
+Chapter 9 reached a striking identity from the state-space side: a scalar-state
+selective SSM *is* masked linear attention (`ch09:ssd-duality`). The
+scan's path-ordered taps reassemble into a single lower-triangular matrix
+$M = L \circ (\outputmat \inputmat^\top)\,\mathrm{diag}(\stepsize)$, with $L$ a
+causal decay mask replacing the softmax. This chapter enters that same duality
+from the *other* side. We start with attention and rediscover the state space.
+
+Causal attention computes, for each position $t$,
+$$
+y_t = \frac{\sum_{j \le t} \mathrm{sim}(q_t, k_j)\, v_j}{\sum_{j \le t} \mathrm{sim}(q_t, k_j)},
+\qquad \mathrm{sim}(q, k) = \exp(q^\top k).
+$$
+The exponential couples every query to every key: the normalizer cannot be
+factored across $j$, so the only way to evaluate it is to materialize all
+$O(\seqlen^2)$ scores. The move that breaks the coupling <Cite key="katharopoulos2020transformers" />
+is to choose a feature map $\phi : \mathbb{R}^{d} \to \mathbb{R}^{d_k}$ with
+non-negative entries and write the similarity as an *inner product of features*,
+$$
+\mathrm{sim}(q, k) = \phi(q)^\top \phi(k) \;\ge\; 0 .
+$$
+Separability is the whole engine. Because $\phi(q_t)^\top \phi(k_j)$ factors, the
+numerator and denominator each become a query contracted against a *running sum
+over keys* — and a running sum is a state.
+
+<MarginNote>Performer <Cite key="choromanski2021performer" /> chooses $\phi$ as a
+random feature map so that $\mathbb{E}[\phi(q)^\top \phi(k)] = \exp(q^\top k)$: an
+*unbiased estimator of softmax itself*, rather than a deterministic surrogate like
+$\phi = \mathrm{elu}(\cdot){+}1$. Both are "linear attention"; they differ only in
+the choice of $\phi$, never in the recurrence below.</MarginNote>
+
+## 11.2 Linear attention as a matrix-state recurrence
+
+Fix $\phi(x) = \mathrm{elu}(x) + 1 > 0$. Define a **matrix state** $S_t \in
+\mathbb{R}^{d_k \times d_v}$ and a **normalizer** $z_t \in \mathbb{R}^{d_k}$ by
+$$
+S_t = S_{t-1} + \phi(k_t)\,v_t^\top, \qquad
+z_t = z_{t-1} + \phi(k_t), \qquad
+y_t = \frac{S_t^\top \phi(q_t)}{z_t^\top \phi(q_t)},
+$$
+with $S_0 = 0$, $z_0 = 0$. This is a *bona fide* state-space recurrence: the
+hidden state is a matrix, the transition is the identity ($A = I$, pure
+accumulation with no forgetting — the LTI face of Chapter 8), and the input is
+injected as the rank-one outer product $\phi(k_t) v_t^\top$. It is Chapter 9's
+scan with the carry promoted from a vector to a matrix and the decay switched off.
+
+<MarginNote>Compare Chapter 9: there the carry was a *vector* $\statevec_t$ with a
+*scalar/diagonal* decay $\discA_t$. Here the carry is a *matrix* $S_t$ and the
+transition is trivial ($A = I$). The "state" got bigger; the "transition" got
+simpler. Gating (§11.3) puts a decay back and recovers the full Chapter 9
+structure from the attention side.</MarginNote>
+
+The same operator has a second, parallel face. Stacking $Q_\phi = [\phi(q_1);
+\dots; \phi(q_\seqlen)]$ and $K_\phi = [\phi(k_1); \dots; \phi(k_\seqlen)]$, the
+unnormalized output is a masked matrix product.
+
+<Theorem id="ch11:recurrent-parallel-equivalence" title="Linear attention: two faces of one operator">
+For any feature map $\phi$, the recurrent form ($S_t = S_{t-1} + \phi(k_t)v_t^\top$,
+output $S_t^\top \phi(q_t)$) and the parallel form
+$$
+Y = \big(L \circ (Q_\phi K_\phi^\top)\big)\, V, \qquad L_{tj} = \mathbb{1}[\,j \le t\,],
+$$
+with $L$ the **all-ones causal mask**, compute the identical output. The recurrent
+form costs $O(\seqlen\, d_k\, d_v)$ time and $O(d_k\, d_v)$ memory; the parallel
+form costs $O(\seqlen^2 d)$. This is exactly `ch09:ssd-duality` with
+the decay mask specialized to ones.
+</Theorem>
+
+The proof (Exercise 11.4, §11.9) is one line of reassociation: $S_t = \sum_{j \le
+t} \phi(k_j) v_j^\top$, so $S_t^\top \phi(q_t) = \sum_{j \le t} (\phi(q_t)^\top
+\phi(k_j))\, v_j$, which is precisely row $t$ of $(L \circ (Q_\phi K_\phi^\top))V$.
+The mask $L$ supplies the causal cumulative sum that the recurrence performs
+incrementally. The companion confirms the two routes agree to machine precision
+in float64: $\max|y_{\mathrm{rec}} - y_{\mathrm{par}}| = 5.6 \times 10^{-16}$ at
+$\seqlen = 64$, flat across sequence lengths.
+
+<Figure id="ch11:fig:recurrent-parallel" src="/figures/ch11/recurrent-parallel.png" alt="Two panels: left, the maximum difference between recurrent and parallel linear attention versus sequence length, flat near machine epsilon; right, a log-log plot of recurrent O(L) versus parallel O(L-squared) cost." caption="The two faces of linear attention. Left: the recurrent (scan) and parallel (masked-matmul) forms agree to $\sim 10^{-16}$ in float64 across sequence length — they are the same operator. Right: their costs diverge — recurrent $O(\seqlen)$ versus parallel $O(\seqlen^2)$ — which is why the recurrent form is the inference mode and the parallel form the training mode. Produced by companions/ch11/jax/linear_attention.py; the identity is pinned in tests/test_linear_attention.py::test_recurrent_equals_parallel_normalized." />
+
+**The normalizer, and why this chapter is float64.** The denominator
+$z_t^\top \phi(q_t)$ is a *large-over-large* quotient: both $z_t = \sum_{j\le t}
+\phi(k_j)$ and the numerator grow like $O(t)$, so the ratio is a difference of
+accumulations prone to catastrophic cancellation in low precision. The recurrent
+and parallel forms accumulate that quotient in *different orders* (sequential
+cumsum versus a single matmul), so their agreement is a direct probe of
+arithmetic precision. In float64 they match to $2 \times 10^{-16}$ at $\seqlen =
+512$; in float32 the same computation caps out at $1.2 \times 10^{-7}$ — a
+precision gap of nearly $10^{9}$. The $10^{-12}$ identity pin is simply
+unreachable in single precision, which is why every companion in this chapter
+runs float64. (Gated linear attention in §11.3 sidesteps the issue by dropping the
+normalizer for an explicit decay plus an output normalization — cleaner numerically.)
+
+## 11.3 Gating: GLA, RetNet, and the LTV reading
+
+Ungated linear attention never forgets. To make it selective — to let the state
+*forget* — attach a per-step gate $\gamma_t \in (0,1)^{d_k}$ to the transition:
+$$
+S_t = \mathrm{diag}(\gamma_t)\, S_{t-1} + \phi(k_t)\, v_t^\top, \qquad y_t = S_t^\top \phi(q_t).
+$$
+This is the Chapter 9 selectivity move read from the attention side. Two regimes
+sit inside it:
+
+- **RetNet** <Cite key="sun2023retnet" /> takes $\gamma_t \equiv \gamma$, a fixed
+  head-wise decay. The transition is constant, so the operator is **LTI with
+  forgetting** — the Chapter 8 face plus a decay. Its parallel decay mask
+  $L_{tj} = \gamma^{\,t-j}$ is **Toeplitz** (it depends only on the lag $t - j$).
+- **GLA** <Cite key="yang2024gla" /> and HGRN2 <Cite key="qin2024hgrn2" /> make
+  $\gamma_t = \sigma(W x_t)$ *data-dependent*. The transition now changes every
+  step, so the operator is **LTV** — input-dependent forgetting, exactly the
+  selectivity of Chapter 9. Its decay mask $L_{tj} = \prod_{i=j+1}^{t} \gamma_i$
+  is **not** Toeplitz; the diagonals vary, just as Chapter 9's selective decay
+  mask does.
+
+<MarginNote>HGRN2 and GLA tie the gate to the *key* dimension specifically (not
+the value dimension), so the decay commutes with the $\phi(k)v^\top$ outer-product
+structure and the masked matmul stays clean. State expansion — a larger $d_k$ —
+is what lets HGRN2 raise the recall capacity of §11.6.</MarginNote>
+
+The masked-parallel form generalizes by the GLA "secondary" rescaling: with the
+cumulative log-gate $g_t = \sum_{i \le t} \log \gamma_i$, set $\tilde q_t =
+\phi(q_t) \odot e^{g_t}$ and $\tilde k_j = \phi(k_j) \odot e^{-g_j}$; then
+$\tilde q_t^\top \tilde k_j = \phi(q_t)^\top \mathrm{diag}\!\big(\prod_{i=j+1}^t
+\gamma_i\big) \phi(k_j)$ is the gated score. This is what makes the duality exact.
+
+<Theorem id="ch11:gla-ltv-duality" title="Gated linear attention is masked linear attention with a semiseparable decay mask">
+The gated recurrence $S_t = \mathrm{diag}(\gamma_t) S_{t-1} + \phi(k_t)v_t^\top$,
+$y_t = S_t^\top \phi(q_t)$, equals the parallel form $Y = (L_\gamma \circ (Q_\phi
+K_\phi^\top))\,V$ with decay mask $L_{\gamma,\,tj} = \prod_{i=j+1}^{t} \gamma_i$
+(entrywise along the key dimension). For a scalar per-step gate this $L_\gamma$ is
+**1-semiseparable**, and under $\log \gamma_i = \statemat_i\, \stepsize_i$ it
+coincides *exactly* with the decay mask of `ch09:ssd-duality`: gated
+linear attention and the scalar-state selective SSM are the same operator, read
+from opposite sides.
+</Theorem>
+
+The proof is Exercise 11.5 (§11.9): unroll the gated recurrence, contract with
+$\phi(q_t)$, and recognize the product-of-gates as the cumulative decay that
+`ch09:ssd-semiseparable`'s `segsum` exponentiates. The companion both
+checks the recurrent–masked identity ($\max$ difference $2.8 \times 10^{-14}$ for
+a data-dependent gate) and verifies the cross-chapter bridge against the *actual*
+Chapter 9 code: the GLA scalar mask and Chapter 9's `segsum` mask agree to
+$0.0$ (bit-identical) under $\log \gamma_i = \statemat_i \stepsize_i$.
+
+<Figure id="ch11:fig:gla-decay-mask" src="/figures/ch11/gla-decay-mask.png" alt="Two heatmaps of lower-triangular decay masks. Left, RetNet's constant-gamma mask is banded and Toeplitz. Right, GLA's input-dependent mask is lower-triangular but its diagonals visibly vary, so it is not Toeplitz." caption="The decay mask is where selectivity becomes visible. Left: RetNet's constant gate gives $L_{tj} = \gamma^{t-j}$, a Toeplitz (lag-only) mask — the LTI face. Right: GLA's input-dependent gate gives $L_{tj} = \prod_{i=j+1}^{t}\gamma_i$, whose diagonals vary along the sequence — the LTV face, the same non-Toeplitz structure Chapter 9's selective decay mask shows. Produced by companions/ch11/jax/gated_linear_attention.py; the recurrent–masked identity and the Chapter 9 bridge are pinned in tests/test_gated_linear_attention.py." />
+
+## 11.4 Hyena: the FFT long convolution
+
+The second operator family of this chapter abandons attention entirely — yet it is
+the same structural idea in new dress, not a digression: Hyena's convolution is one
+more instance of the LTI/LTV fork that organized §§11.2–11.3, as §11.5 will make
+explicit. Hyena
+<Cite key="poli2023hyena" /> interleaves implicit **long convolutions** with
+elementwise multiplicative gating. The convolution is the object to teach: a
+causal long convolution is a *linear time-invariant* operator — the convolutional
+view of an SSM (`ch08:conv-recurrence-duality`) — computable in
+$O(\seqlen \log \seqlen)$ by the FFT rather than the $O(\seqlen^2)$ explicit
+Toeplitz product. For input $u \in \mathbb{R}^{B \times \seqlen \times D}$ and a
+per-channel filter $k$,
+$$
+y_{b,t,d} = \sum_{s=0}^{t} k_{d,\,t-s}\, u_{b,s,d} + \mathrm{bias}_d\, u_{b,t,d}.
+$$
+
+<MarginNote>The "implicit" in *implicit long convolution*: Hyena's length-$\seqlen$
+filter is produced by a small MLP over positional encodings, so it has far fewer
+than $\seqlen$ parameters. The FFT machinery is identical to S4's; only the
+kernel's *parameterization* differs — S4's comes from a structured ODE, Hyena's
+is a free function of position.</MarginNote>
+
+The one subtlety is causality under the cyclic FFT.
+
+<Theorem id="ch11:fftconv-causal" title="Zero-padding to 2L computes the causal convolution">
+Padding $u$ and the filter $k$ to length $2\seqlen$, multiplying their real FFTs
+pointwise, inverse-transforming, and truncating to the first $\seqlen$ samples
+yields exactly the lower-triangular Toeplitz product above. Padding to $2\seqlen$
+(in fact any $N \ge 2\seqlen - 1$) is **sufficient**: it sends the cyclic FFT's
+wrap-around terms onto the zero-padded tail of $k$, where they contribute nothing.
+The un-padded length-$\seqlen$ transform wraps late taps onto early outputs and
+breaks causality, so some padding past $\seqlen$ is required.
+</Theorem>
+
+The proof is Exercise 11.6(a) (§11.9). The companion makes both halves concrete: the
+$O(\seqlen \log \seqlen)$ FFT route reproduces the $O(\seqlen^2)$ explicit-Toeplitz
+oracle to $2.7 \times 10^{-15}$ in float64 (the predecessor implementation ran
+float32 at a $10^{-4}$ tolerance — this is a $10^{11}$ tightening), while the
+un-padded variant disagrees with the oracle by $7.1$, an $O(1)$ violation of
+causality.
+
+<Figure id="ch11:fig:fftconv" src="/figures/ch11/fftconv.png" alt="Two panels: left, the maximum difference between FFT convolution and the explicit Toeplitz reference versus sequence length, flat near machine epsilon; right, a log-log plot of FFT O(L log L) versus Toeplitz O(L-squared) cost." caption="Hyena's primitive. Left: the $2\seqlen$-padded FFT convolution matches the explicit causal-Toeplitz oracle to $\sim 10^{-15}$ in float64 across sequence length (Theorem, §11.4). Right: the cost separation $O(\seqlen \log \seqlen)$ versus $O(\seqlen^2)$ that motivates the FFT for long filters. Produced by companions/ch11/jax/fftconv.py; the identity and the $2\seqlen$-padding necessity are pinned in tests/test_fftconv.py." />
+
+## 11.5 Implicit and selective filters
+
+What does the long convolution *mean* in the dynamical-systems vocabulary of this
+book? Everything hinges on whether the filter is fixed or input-dependent.
+
+When the filter $k$ is **static** across the batch and sequence, $y = k * u$ is a
+single linear time-invariant convolution — one kernel, the convolutional face of
+an SSM (`ch08:conv-recurrence-duality`). S4 lives exactly here: its
+kernel $K = (\outputmat \discB, \outputmat \discA \discB, \outputmat \discA^2
+\discB, \dots)$ is materialized from a structured continuous-time ODE, and the
+same FFT machinery of §11.4 applies. Hyena keeps the *unrestricted* kernel and
+pays the $\log$ factor, where S4 and Mamba fix the kernel shape — a structured
+semiseparable matrix (`ch09:ssd-semiseparable`) — to buy $O(\seqlen)$.
+
+When the filter is made **input-dependent** — the "selective Hyena" variant, where
+the convolution kernel itself is a function of the input — time-invariance breaks,
+exactly as Chapter 9's input-dependent $(\stepsize_t, \inputmat_t, \outputmat_t)$
+broke it. No single kernel exists; no convolution theorem applies; the operator
+rejoins the LTV family of §11.3. This is the same fork seen three times now: a
+fixed transition is LTI and admits a convolution or a closed-form mask; an
+input-dependent transition is LTV and admits only the scan. Hyena's gating, GLA's
+decay, and Mamba's selection are three spellings of one move.
+
+## 11.6 Counter-evidence: associative recall and capacity
+
+Beyond-SSM does not mean better-than-SSM. The honest place to end is where linear
+attention *loses*: **multi-query associative recall (MQAR)** — store $K$
+key–value pairs, then answer queries by retrieving the value bound to a key
+<Cite key="arora2024zoology" />. On this task, linear attention degrades as $K$
+grows while selective SSMs (Mamba) and softmax attention stay near-perfect. The
+mechanism is the §11.2 insight turned into a limitation, and it is provable.
+
+<Theorem id="ch11:linattn-capacity" type="proposition" title="Finite state bounds associative-recall capacity">
+The linear-attention state $S = \sum_{i=1}^{K} \phi(k_i)\, v_i^\top$ is a sum of
+$K$ rank-one matrices, so $\operatorname{rank} S \le \min(K, d_k, d_v)$. If
+$K > d_k$, the feature vectors $\{\phi(k_i)\} \subset \mathbb{R}^{d_k}$ are
+linearly dependent, so the readout $S^\top \phi(k_j)$ cannot reproduce $K$
+linearly independent values: there exist queries for which exact recall is
+impossible, *regardless of $\phi$*. Capacity is bounded by the feature dimension.
+</Theorem>
+
+The proof is Exercise 11.6(b) (§11.9). The companion turns the bound into a measured
+fact (a fixed-weight mechanism, **not** a trained model — the trained-model
+accuracy curves are cited to Zoology <Cite key="arora2024zoology" />). Storing $K$
+random unit keys with orthonormal values and reading each back, the per-binding
+retrieval error $\frac{1}{K}\sum_j \lVert \hat v_j - v_j \rVert$ behaves exactly
+as the rank bound predicts:
+
+- **Below capacity, exact.** With $K \le d_k$ *orthonormal* keys the features are
+  independent, the state is full-rank, and recall is exact — error $\sim 5 \times
+  10^{-16}$.
+- **Past capacity, degrading.** With generic keys the error grows like
+  $\sqrt{K/d_k}$: at $K = 64$ it is $1.99$ for $d_k = 16$ and $0.98$ for $d_k =
+  64$ (capacity scales with the state size), rising to $2.81$ at $K = 128$.
+- **The oracle stays exact.** Softmax attention's exponential sharpening
+  concentrates the readout on the self-match, so its error is $0.000$ independent
+  of $K$ — the capacity-unbounded baseline that linear attention cannot match.
+
+<Figure id="ch11:fig:mqar-capacity" src="/figures/ch11/mqar-capacity.png" alt="Retrieval error versus number of key-value pairs K. Two linear-attention curves, for state size 16 and 64, rise as K grows, with the larger state rising more slowly; the softmax oracle curve stays flat at zero." caption="The capacity wall (fixed-weight mechanism, not a trained model). Linear-attention retrieval error grows like $\sqrt{K/d_k}$ as the number of stored pairs exceeds the state size; enlarging the feature dimension lowers it (here $d_k$: $16 \to 64$ cuts the error in half), but no finite state escapes the trend. Softmax attention stays at zero error for all $K$. The structural cause is the §11.6 rank bound: a rank-$d_k$ state cannot hold unboundedly many independent associations. Produced by companions/ch11/jax/mqar_recall.py; pinned in tests/test_mqar_recall.py (exact sub-capacity recall, growth with $K$, and capacity scaling with $d_k$)." />
+
+Gating (§11.3) helps at the margin — a decay lets the state shed stale bindings —
+but it reweights a finite state, it does not raise the rank ceiling. Closing the
+gap needs either a genuinely larger structured state (the selective-SSM route of
+Chapters 9–10) or a smarter *write* rule, which is the subject of Chapter 12.
+
+## 11.7 What's next
+
+This chapter built the linear-attention half of the "beyond-SSM" family: an
+additive matrix-state recurrence ($A = I$), gated into the LTV/selectivity face
+(GLA, RetNet), with Hyena's implicit LTI long convolution as the sibling operator
+and a hard capacity limit (§11.6) at the bottom.
+
+Chapter 9 promised this chapter would develop "linear attention *and the
+delta-rule lineage*" as the attention-side reading of structured contractions. We
+have built the linear-attention half; the delta-rule half sharpens exactly the
+§11.6 capacity limit. Instead of blindly *accumulating* $\phi(k)v^\top$, the delta
+rule **overwrites** the value currently associated with a key — a rank-one
+correction
+$$
+S_t = \big(I - \beta_t\, \phi(k_t)\phi(k_t)^\top\big) S_{t-1} + \beta_t\, \phi(k_t) v_t^\top,
+$$
+turning the identity-transition recurrence into a genuinely data-dependent write.
+That is **Chapter 12** (the online-learning reading: DeltaNet as explicit-Euler,
+Longhorn as implicit-midpoint). Chapter 13 adds exponential gates and matrix
+memory (xLSTM, RWKV-7); Chapter 14 mixes these layers with attention into the
+production hybrids. The structure is one family; we are still mapping its faces.
+
+## 11.8 Exercises
+
+Three short problems (solutions inline) and three longer ones (solutions in §11.9).
+
+**Exercise 11.1.** Take $d_k = 2$, $\phi = \mathrm{elu}{+}1$, and two key–value
+pairs $(k_1, v_1), (k_2, v_2)$ with scalar values. Write $S_2$ explicitly as a sum
+of two outer products, and verify by hand that the unnormalized readout $S_2^\top
+\phi(q)$ for a query $q$ equals row $t{=}2$ of the masked-attention form $(L \circ
+(Q_\phi K_\phi^\top))V$.
+
+<details>
+<summary>Solution</summary>
+
+$S_2 = \phi(k_1)v_1^\top + \phi(k_2)v_2^\top$ (a $2 \times 1$ matrix since $v$ is
+scalar). Then $S_2^\top \phi(q) = v_1\,\phi(k_1)^\top\phi(q) + v_2\,\phi(k_2)^\top
+\phi(q) = \sum_{j \le 2} (\phi(q)^\top \phi(k_j))\, v_j$. Row $t{=}2$ of the
+masked form is $\sum_j L_{2j}(\phi(q_2)^\top\phi(k_j))v_j$ with $L_{2j} = 1$ for
+$j \in \{1, 2\}$ — identical (taking $q = q_2$). The outer-product sum and the
+masked row are two evaluations of the same contraction.
+</details>
+
+**Exercise 11.2.** Run `companions/ch11/jax/linear_attention.py`. Confirm the
+recurrent and parallel forms agree to $< 10^{-12}$, and explain in one sentence
+why the mask $L$ here is *all ones* below the diagonal, whereas Chapter 9's mask
+carried a decay.
+
+<details>
+<summary>Solution</summary>
+
+The script prints $\max|y_{\mathrm{rec}} - y_{\mathrm{par}}| \approx 5.6 \times
+10^{-16}$. The mask is all-ones because ungated linear attention has transition
+$A = I$: nothing decays between positions, so the weight on key $j$ at query $t$
+is $1$ for every $j \le t$. Chapter 9's mask carried $\exp(\statemat \sum
+\stepsize)$ because its transition $\discA_t = e^{\statemat \stepsize_t} < 1$
+decays the contribution of older positions. Gating (§11.3) restores that decay.
+</details>
+
+**Exercise 11.3.** Show that a *constant* gate $\gamma_t \equiv \gamma$ reduces the
+GLA decay mask to RetNet's $L_{tj} = \gamma^{\,t-j}$, and explain in one line why a
+constant gate makes the mask Toeplitz while an input-dependent $\gamma_t$ does not.
+
+<details>
+<summary>Solution</summary>
+
+$L_{tj} = \prod_{i=j+1}^{t} \gamma_i = \prod_{i=j+1}^{t} \gamma = \gamma^{\,t-j}$.
+This depends only on the lag $t - j$, so $L$ is constant along each diagonal —
+Toeplitz. With $\gamma_t$ input-dependent the product $\prod_{i=j+1}^t \gamma_i$
+depends on *which* steps are spanned, not just how many, so equal-lag entries on a
+diagonal differ — the mask is no longer Toeplitz. (The companion's RetNet mask has
+Toeplitz residual exactly $0$.)
+</details>
+
+**Exercise 11.4.** Prove the recurrent–parallel equivalence of §11.2: the recurrent
+matrix-state form and the masked-parallel form compute the same output, and state
+the time/memory cost of each. *(Solution in §11.9.)*
+
+**Exercise 11.5.** Prove the gated-linear-attention duality of §11.3, and identify the exact
+correspondence $\log \gamma_i = \statemat_i \stepsize_i$ under which the scalar-gate
+GLA mask coincides with the Chapter 9 decay mask of `ch09:ssd-duality`.
+*(Solution in §11.9.)*
+
+**Exercise 11.6.** (a) Prove the FFT-causality theorem of §11.4 — that padding past
+$\seqlen$ (to $2\seqlen$) lets the FFT compute the causal convolution, while the
+un-padded transform does not. (b) Prove the rank bound of the §11.6 capacity
+proposition, and connect it to the $\sqrt{K/d_k}$ growth of retrieval error in the
+§11.6 capacity figure.
+*(Solution in §11.9.)*
+
+## 11.9 Full solutions to theory exercises
+
+**Solution 11.4.** Unrolling the recurrence from $S_0 = 0$ gives $S_t = \sum_{j
+\le t} \phi(k_j) v_j^\top$. Hence
+$$
+S_t^\top \phi(q_t) = \sum_{j \le t} v_j\, \phi(k_j)^\top \phi(q_t)
+= \sum_{j \le t} \big(\phi(q_t)^\top \phi(k_j)\big)\, v_j .
+$$
+Row $t$ of the parallel form is $[(L \circ (Q_\phi K_\phi^\top))V]_t = \sum_j
+L_{tj}\,(\phi(q_t)^\top \phi(k_j))\, v_j = \sum_{j \le t}(\phi(q_t)^\top\phi(k_j))
+v_j$, since $L_{tj} = \mathbb{1}[j \le t]$. The two are identical. The recurrent
+form stores only $S_t \in \mathbb{R}^{d_k \times d_v}$ and does $O(d_k d_v)$ work
+per step: $O(\seqlen d_k d_v)$ time, $O(d_k d_v)$ memory. The parallel form
+materializes the $\seqlen \times \seqlen$ score matrix: $O(\seqlen^2 d)$ time.
+$\blacksquare$
+
+**Solution 11.5.** Unrolling the gated recurrence,
+$$
+S_t = \sum_{j \le t} \Big(\textstyle\prod_{i=j+1}^{t} \mathrm{diag}(\gamma_i)\Big)
+\phi(k_j) v_j^\top
+= \sum_{j \le t} \mathrm{diag}\!\Big(\textstyle\prod_{i=j+1}^{t}\gamma_i\Big)\phi(k_j)v_j^\top .
+$$
+Contracting with $\phi(q_t)$, $\;y_t = \sum_{j\le t} v_j \sum_c \phi(q_t)_c
+\big(\prod_{i=j+1}^t \gamma_{i,c}\big)\phi(k_j)_c$. Writing $g_{t,c} = \sum_{i\le t}
+\log\gamma_{i,c}$ gives $\prod_{i=j+1}^t \gamma_{i,c} = e^{g_{t,c}-g_{j,c}}$, so
+with $\tilde q_t = \phi(q_t)\odot e^{g_t}$ and $\tilde k_j = \phi(k_j)\odot
+e^{-g_j}$ we get $y_t = \sum_{j\le t}(\tilde q_t^\top \tilde k_j) v_j = [(L_\gamma
+\circ (Q_\phi K_\phi^\top))V]_t$ with $L_{\gamma,tj} = \prod_{i=j+1}^t \gamma_i$.
+For a scalar gate $\gamma_{i,c} = \gamma_i$, the mask is $L_{\gamma,tj} =
+\prod_{i=j+1}^t \gamma_i$; under $\log\gamma_i = \statemat_i \stepsize_i$ this is
+$\exp(\sum_{i=j+1}^t \statemat_i \stepsize_i)$, exactly the
+`ch09:ssd-duality` mask $L_{tj} = \exp(\statemat \sum_{i=j+1}^t
+\stepsize_i)$. The off-diagonal blocks of $L_\gamma$ have rank one (a product of a
+column $e^{g_t}$ and a row $e^{-g_j}$), so $L_\gamma$ is 1-semiseparable. The
+companion confirms the masks are bit-identical ($0.0$ difference). $\blacksquare$
+
+**Solution 11.6(a).** Zero-pad $u, k$ to length $N = 2\seqlen$. The pointwise
+product of their DFTs is the *cyclic* convolution $(u \circledast_N k)[n] = \sum_m
+u[m]\,k[(n-m)\bmod N]$. For $0 \le n < \seqlen$ and $0 \le m < \seqlen$ (both zero
+beyond $\seqlen - 1$), the index $n - m$ ranges over $-(\seqlen{-}1) \dots
+(\seqlen{-}1)$. A negative index wraps to $N + (n-m) \in [\seqlen{+}1,\,2\seqlen{-}1]$,
+where the padded $k$ is zero — so wrapped terms contribute nothing, leaving
+$(u\circledast_N k)[n] = \sum_{m\le n} u[m]k[n-m]$, the causal linear convolution.
+With $N = \seqlen$ (no padding) the same wrap sends $m > n$ to $\seqlen + (n-m) \in
+[1, \seqlen{-}1]$, where $k$ is *nonzero*, injecting acausal terms. Hence any $N \ge
+2\seqlen - 1$ suffices (the companion uses $2\seqlen$), while $N = \seqlen$ fails.
+The companion's un-padded variant differs from the oracle by $7.1$. $\blacksquare$
+
+**Solution 11.6(b).** $S = \sum_{i=1}^K \phi(k_i) v_i^\top$ is a sum of $K$
+rank-one matrices, so $\operatorname{rank} S \le K$; it is also $\le d_k$ (its
+columns lie in $\mathbb{R}^{d_k}$) and $\le d_v$. Thus $\operatorname{rank} S \le
+\min(K, d_k, d_v)$. If $K > d_k$, the $K$ vectors $\phi(k_i) \in \mathbb{R}^{d_k}$
+are linearly dependent: some $\phi(k_m) = \sum_{i\ne m} c_i \phi(k_i)$, so the
+readout $\hat v_m = S^\top\phi(k_m)$ is a fixed linear combination of the readouts
+for the other keys and cannot independently equal $v_m$ for arbitrary value
+assignments. Exact recall of $K$ independent bindings is therefore impossible. The
+$\sqrt{K/d_k}$ growth in the §11.6 capacity figure is the quantitative shadow
+of this: with random unit keys the interference $\sum_{i\ne j}\langle k_j, k_i
+\rangle v_i$ has $\sim K$ terms each of size $\sim 1/\sqrt{d_k}$, so its norm scales
+as $\sqrt{K/d_k}$ — zero only when the keys are orthonormal, which requires
+$K \le d_k$. $\blacksquare$
+
+## 11.10 Companion code
+
+The companions live in `companions/ch11/{jax,torch,julia}` and are float64
+throughout (§11.2 explains why). The JAX modules are canonical and produce every
+figure; the torch modules mirror them and are checked for cross-framework parity
+to $< 10^{-9}$; the Julia module ports Hyena's convolution to a third language
+using only the standard library.
+
+```bash
+# JAX (canonical; emits the four figures to public/figures/ch11/)
+PYTHONPATH=. python companions/ch11/jax/linear_attention.py
+PYTHONPATH=. python companions/ch11/jax/gated_linear_attention.py
+PYTHONPATH=. python companions/ch11/jax/fftconv.py
+PYTHONPATH=. python companions/ch11/jax/mqar_recall.py
+
+# Tests: JAX identities (< 1e-12), torch parity (< 1e-9), Julia FFT identity
+.venv/bin/pytest companions/ch11/jax companions/ch11/torch -q
+julia --project=companions/ch11/julia companions/ch11/julia/runtests.jl
+```
+
+- `linear_attention.py` — the matrix-state recurrence and its masked-parallel
+  twin (§11.2), the capacity-rank object (§11.6), and the float64-vs-float32
+  normalizer demonstration.
+- `gated_linear_attention.py` — GLA/RetNet gating, the decay masks, and the
+  cross-chapter bridge to `ch09:ssd-duality` built on Chapter 9's own
+  `segsum` (§11.3).
+- `fftconv.py` — Hyena's $2\seqlen$-padded FFT convolution against the explicit
+  Toeplitz oracle, plus the un-padded variant that fails causality
+  (§11.4). The torch port documents the buffers-vs-Parameters
+  distinction (a fixed mask is a buffer; a learned filter is a Parameter).
+- `mqar_recall.py` — the fixed-weight associative-recall mechanism behind §11.6:
+  exact recall below capacity, $\sqrt{K/d_k}$ degradation above it, and the
+  softmax oracle at zero error.
