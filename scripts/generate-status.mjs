@@ -228,7 +228,9 @@ async function main() {
         return;
     }
     const chapters = await collectChapters();
-    const today = new Date().toISOString().slice(0, 10);
+    // Local-timezone date (en-CA locale = YYYY-MM-DD): a late-evening regen must
+    // not stamp tomorrow's UTC date and desync from hand-dated docs (PR #21 review).
+    const today = new Date().toLocaleDateString('en-CA');
     const md = renderStatusMd(chapters, today);
     await mkdir(path.dirname(STATUS_PATH), { recursive: true });
     await writeFile(STATUS_PATH, md);

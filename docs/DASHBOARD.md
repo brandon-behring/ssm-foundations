@@ -38,9 +38,11 @@ PR #20 toolkit bump 4.8→4.16.0 — theorem labels + `<XRef>` live).
 
 - **Ch 1–11** are `implemented`: prose + exercises + companions authored, `make check` (content gates +
   bibkey/xref lint) green, companion suites green, deployed. JAX is the canonical reference for every
-  chapter; **torch parity is complete for ch01–11** (0527-F27 closed via the Ch-11-runway backfill).
-- **Julia is a selective track, not a universal gate** — present where the SciML/`DifferentialEquations.jl`
-  story adds pedagogy (ch04–07, ch10–11); absent by design elsewhere. A `—` in the Julia column is *not* a gap.
+  chapter; **torch parity is complete for ch01–11** (ch01–10 backfilled via the Ch-11 runway, closing
+  0527-F27; ch11 authored with parity in PR #18).
+- **Julia is a selective track, not a universal gate** — present where the chapter's numerical core
+  warrants a cross-language check (ch04 via `DifferentialEquations.jl`; ch05–07 and ch10–11 stdlib-only);
+  absent by design elsewhere. A `—` in the Julia column is *not* a gap.
 - **`claim-skeptic` is new (2026-06-04)** and has **not** been run retroactively on Ch 1–10; its adversarial
   math-claim pass is a forward gate (exercised on Ch 11), so the Ch 1–10 rows do not yet reflect a
   claim-skeptic review.
