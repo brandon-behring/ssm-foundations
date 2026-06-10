@@ -209,7 +209,9 @@ async function check() {
         console.error('docs/STATUS.md missing a `**Verified:** YYYY-MM-DD` line.');
         process.exit(1);
     }
-    const verified = new Date(m[1] + 'T00:00:00Z');
+    // Local midnight — must match the local-date stamp written by main()
+    // (PR #21 review fix).
+    const verified = new Date(m[1] + 'T00:00:00');
     const ageDays = (Date.now() - verified.getTime()) / (1000 * 60 * 60 * 24);
     if (ageDays > STALENESS_DAYS) {
         console.error(
@@ -228,7 +230,9 @@ async function main() {
         return;
     }
     const chapters = await collectChapters();
-    const today = new Date().toISOString().slice(0, 10);
+    // Local-timezone date (en-CA locale = YYYY-MM-DD): a late-evening regen must
+    // not stamp tomorrow's UTC date and desync from hand-dated docs (PR #21 review).
+    const today = new Date().toLocaleDateString('en-CA');
     const md = renderStatusMd(chapters, today);
     await mkdir(path.dirname(STATUS_PATH), { recursive: true });
     await writeFile(STATUS_PATH, md);

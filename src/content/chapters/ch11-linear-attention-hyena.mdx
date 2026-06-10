@@ -336,7 +336,9 @@ production hybrids. The structure is one family; we are still mapping its faces.
 
 Three short problems (solutions inline) and three longer ones (solutions in §11.9).
 
-**Exercise 11.1.** Take $d_k = 2$, $\phi = \mathrm{elu}{+}1$, and two key–value
+### Exercise 11.1 (short)
+
+Take $d_k = 2$, $\phi = \mathrm{elu}{+}1$, and two key–value
 pairs $(k_1, v_1), (k_2, v_2)$ with scalar values. Write $S_2$ explicitly as a sum
 of two outer products, and verify by hand that the unnormalized readout $S_2^\top
 \phi(q)$ for a query $q$ equals row $t{=}2$ of the masked-attention form $(L \circ
@@ -353,7 +355,9 @@ $j \in \{1, 2\}$ — identical (taking $q = q_2$). The outer-product sum and the
 masked row are two evaluations of the same contraction.
 </details>
 
-**Exercise 11.2.** Run `companions/ch11/jax/linear_attention.py`. Confirm the
+### Exercise 11.2 (short, code)
+
+Run `companions/ch11/jax/linear_attention.py`. Confirm the
 recurrent and parallel forms agree to $< 10^{-12}$, and explain in one sentence
 why the mask $L$ here is *all ones* below the diagonal, whereas Chapter 9's mask
 carried a decay.
@@ -369,7 +373,9 @@ is $1$ for every $j \le t$. Chapter 9's mask carried $\exp(\statemat \sum
 decays the contribution of older positions. Gating (§11.3) restores that decay.
 </details>
 
-**Exercise 11.3.** Show that a *constant* gate $\gamma_t \equiv \gamma$ reduces the
+### Exercise 11.3 (short)
+
+Show that a *constant* gate $\gamma_t \equiv \gamma$ reduces the
 GLA decay mask to RetNet's $L_{tj} = \gamma^{\,t-j}$, and explain in one line why a
 constant gate makes the mask Toeplitz while an input-dependent $\gamma_t$ does not.
 
@@ -384,25 +390,31 @@ diagonal differ — the mask is no longer Toeplitz. (The companion's RetNet mask
 Toeplitz residual exactly $0$.)
 </details>
 
-**Exercise 11.4.** Prove the recurrent–parallel equivalence of §11.2: the recurrent
-matrix-state form and the masked-parallel form compute the same output, and state
-the time/memory cost of each. *(Solution in §11.9.)*
+### Exercise 11.4 (theory) — solution in §11.9
 
-**Exercise 11.5.** Prove the gated-linear-attention duality of §11.3, and identify the exact
+Prove the recurrent–parallel equivalence of §11.2: the recurrent
+matrix-state form and the masked-parallel form compute the same output, and state
+the time/memory cost of each.
+
+### Exercise 11.5 (theory) — solution in §11.9
+
+Prove the gated-linear-attention duality of §11.3, and identify the exact
 correspondence $\log \gamma_i = \statemat_i \stepsize_i$ under which the scalar-gate
 GLA mask coincides with the Chapter 9 decay mask of <XRef id="ch09:ssd-duality" />.
-*(Solution in §11.9.)*
 
-**Exercise 11.6.** (a) Prove the FFT-causality theorem of §11.4 — that padding past
+### Exercise 11.6 (theory) — solution in §11.9
+
+(a) Prove the FFT-causality theorem of §11.4 — that padding past
 $\seqlen$ (to $2\seqlen$) lets the FFT compute the causal convolution, while the
 un-padded transform does not. (b) Prove the rank bound of the §11.6 capacity
 proposition, and connect it to the $\sqrt{K/d_k}$ growth of retrieval error in the
 §11.6 capacity figure.
-*(Solution in §11.9.)*
 
 ## 11.9 Full solutions to theory exercises
 
-**Solution 11.4.** Unrolling the recurrence from $S_0 = 0$ gives $S_t = \sum_{j
+### Solution to Exercise 11.4
+
+Unrolling the recurrence from $S_0 = 0$ gives $S_t = \sum_{j
 \le t} \phi(k_j) v_j^\top$. Hence
 $$
 S_t^\top \phi(q_t) = \sum_{j \le t} v_j\, \phi(k_j)^\top \phi(q_t)
@@ -416,7 +428,9 @@ per step: $O(\seqlen d_k d_v)$ time, $O(d_k d_v)$ memory. The parallel form
 materializes the $\seqlen \times \seqlen$ score matrix: $O(\seqlen^2 d)$ time.
 $\blacksquare$
 
-**Solution 11.5.** Unrolling the gated recurrence,
+### Solution to Exercise 11.5
+
+Unrolling the gated recurrence,
 $$
 S_t = \sum_{j \le t} \Big(\textstyle\prod_{i=j+1}^{t} \mathrm{diag}(\gamma_i)\Big)
 \phi(k_j) v_j^\top
@@ -436,7 +450,9 @@ $\exp(\sum_{i=j+1}^t \statemat_i \stepsize_i)$, exactly the
 column $e^{g_t}$ and a row $e^{-g_j}$), so $L_\gamma$ is 1-semiseparable. The
 companion confirms the masks are bit-identical ($0.0$ difference). $\blacksquare$
 
-**Solution 11.6(a).** Zero-pad $u, k$ to length $N = 2\seqlen$. The pointwise
+### Solution to Exercise 11.6
+
+**(a)** Zero-pad $u, k$ to length $N = 2\seqlen$. The pointwise
 product of their DFTs is the *cyclic* convolution $(u \circledast_N k)[n] = \sum_m
 u[m]\,k[(n-m)\bmod N]$. For $0 \le n < \seqlen$ and $0 \le m < \seqlen$ (both zero
 beyond $\seqlen - 1$), the index $n - m$ ranges over $-(\seqlen{-}1) \dots
@@ -448,7 +464,7 @@ With $N = \seqlen$ (no padding) the same wrap sends $m > n$ to $\seqlen + (n-m) 
 2\seqlen - 1$ suffices (the companion uses $2\seqlen$), while $N = \seqlen$ fails.
 The companion's un-padded variant differs from the oracle by $7.1$. $\blacksquare$
 
-**Solution 11.6(b).** $S = \sum_{i=1}^K \phi(k_i) v_i^\top$ is a sum of $K$
+**(b)** $S = \sum_{i=1}^K \phi(k_i) v_i^\top$ is a sum of $K$
 rank-one matrices, so $\operatorname{rank} S \le K$; it is also $\le d_k$ (its
 columns lie in $\mathbb{R}^{d_k}$) and $\le d_v$. Thus $\operatorname{rank} S \le
 \min(K, d_k, d_v)$. If $K > d_k$, the $K$ vectors $\phi(k_i) \in \mathbb{R}^{d_k}$
