@@ -222,6 +222,10 @@ Examples in `bibliography.bib`:
 - `dao2024mamba2` — Dao–Gu 2024, "Mamba 2: Transformers…"
 - `anonymous2025lyapunov` — Anonymous 2025, "Lyapunov Stability Analysis…"
   (double-blind submissions use `anonymous<year><firstword>`).
+- `yang2025gateddeltanet` — Yang–Kautz–Hatamizadeh 2025, "Gated Delta
+  Networks…" (sanctioned deviation: when the first title word is generic,
+  an architecture-name compound may replace it — pairs greppably with
+  `yang2024deltanet`. Adopted with Ch 12.)
 
 The format is byte-identical with
 `post_transformers/guides/shared/references.bib`, so cross-repo
