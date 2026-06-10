@@ -209,7 +209,9 @@ async function check() {
         console.error('docs/STATUS.md missing a `**Verified:** YYYY-MM-DD` line.');
         process.exit(1);
     }
-    const verified = new Date(m[1] + 'T00:00:00Z');
+    // Local midnight — must match the local-date stamp written by main()
+    // (PR #21 review fix).
+    const verified = new Date(m[1] + 'T00:00:00');
     const ageDays = (Date.now() - verified.getTime()) / (1000 * 60 * 60 * 24);
     if (ageDays > STALENESS_DAYS) {
         console.error(
