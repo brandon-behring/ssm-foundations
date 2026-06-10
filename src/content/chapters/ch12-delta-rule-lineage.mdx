@@ -1,15 +1,634 @@
 ---
 week: 12
 part: beyond-ssm
+status: implemented
 title: 'Delta-rule lineage: DeltaNet, Gated DeltaNet, Kimi Linear'
-status: planned
-description: Online-learning lens on SSMs; Longhorn (implicit) vs DeltaNet (explicit); chunkwise parallelization.
+description: The delta rule read as one gradient step on an associative-recall loss — DeltaNet (explicit Euler) and Longhorn (backward Euler) as the textbook explicit/implicit discretization pair, the stability dichotomy that follows, chunkwise parallelization via the WY trick, and gated forgetting from Gated DeltaNet to Kimi Linear.
+provenance:
+  ai_tools:
+    - Claude Code
+  citation_backstop: research-kb
 ---
 
-import PreReleaseBanner from '@brandon_m_behring/book-scaffold-astro/components/PreReleaseBanner.astro';
+import NoteBox from '@brandon_m_behring/book-scaffold-astro/components/NoteBox.astro';
+import Theorem from '@brandon_m_behring/book-scaffold-astro/components/Theorem.astro';
+import Cite from '@brandon_m_behring/book-scaffold-astro/components/Cite.astro';
+import MarginNote from '@brandon_m_behring/book-scaffold-astro/components/MarginNote.astro';
+import Figure from '@brandon_m_behring/book-scaffold-astro/components/Figure.astro';
+import XRef from '@brandon_m_behring/book-scaffold-astro/components/XRef.astro';
 
-<PreReleaseBanner state="alpha" message="Chapter 12 is planned; not yet authored. See description above for scope. Authoring sequence: Ch 1–3 (foundations) → Ch 4–6 (discretization thread for C1) → remaining chapters per pilot needs." />
+{/*
+  Math macros (auto-loaded via ssmMacros in astro.config; this chapter uses):
+    \discA=Ā \seqlen=L
+  Chapter-local symbols (declared in prose):
+    S_t — matrix state ℝ^{d_v×d_k}, retrieval S k (NOTE: transpose of Ch 11's
+    convention; reconciled in §12.1);  β_t — write strength / explicit step size;
+    α_t — trust-region weight (implicit step size 1/α_t);  γ_t — decay gate ∈ (0,1];
+    E_t = S_t − S* — deviation from the fixed point;  P — chunk erase product;
+    W, Y — its WY factors.
+*/}
 
 # Delta-rule lineage: DeltaNet, Gated DeltaNet, Kimi Linear
 
-This chapter is planned. See the [chapter-at-a-glance](https://github.com/brandon-behring/post_transformers/blob/main/notes/foundations_curriculum_design_2026_05_20.md) (foundations §3) for the full design; the [crosswalk](https://github.com/brandon-behring/post_transformers/blob/main/notes/foundations_curriculum_design_2026_05_20.md) (foundations §22) maps this chapter to the relevant post_transformers/roadmap.md weeks.
+<NoteBox title="Chapter 12 — at a glance">
+**Goal**: read the state update of a sequence layer as *online learning* — each
+step is one update of an optimizer minimizing an associative-recall loss. Under
+that lens DeltaNet is one **explicit (forward-Euler) gradient step**, Longhorn is
+the **implicit (backward-Euler) step** on the same gradient flow, and the entire
+explicit/implicit stability theory of Chapters 5–6 transfers verbatim: DeltaNet
+has a finite stability interval, Longhorn cannot be destabilized. Chunkwise
+parallelization (the WY trick) and gated forgetting (Gated DeltaNet → Kimi
+Linear) complete the lineage.
+
+**Reading time**: ~45 minutes prose; ~2 hours with the companions.
+
+**Key insight**: **a state update is an optimizer, and the architecture choice is
+a discretization choice.** The delta rule $S_t = S_{t-1} + \beta_t (v_t -
+S_{t-1}k_t)k_t^\top$ is literally one gradient step on $\tfrac{1}{2}\|S k_t -
+v_t\|^2$ — so the question "is this recurrence stable?" *is* the question "is
+this step size inside the method's stability region?", and the answer is the
+same dichotomy the book met for ODE integrators: explicit steps buy cheapness
+and risk blow-up; implicit steps buy unconditional stability.
+
+**Looking ahead**: this chapter is **B-pilot load-bearing**. The
+explicit-vs-implicit analysis of the online-learning step is the mathematical
+spine of pilot B's gating analysis, and §12.6's two-limit reading of the
+attention↔SSM family seeds the singular-perturbation framing the benchmark
+chapters (14, 16) will use.
+</NoteBox>
+
+## 12.1 The recall objective and its gradient flow
+
+Chapter 11 ended at a wall (<XRef id="ch11:linattn-capacity" />): the additive
+state $S = \sum_i \phi(k_i)v_i^\top$ accumulates and never forgets, so every
+stored pair interferes with every retrieval through the key overlaps $k_i^\top
+k_j$, and no finite state escapes the trend. The closing promise was a *smarter
+write rule*. To derive one, stop postulating recurrences and instead ask what
+the state is *for*.
+
+The state of every architecture in this part of the book is an associative
+memory: it should return $v$ when probed with $k$. Make that a loss. At time
+$t$, with the incoming pair $(k_t, v_t)$,
+$$
+\mathcal{L}_t(S) \;=\; \tfrac{1}{2}\,\bigl\|S k_t - v_t\bigr\|^2 .
+$$
+Two conventions before anything else. **First, shapes**: this chapter writes the
+state as $S \in \mathbb{R}^{d_v \times d_k}$ with retrieval $S k$ — the
+row-state form used by the DeltaNet literature and by Chapter 3's low-rank
+update discussion. Chapter 11 wrote the transposed form ($S \in
+\mathbb{R}^{d_k \times d_v}$, projector acting on the left); the map $S \mapsto
+S^\top$ converts one to the other, and every claim below transposes with it.
+**Second, the feature map**: the delta-rule literature works with the keys
+directly (typically $\ell_2$-normalized) rather than through a kernel feature
+map $\phi$; we follow that and write $k_t$ for what Chapter 11 would call
+$\phi(k_t)$. Nothing in this chapter depends on the distinction — and the
+normalization choice will turn out to *be* a stability decision (§12.4).
+
+Gradient descent on $\mathcal{L}_t$ in continuous time is the **recall gradient
+flow**
+$$
+\dot S \;=\; -\nabla_S \mathcal{L}_t(S) \;=\; (v_t - S k_t)\,k_t^\top ,
+$$
+a linear (affine) matrix ODE. Its equilibrium is the rank-one matrix that
+retrieves perfectly:
+
+<Theorem id="ch12:recall-fixed-point" type="proposition" title="The recall flow and its fixed point">
+For a fixed pair $(k, v)$ with $k \ne 0$, the gradient flow $\dot S = (v -
+Sk)k^\top$ has fixed-point set $\{S : Sk = v\}$, and the minimum-norm
+equilibrium reachable from $S_0 = 0$ is
+$$
+S^\star \;=\; \frac{v\,k^\top}{\|k\|^2}, \qquad S^\star k = v .
+$$
+The flow contracts the deviation $E = S - S^\star$ in the $k$ direction at rate
+$\|k\|^2$ and leaves the orthogonal complement untouched: directions the memory
+has never been asked about are neither corrected nor forgotten.
+</Theorem>
+
+The proof is a two-line computation with the substitution $E = S - S^\star$
+(Exercise 12.5 carries it through the discretizations). The inert orthogonal
+complement is a feature, not a defect — it is *persistent memory*, and §12.6
+will need a gate precisely because gradient flow on the current pair never
+cleans up stale directions on its own.
+
+<MarginNote>The name is older than the architecture by sixty years: the
+least-mean-squares update of Widrow and Hoff's ADALINE <Cite key="widrow1960adaptive" />
+is exactly one gradient step on a squared retrieval error — the original "delta
+rule" of the perceptron era. The fast-weight reading of attention brought it
+into transformers <Cite key="schlag2021linear" />.</MarginNote>
+
+Everything in this chapter is now one sentence: **DeltaNet, Longhorn, and their
+gated descendants are different one-step discretizations of this flow,
+interleaved over a stream of pairs $(k_t, v_t)$.** The architecture zoo becomes
+an integrator catalog, and the book's Part-I machinery applies.
+
+## 12.2 DeltaNet: one explicit gradient step
+
+Take one forward-Euler step of size $\beta_t$ on the recall flow (Chapter 4's
+explicit workhorse), at the incoming pair:
+
+<Theorem id="ch12:delta-rule-two-forms" type="proposition" title="The delta rule, two algebraic faces">
+One explicit gradient step $S_t = S_{t-1} + \beta_t\,(v_t - S_{t-1}k_t)\,k_t^\top$
+is identical to the *erase-then-write* form
+$$
+S_t \;=\; S_{t-1}\,\bigl(I - \beta_t\,k_t k_t^\top\bigr) \;+\; \beta_t\,v_t k_t^\top .
+$$
+The first form costs one mat-vec plus one rank-one update, $O(d_v d_k)$ per
+step, and never materializes the $d_k \times d_k$ projector; the second exposes
+the mechanism — *selective erasure* along $k_t$, then a fresh rank-one write.
+</Theorem>
+
+The identity is one distribution of terms: $S_{t-1}(I - \beta k k^\top) + \beta
+v k^\top = S_{t-1} + \beta(v - S_{t-1}k)k^\top$. Chapter 3 previewed exactly
+this update as the recurring "low-rank correction" pattern — for $\beta_t
+\|k_t\|^2 < 1$ the factor $(I - \beta_t k_t k_t^\top)$ is a contraction toward
+the hyperplane $k_t^\perp$, and at $\beta_t \|k_t\|^2 = 1$ it is the orthogonal
+projector onto it. With $\beta_t \in (0,1]$ a learned, input-dependent write
+strength and the read $o_t = S_t q_t$, this recurrence *is* DeltaNet's state
+update <Cite key="yang2024deltanet" />, the delta rule of fast-weight
+programming <Cite key="schlag2021linear" /> made into a sequence layer. The
+companion's `lax.scan` (rank-one form) and a deliberately different
+materialized-projector loop agree to $1.8 \times 10^{-15}$ over 48 steps — the
+two faces are one operator.
+
+What did the erase term buy over Chapter 11's accumulation? The defining
+semantics: **re-storing a key replaces its value.** Write $(k, v_1)$, then $(k,
+v_2)$, with $\beta = 1$ on a unit key. The erase factor annihilates the old
+binding before the new write lands, so the delta-rule state retrieves $S k =
+v_2$ exactly — measured residual $4.4 \times 10^{-16}$ — while the additive
+state retrieves $v_1 + v_2$, off by the entire stale residue (measured
+$\ell_\infty$ error $1.27$ on the same data). An additive memory can only pile
+bindings on top of each other; a delta-rule memory *updates* them.
+
+<Figure id="ch12:fig:recall" src="/figures/ch12/delta-vs-additive-recall.png" alt="Two panels. Left: mean retrieval error versus number of stored pairs K for random unit keys; the additive curve rises above the delta-rule curve, both increasing past the state dimension marked at K equals 32. Right: the same comparison with orthonormal keys; both curves sit at machine precision below the 1e-12 pin line." caption="What the erase term buys. Left: with random unit keys ($d_k = 32$), sequential delta-rule writes ($\beta = 1$) retrieve with consistently lower interference error than the additive state of Chapter 11 — at $K = 32$ stored pairs, mean $\ell_\infty$ error $1.44$ versus $1.997$ — but both still grow with $K$: erasure reduces interference, it does not raise the rank ceiling of Chapter 11's capacity bound (Theorem 11.4). Right: with orthonormal keys both rules are exact to $\sim 10^{-15}$ — there is no interference to erase, which isolates interference (not capacity) as the thing the delta rule fixes. Produced by companions/ch12/jax/delta_rule.py; pinned in tests/test_delta_rule.py (overwrite exactness, orthonormal exactness, delta-below-additive)." />
+
+The figure is deliberately honest about the limit. With orthonormal keys both
+rules are exact — the delta rule's advantage is zero when keys do not overlap —
+and with random keys both error curves still grow as $K$ passes $d_k$: a
+rank-$d_k$ state cannot hold more than $d_k$ independent associations no matter
+how cleverly it writes (<XRef id="ch11:linattn-capacity" /> still binds). The
+delta rule answers Chapter 11's *interference*
+problem and its *staleness* problem (the overwrite), not the capacity bound.
+That distinction is exactly where Chapter 13's matrix-memory architectures and
+Chapter 14's hybrids will pick up.
+
+## 12.3 Longhorn: the implicit step
+
+Forward Euler is not the only one-step method, and Chapter 6 taught the
+alternative. Longhorn <Cite key="liu2024longhorn" /> reaches it from the
+optimization side: frame the update as *amortized online learning* and solve,
+at each step, the regularized problem
+$$
+S_t \;=\; \arg\min_S\; \tfrac{1}{2}\,\|S k_t - v_t\|^2 \;+\;
+\tfrac{\alpha_t}{2}\,\|S - S_{t-1}\|_F^2 ,
+$$
+a trust-region (proximal) step: improve recall on the incoming pair, but do not
+move far from the state you have. Setting the gradient to zero gives
+$$
+\alpha_t\,(S_t - S_{t-1}) \;+\; (S_t k_t - v_t)\,k_t^\top \;=\; 0
+\quad\Longleftrightarrow\quad
+S_t \;=\; S_{t-1} + \tfrac{1}{\alpha_t}\,(v_t - S_t k_t)\,k_t^\top .
+$$
+Read the right-hand form against §12.1: this is the recall gradient evaluated
+at the *endpoint* $S_t$, with step size $h = 1/\alpha_t$ — the **backward-Euler
+step** on the recall flow, the implicit method of Chapter 6.
+
+<MarginNote>Optimization readers know this operation as the *proximal* step of
+$\mathcal{L}_t$; numerical-analysis readers know it as implicit Euler on the
+gradient flow. They are the same map — the prox-equals-backward-Euler identity
+is the standing bridge between the two fields, and this chapter crosses it in
+both directions.</MarginNote>
+
+An implicit equation usually costs a solve. Here the solve is free:
+
+<Theorem id="ch12:longhorn-closed-form" type="theorem" title="Longhorn's implicit step in closed form">
+For $\alpha_t > 0$ the backward-Euler equation above has the unique solution
+$$
+S_t \;=\; S_{t-1} \;+\; \underbrace{\frac{1}{\alpha_t + \|k_t\|^2}}_{\textstyle\beta_t^{\mathrm{eff}}}
+\,(v_t - S_{t-1}k_t)\,k_t^\top ,
+$$
+i.e. the implicit step **is the delta rule** evaluated at the self-limiting rate
+$\beta_t^{\mathrm{eff}} = 1/(\alpha_t + \|k_t\|^2)$. In particular
+$\beta_t^{\mathrm{eff}} \le 1/\alpha_t$ and
+$\beta_t^{\mathrm{eff}}\|k_t\|^2 = \|k_t\|^2/(\alpha_t + \|k_t\|^2) < 1$
+for every key, however large.
+</Theorem>
+
+The proof (Exercise 12.4, §12.9) is the classic implicit-solve move: right-
+multiply the stationarity equation by $k_t$, solve the resulting *scalar*
+equation for the post-update prediction $S_t k_t$, and substitute back. In the
+companion the identification is structural — `longhorn_step` simply *is*
+`delta_rule_step` evaluated at $\beta^{\mathrm{eff}}$ — so the closed form gets
+an independent certificate instead: solving the stationarity system
+$S_t(\alpha I + k k^\top) = \alpha S_{t-1} + v k^\top$ by dense linear solve
+(no code shared with the rank-one form) reproduces it to $4.4 \times 10^{-16}$,
+and the closed form zeroes the stationarity residual to $7.8 \times 10^{-16}$
+(pinned $< 10^{-12}$ in
+`tests/test_longhorn.py::test_closed_form_equals_dense_implicit_solve`).
+Explicit and implicit methods
+on this flow live in the *same* parametric family — they differ only in how the
+effective step size responds to the data. DeltaNet's $\beta_t$ is whatever the
+network learned to emit; Longhorn's $\beta_t^{\mathrm{eff}}$ *self-adapts to the
+key magnitude*. Scaling the key by $10^2$ pushes the product
+$\beta^{\mathrm{eff}}\|k\|^2$ to $1 - 1.7\times 10^{-5}$; by $10^4$, to $1 -
+1.7\times 10^{-9}$ — approaching but provably never reaching $1$. That
+denominator is the entire difference between the two architectures, and §12.4
+shows it is exactly the difference between conditional and unconditional
+stability.
+
+## 12.4 Stability regions: the explicit/implicit dichotomy
+
+Both updates iterate an affine map in $S$, so no linearization is needed: with
+$S^\star = v k^\top / \|k\|^2$ and $E_t = S_t - S^\star$, a step at the (for
+now, repeated) pair $(k, v)$ gives *exactly*
+$$
+E_t \;=\; E_{t-1}\,\bigl(I - \beta^{\mathrm{eff}}\,k k^\top\bigr) .
+$$
+The iteration matrix is a rank-one perturbation of the identity; its spectrum
+is immediate.
+
+<Theorem id="ch12:stability-dichotomy" type="theorem" title="The stability dichotomy">
+The matrix $I - \beta^{\mathrm{eff}} kk^\top$ has eigenvalue $1 -
+\beta^{\mathrm{eff}}\|k\|^2$ in the $k$ direction and $1$ on the orthogonal
+complement. The deviation therefore contracts in the only direction the update
+touches iff $\rho_k = |1 - \beta^{\mathrm{eff}}\|k\|^2| < 1$, and:
+
+- **DeltaNet** (explicit, $\beta^{\mathrm{eff}} = \beta$): stable iff
+  $\beta\|k\|^2 \in (0, 2)$. Past the boundary $\beta\|k\|^2 = 2$ the deviation
+  alternates sign and grows geometrically — forward Euler leaving its stability
+  interval, Chapter 5's picture replayed.
+- **Longhorn** (implicit, $\beta^{\mathrm{eff}} = 1/(\alpha + \|k\|^2)$):
+  $\rho_k = \alpha/(\alpha + \|k\|^2) < 1$ for every $\alpha > 0$ and every key.
+  Unconditional stability — the backward-Euler guarantee of
+  <XRef id="ch06:be-a-stable" />, transferred to the online-learning flow.
+  Moreover $\rho_k \to 0$ as $\|k\|^2/\alpha \to \infty$: the hardest writes are
+  the most strongly contracted, the L-stability signature.
+</Theorem>
+
+<Figure id="ch12:fig:stability-regions" src="/figures/ch12/stability-regions.png" alt="Two panels. Left: DeltaNet spectral radius as a V-shaped curve in beta times key norm squared, dipping to zero at 1 and crossing above one at the boundary 2, with the unstable region shaded. Right: Longhorn spectral radius versus key magnitude over alpha on a log axis, decreasing from one toward zero and never crossing one." caption="The stability dichotomy, plotted from the closed forms of Theorem 12.4. Left: DeltaNet's $\rho_k = |1 - \beta\|k\|^2|$ — stable only on $(0, 2)$; at $\beta\|k\|^2 = 2.5$ the radius is $1.5$ and the iteration diverges. Right: Longhorn's $\rho_k = \alpha/(\alpha + \|k\|^2)$ stays below $1$ for every key magnitude and decays to $0$ ($\rho_k = 0.0099$ at $\|k\|^2/\alpha = 100$): unconditional stability with L-stable strong contraction of large writes. Produced by companions/ch12/jax/stability.py; the analytic curves match the Rayleigh quotient of the materialized iteration matrix to a measured $6.7 \times 10^{-16}$ max drift, pinned $< 10^{-12}$ in tests/test_stability.py." />
+
+Because the deviation recurrence is exact — not a linearization — the geometric
+law is measurable to machine precision. Starting from $S_0 = 0$ under a
+repeated unit-norm key, the per-step ratio $\|E_t\|_F / \|E_{t-1}\|_F$ measured
+from the companion equals the analytic radius to twelve digits: $1.500000000000$
+for DeltaNet at $\beta\|k\|^2 = 2.5$, $0.500000000000$ for Longhorn at $\alpha =
+\|k\|^2$. The trajectories make the dichotomy visceral:
+
+<Figure id="ch12:fig:trajectories" src="/figures/ch12/explicit-implicit-trajectories.png" alt="Semilog plot of normalized deviation from the fixed point versus step count. Three DeltaNet curves: geometric decay at rate 0.5, slow decay at 0.9, and geometric growth at 1.5 crossing above the reference line at one. One dashed Longhorn curve decays at rate 0.5." caption="Exact geometric trajectories under a repeated pair, one curve per effective step size; each legend entry quotes the analytic radius $\rho$, and the measured early-step ratios reproduce it to twelve digits (pinned at $10^{-12}$ above the float noise floor in test_longhorn.py::test_error_decay_ratio_equals_analytic_rho). DeltaNet at $\beta\|k\|^2 = 2.5$ diverges exactly as forward Euler past its boundary; Longhorn at $\alpha = \|k\|^2$ contracts at $\rho = 0.5$ and cannot be pushed past $1$ by any key. Produced by companions/ch12/jax/longhorn.py." />
+
+One degenerate-looking feature of <XRef id="ch12:stability-dichotomy" /> deserves emphasis: the orthogonal
+eigenvalue is exactly $1$ for *both* methods. Neither integrator forgets
+directions it has not been asked about — stability here is about the *write*
+direction only. Whole-state forgetting needs a different mechanism (§12.6).
+
+**Why trained DeltaNets are stable anyway.** The dichotomy explains a design
+detail that looks cosmetic in the paper and is load-bearing in the lens: Yang et
+al. $\ell_2$-normalize keys and parameterize $\beta_t = \mathrm{sigmoid}(\cdot)
+\in (0,1)$ <Cite key="yang2024deltanet" />. With $\|k_t\| = 1$ that pins
+$\beta_t\|k_t\|^2 < 1$ — not merely inside the stability interval $(0,2)$ but
+inside its monotonically-contracting half. And the per-step guarantee composes,
+which discharges the repeated-pair scoping above: with $\beta_t\|k_t\|^2 < 1$
+every factor $I - \beta_t k_t k_t^\top$ has eigenvalues in $(0, 1]$, so the
+streaming product over *any* key sequence is non-expansive — the repeated pair
+is the worst case, not a special case. The architecture's normalization
+choices *are* its stability guarantee, chosen at design time the way a step-size
+rule is chosen for an integrator. Longhorn needs no such guard, and that is
+precisely its selling point: stability by method, not by parameterization — the
+implicit-method trade Chapter 6 priced out, here with a free solve.
+
+## 12.5 Chunkwise parallelization: the WY trick
+
+The recurrent delta rule is $O(\seqlen)$ *sequential* — fine for inference,
+hostile to training hardware. Chapter 11 met the same tension and resolved it
+with a second face of the same operator (<XRef id="ch11:recurrent-parallel-equivalence" />);
+the delta rule's resolution is the same move with one extra piece of numerical
+linear algebra. Split the sequence into chunks of size $C$ and unroll the
+erase-then-write form across one chunk:
+$$
+S_{\mathrm{end}} \;=\; S_{\mathrm{entry}}\,P \;+\; R, \qquad
+P \;=\; \prod_{t \in \mathrm{chunk}} \bigl(I - \beta_t k_t k_t^\top\bigr),
+$$
+with $R$ the chunk's accumulated writes — the chunk's own §12.2 recurrence run
+from a zero entry state, which is exactly how the companion materializes it.
+The cross-chunk recurrence is now one
+affine update per chunk ($\seqlen/C$ sequential steps) and everything inside a
+chunk touches only chunk-local data <Cite key="yang2024deltanet" />. The
+remaining cost is the erase product $P$ — naively a chain of $d_k \times d_k$
+matrix products. But $P$ is a product of rank-one perturbations of $I$, and
+numerical linear algebra has compressed exactly this object for decades:
+
+<Theorem id="ch12:wy-representation" type="theorem" title="WY representation of the erase product">
+For keys $k_1, \dots, k_C$ and rates $\beta_1, \dots, \beta_C$, the chunk erase
+product admits the compact form
+$$
+\prod_{t=1}^{C}\bigl(I - \beta_t k_t k_t^\top\bigr) \;=\; I - W^\top Y,
+$$
+where the rows of $Y \in \mathbb{R}^{C \times d_k}$ are the keys and the rows of
+$W$ obey the recursion $w_t = \beta_t\bigl(k_t - \sum_{j<t} (k_j^\top k_t)\,
+w_j\bigr)$. Applying $P$ to a state is then two GEMMs, $SP = S - (SW^\top)Y$,
+never a materialized $d_k \times d_k$ product chain.
+</Theorem>
+
+<MarginNote>The same compression underlies blocked Householder QR — LAPACK
+writes a product of $C$ reflectors as $I - WY^\top$ with column-stacked factors
+(our row-stacked convention makes the same object $I - W^\top Y$), turning
+reflection chains into matrix–matrix work. See Golub &amp; Van Loan
+<Cite key="golub2013matrix" /> §5.1–5.2. DeltaNet's erase factors are
+non-orthogonal "relaxed reflectors", but the recursion is identical.</MarginNote>
+
+The induction (Exercise 12.6, §12.9) is three lines. The companion pins both
+identities at machine precision on a stable-regime stream (unit-norm keys,
+$\beta_t < 1$ — §12.4's recommended operating point): the WY form matches the
+explicitly multiplied product to $3.7 \times 10^{-16}$ at worst across chunk
+sizes $C = 2$ through $64$, and the chunkwise driver —
+cross-chunk state passing with chunk-local sweeps — reproduces the monolithic
+recurrence *bitwise* (measured difference $0.0$ for every chunk size $C \mid
+\seqlen$, because both run the same scan arithmetic in the same order). As in
+Chapter 11, the equivalence is the correctness certificate for the production
+form: one operator, two computation schedules.
+
+<Figure id="ch12:fig:chunkwise" src="/figures/ch12/chunkwise-equivalence.png" alt="Two semilog panels versus chunk size on a log-2 axis. Left: maximum difference between chunkwise and recurrent outputs, flat at the display floor far below the 1e-12 pin line. Right: maximum difference between the WY form and the explicitly multiplied erase product, flat near machine epsilon, far below the pin line." caption="Both §12.5 equivalences across chunk sizes at $\seqlen = 64$ (float64, stable-regime stream: unit-norm keys, $\beta_t < 1$). Left: the chunkwise driver equals the monolithic recurrence exactly — measured difference $0.0$, plotted at the $10^{-18}$ display floor — for every $C$ from $1$ to $\seqlen$. Right: $I - W^\top Y$ equals the materialized product $\prod_t(I - \beta_t k_t k_t^\top)$ at machine-epsilon scale ($\le 3.7 \times 10^{-16}$ for every plotted $C$); with wildly unstable rates ($\beta\|k\|^2 \gg 2$) the product's entries — and the absolute error with them — would grow exponentially, one more reason §12.4's regime is the operating point. Produced by companions/ch12/jax/chunkwise.py; pinned $< 10^{-12}$ for every plotted $C$ in tests/test_chunkwise.py." />
+
+The practical punchline mirrors Chapter 11's: the recurrent form is the
+inference mode, the chunkwise form is the training mode, and a fused kernel is
+an engineering refinement of an identity that is already exact in pure JAX.
+
+## 12.6 Gating the delta rule: Gated DeltaNet and Kimi Linear
+
+<XRef id="ch12:stability-dichotomy" /> left one direction untouched: everything orthogonal to the current
+key sits at eigenvalue exactly $1$. A delta-rule memory never spontaneously
+forgets — stale bindings persist until their key is revisited. Chapter 9's
+selective SSMs had the complementary skill: a scalar decay $\discA_t$ that
+forgets *everything, uniformly*. Gated DeltaNet <Cite key="yang2025gateddeltanet" />
+composes the two:
+$$
+S_t \;=\; \gamma_t\,S_{t-1}\bigl(I - \beta_t k_t k_t^\top\bigr) \;+\;
+\beta_t\,v_t k_t^\top, \qquad \gamma_t \in (0, 1] .
+$$
+The gate multiplies the erased state; the fresh write lands ungated. Both
+parents are exact limits, and the companion pins both reductions: $\gamma_t
+\equiv 1$ recovers plain DeltaNet to $1.8 \times 10^{-15}$, and $\beta_t \equiv
+0$ is pure exponential decay $S_t = \gamma_t S_{t-1}$ — Chapter 9's scalar-decay
+contraction with the carry promoted to a matrix, the same promotion Chapter 11
+made for accumulation (<XRef id="ch11:gla-ltv-duality" />).
+
+The division of labor is exact, not approximate. Store a pair $(k_A, v_A)$,
+then perform $T$ gated-delta writes whose keys are orthogonal to $k_A$: the
+erase factors never touch the $k_A$ direction, so the retrieval decays *only*
+through the gate,
+$$
+\|S_T\,k_A\| \;=\; \Bigl(\textstyle\prod_{t=1}^{T}\gamma_t\Bigr)\,\|v_A\| ,
+$$
+and the companion measures the product law at $5.6 \times 10^{-17}$ over forty
+writes. Gating forgets **uniformly** (a half-life for everything); the delta
+rule forgets **selectively** (exact overwrite of what is re-keyed). An
+architecture with both has independent control of the two timescales — which is
+why this update, not the plain delta rule, is what shipped. And the gate does
+not cost trainability: extending §12.5's chunkwise/WY machinery to the
+$\gamma$-decayed erase product is a core contribution of the Gated DeltaNet
+paper <Cite key="yang2025gateddeltanet" />, so the gated update trains with the
+same hardware efficiency.
+
+That shipping lineage is current production history, summarized at architecture
+level. Kimi Linear
+<Cite key="kimiteam2025kimi" /> builds its KDA (Kimi Delta Attention) layer as a
+refinement of exactly this gated update — the scalar $\gamma_t$ replaced by
+per-channel diagonal gates, a finer-grained forgetting clock — and interleaves
+KDA with full attention at a 3:1 layer ratio, reporting up to a 75% KV-cache
+reduction at million-token contexts. As of mid-2026 this family — the gated
+delta rule adopted as the linear layer of public hybrid stacks, KDA in the Kimi
+Linear release — is the delta rule's production form. This book derives the
+update those systems share; their layer-ratio and
+gate-granularity choices belong to Chapter 14's hybrid design space, and the
+chapter makes no derived claims about KDA beyond the gated update above.
+
+Step back to see the family whole. Chapter 9 proved selective SSMs and masked
+attention are one object (<XRef id="ch09:ssd-duality" />); Chapter 11 added the
+accumulation face; this chapter added the *write-rule axis*: accumulate
+($\beta$-write only), erase-and-write (delta), decay-erase-write (gated delta) —
+each one discretization choice on the same recall flow. Two limits now bracket
+the design space: the pure-decay limit ($\beta \to 0$, an SSM forgetting on a
+slow clock) and the pure-write limit (attention-like immediate binding). Pilot
+B's two-timescale benchmarks live exactly in that bracket — attention as the
+fast boundary layer, the decaying state as the slow manifold — and Chapters 14
+and 16 build the architectures and the measurement protocol for it.
+
+## 12.7 What's next
+
+This chapter closed Chapter 9's "delta-rule lineage" promise and Chapter 11's
+capacity hand-off: the write rule is now an optimizer step, and its stability
+theory is Chapters 5–6 applied to a new flow.
+
+Two threads leave here open by design. **Chapter 13** takes the lineage's next
+generalization: RWKV-7's *generalized* delta rule (transition $\mathrm{diag} +$
+rank-one in a learned direction, not the key itself) and xLSTM's matrix memory
+with exponential gating — the gate moved inside the nonlinearity, with its own
+stabilization problem. **Chapter 14** mixes these layers with attention into the
+production hybrids named above, where the layer-ratio and gate-granularity
+decisions we deferred become the design variables; **Chapter 16** then builds
+the evaluation methodology — including the two-timescale protocol pilot B
+contributes — that makes the comparisons honest.
+
+## 12.8 Exercises
+
+Three short problems (solutions inline) and three longer ones (solutions in §12.9).
+
+### Exercise 12.1 (short)
+
+With $d_k = d_v = 2$, unit key $k = (1, 0)^\top$, and values $v_1 = (1, 2)^\top$,
+$v_2 = (3, -1)^\top$: compute the delta-rule state after writing $(k, v_1)$ then
+$(k, v_2)$ with $\beta = 1$, and the additive state $\sum_i v_i k^\top$ for the
+same writes. Verify the retrievals $S k$ are $v_2$ and $v_1 + v_2$ respectively.
+
+<details>
+<summary>Solution</summary>
+
+First write: $S_1 = 0 + 1\cdot(v_1 - 0)k^\top = v_1 k^\top =
+\bigl(\begin{smallmatrix}1 & 0\\ 2 & 0\end{smallmatrix}\bigr)$. Second write:
+$S_1 k = v_1$, so $S_2 = S_1 + (v_2 - v_1)k^\top = v_2 k^\top =
+\bigl(\begin{smallmatrix}3 & 0\\ -1 & 0\end{smallmatrix}\bigr)$ and $S_2 k = v_2$:
+the old binding is gone. Additive: $S = v_1 k^\top + v_2 k^\top = (v_1 +
+v_2)k^\top$, retrieving $v_1 + v_2 = (4, 1)^\top$ — the stale residue of
+§12.2's measured demo, by hand.
+</details>
+
+### Exercise 12.2 (short, code)
+
+Run `companions/ch12/jax/delta_rule.py`. Report the overwrite residuals and the
+$K = 32$ recall errors, then explain in one sentence why the orthonormal-key
+panel shows *both* rules exact.
+
+<details>
+<summary>Solution</summary>
+
+The script prints delta-rule overwrite residual $4.4 \times 10^{-16}$ against an
+additive stale residue of $1.27$, and $K{=}32$ mean errors $2.0$ (additive)
+versus $1.44$ (delta). With orthonormal keys, every cross-term $k_i^\top k_j$
+($i \ne j$) vanishes, so the additive state already retrieves exactly and the
+erase factors act as the identity on all stored directions — there is no
+interference for the delta rule to remove.
+</details>
+
+### Exercise 12.3 (short)
+
+For $\alpha = 1$ and $\|k\|^2 \in \{1, 4, 100\}$, compute Longhorn's
+$\beta^{\mathrm{eff}}$, the product $\beta^{\mathrm{eff}}\|k\|^2$, and the radius
+$\rho_k$. Verify the complement identity $\rho_k + \beta^{\mathrm{eff}}\|k\|^2 =
+1$ and state what it says about where the "stable mass" goes as keys grow.
+
+<details>
+<summary>Solution</summary>
+
+$\beta^{\mathrm{eff}} = 1/(1 + \|k\|^2) = 1/2,\ 1/5,\ 1/101$; products $1/2,\
+4/5,\ 100/101$; radii $1/2,\ 1/5,\ 1/101$. Each pair sums to $1$ because
+$\rho_k = 1 - \beta^{\mathrm{eff}}\|k\|^2$ exactly (the eigenvalue is positive
+here). As $\|k\|^2/\alpha \to \infty$ the write share approaches $1$ and the
+radius approaches $0$: large keys are written *harder* and contracted *faster* —
+the L-stable behavior of <XRef id="ch06:be-a-stable" />'s backward Euler, in
+optimizer clothing.
+</details>
+
+### Exercise 12.4 (theory) — solution in §12.9
+
+Derive <XRef id="ch12:longhorn-closed-form" />: starting from the stationarity
+equation $\alpha(S_t - S_{t-1}) + (S_t k - v)k^\top = 0$, obtain the closed form
+by solving for the post-update prediction $S_t k$ first. Where exactly does
+$\alpha > 0$ get used?
+
+### Exercise 12.5 (theory) — solution in §12.9
+
+Prove <XRef id="ch12:stability-dichotomy" />: compute the full spectrum of $I -
+\beta^{\mathrm{eff}} kk^\top$, derive the deviation recurrence $E_t = E_{t-1}(I
+- \beta^{\mathrm{eff}} kk^\top)$ from either update, and conclude the stability
+characterizations for both step-size rules. Explain why starting from $S_0 = 0$
+makes $\|E_t\|_F$ *exactly* geometric rather than merely asymptotically so.
+
+### Exercise 12.6 (theory) — solution in §12.9
+
+Prove <XRef id="ch12:wy-representation" /> by induction on the chunk position,
+and count the cost of applying $P$ to a $d_v \times d_k$ state via the WY form
+versus the materialized product, for chunk size $C \ll d_k$.
+
+## 12.9 Full solutions to theory exercises
+
+### Solution to Exercise 12.4
+
+Right-multiply the stationarity equation by $k$:
+$$
+\alpha\,(S_t k - S_{t-1}k) + (S_t k - v)\,\|k\|^2 = 0
+\;\Longrightarrow\;
+(\alpha + \|k\|^2)\,S_t k = \alpha\,S_{t-1}k + \|k\|^2\,v ,
+$$
+a scalar-shaped linear equation for the vector $p := S_t k$ (the matrix unknown
+has collapsed because only $S_t k$ appears). Since $\alpha > 0$ the coefficient
+$\alpha + \|k\|^2$ is strictly positive — this is the only place positivity is
+needed, and it is what makes the implicit solve nonsingular for *every* key,
+including $k = 0$. Solve:
+$$
+S_t k \;=\; \frac{\alpha\,S_{t-1}k + \|k\|^2 v}{\alpha + \|k\|^2},
+\qquad
+v - S_t k \;=\; \frac{\alpha\,(v - S_{t-1}k)}{\alpha + \|k\|^2}.
+$$
+Substitute into the stationarity equation rearranged as $S_t = S_{t-1} +
+\tfrac{1}{\alpha}(v - S_t k)k^\top$:
+$$
+S_t \;=\; S_{t-1} + \frac{1}{\alpha}\cdot\frac{\alpha\,(v - S_{t-1}k)}{\alpha +
+\|k\|^2}\,k^\top
+\;=\; S_{t-1} + \frac{v - S_{t-1}k}{\alpha + \|k\|^2}\,k^\top . \qquad\blacksquare
+$$
+
+### Solution to Exercise 12.5
+
+**Spectrum.** For any unit vector $u \perp k$: $(I - \beta^{\mathrm{eff}}
+kk^\top)u = u$, giving eigenvalue $1$ with multiplicity $d_k - 1$. For $u =
+k/\|k\|$: $(I - \beta^{\mathrm{eff}} kk^\top)k = (1 - \beta^{\mathrm{eff}}
+\|k\|^2)k$, the single non-unit eigenvalue.
+
+**Deviation recurrence.** Both updates have the form $S_t = S_{t-1} +
+\beta^{\mathrm{eff}}(v - S_{t-1}k)k^\top$ (<XRef id="ch12:longhorn-closed-form" />
+for Longhorn). Since
+$S^\star k = v$,
+$$
+E_t = S_t - S^\star
+= E_{t-1} + \beta^{\mathrm{eff}}\bigl((v - S^\star k) - E_{t-1}k\bigr)k^\top
+= E_{t-1}\bigl(I - \beta^{\mathrm{eff}} kk^\top\bigr).
+$$
+The affine parts cancel exactly — no linearization, no remainder.
+
+**Characterizations.** Deviation components along $k^\perp$ (in the row space)
+are multiplied by $1$ each step; the component along $k$ is multiplied by
+$\lambda = 1 - \beta^{\mathrm{eff}}\|k\|^2$. Convergence of the corrected
+direction requires $|\lambda| < 1$, i.e. $\beta^{\mathrm{eff}}\|k\|^2 \in (0,
+2)$. DeltaNet's free $\beta$ can violate this; Longhorn's
+$\beta^{\mathrm{eff}}\|k\|^2 = \|k\|^2/(\alpha + \|k\|^2) \in (0, 1) \subset (0,
+2)$ cannot, and $\lambda = \alpha/(\alpha + \|k\|^2) \in (0, 1)$ directly.
+
+**Exact geometry from $S_0 = 0$.** Then $E_0 = -S^\star = -vk^\top/\|k\|^2$,
+whose every row is a multiple of $k^\top$: the deviation starts *entirely* in
+the contracted direction, with no component on the eigenvalue-$1$ complement.
+Hence $\|E_t\|_F = |\lambda|^t\,\|E_0\|_F$ exactly — which is why the measured
+per-step ratios in §12.4 reproduce $\rho$ to twelve digits rather than only in
+the limit. $\qquad\blacksquare$
+
+### Solution to Exercise 12.6
+
+**Induction.** Base $t = 0$: the empty product is $I = I - 0$, with empty
+factors. Step: assume $P_{1:t-1} = I - W_{1:t-1}^\top Y_{1:t-1}$ where the rows
+of $Y_{1:t-1}$ are $k_1, \dots, k_{t-1}$. Then
+$$
+P_{1:t} = P_{1:t-1}\bigl(I - \beta_t k_t k_t^\top\bigr)
+= P_{1:t-1} - \beta_t\,\bigl(P_{1:t-1}k_t\bigr)k_t^\top .
+$$
+The correction is rank one with row direction $k_t^\top$, so append $y_t = k_t$
+and
+$$
+w_t = \beta_t\,P_{1:t-1}k_t
+= \beta_t\Bigl(k_t - W_{1:t-1}^\top Y_{1:t-1} k_t\Bigr)
+= \beta_t\Bigl(k_t - \sum_{j<t}(k_j^\top k_t)\,w_j\Bigr),
+$$
+which is the stated recursion, and $P_{1:t} = I - W_{1:t}^\top Y_{1:t}$.
+
+**Cost.** WY application $SP = S - (SW^\top)Y$: one $(d_v \times d_k)(d_k
+\times C)$ GEMM and one $(d_v \times C)(C \times d_k)$ GEMM, $O(d_v d_k C)$
+total, plus the $O(C^2 d_k)$ one-time factor build. The materialized product
+costs $O(C\,d_k^2)$ to build *and* $O(d_v d_k^2)$ to apply: for $C \ll d_k$ the
+WY route wins by a factor $\sim d_k/C$ on both counts, and — the practical
+point — both of its operations are GEMMs, the shape hardware wants.
+$\qquad\blacksquare$
+
+## 12.10 Companion code
+
+The companions live in `companions/ch12/{jax,torch,julia}` and are float64
+throughout. The JAX modules are canonical and produce all four figures; the
+torch modules mirror the three operator updates with cross-framework parity
+pinned to $< 10^{-9}$; the Julia module ports the §12.4 stability analysis to a
+third language using only the standard library, pinning the same closed forms
+and trajectory ratios.
+
+```bash
+# JAX (canonical; emits the four figures to public/figures/ch12/)
+PYTHONPATH=. python companions/ch12/jax/delta_rule.py
+PYTHONPATH=. python companions/ch12/jax/longhorn.py
+PYTHONPATH=. python companions/ch12/jax/stability.py
+PYTHONPATH=. python companions/ch12/jax/chunkwise.py
+PYTHONPATH=. python companions/ch12/jax/gated_delta.py
+
+# Tests: JAX identities (< 1e-12), torch parity (< 1e-9), Julia stability suite
+.venv/bin/pytest companions/ch12/jax companions/ch12/torch -q
+julia --project=companions/ch12/julia companions/ch12/julia/runtests.jl
+```
+
+- `delta_rule.py` — the explicit step, its two algebraic faces, the fixed
+  point, overwrite-vs-accumulate semantics, and the recall comparison figure
+  (§12.1–12.2).
+- `longhorn.py` — the implicit step via its closed form, verified against an
+  independent dense solve of the stationarity system, plus the structural
+  identity with the delta rule and the exact geometric error trajectories
+  (§12.3–12.4).
+- `stability.py` — the closed-form spectral radii, the named boundary, and the
+  Rayleigh-quotient drift guard behind the stability-regions figure (§12.4).
+- `chunkwise.py` — the WY representation, its two-GEMM application, and the
+  chunkwise≡recurrent certificate (§12.5).
+- `gated_delta.py` — the gated update, both exact reductions, and the
+  $\gamma^T$ uniform-forgetting law (§12.6). The torch mirror's test file also
+  documents the buffers-vs-Parameters distinction (a learned rate projection is
+  a Parameter; a fixed rate floor is a buffer).

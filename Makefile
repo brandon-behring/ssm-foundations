@@ -78,7 +78,7 @@ check-xrefs:
 # companions/ch04/julia/runtests.jl.
 
 companion-julia-tests:
-	@for ch in ch05 ch06 ch07 ch10 ch11; do \
+	@for ch in ch05 ch06 ch07 ch10 ch11 ch12; do \
 		echo "==> $$ch julia tests"; \
 		julia --project=companions/$$ch/julia companions/$$ch/julia/runtests.jl || exit 1; \
 	done
@@ -94,7 +94,7 @@ companion-jax-tests:
 #   uv pip install -e 'companions/_shared[torch]'
 # Local gate only; never wired into `check` (CI stays jax/torch-free).
 companion-torch-tests:
-	@.venv/bin/pytest companions/ch01/torch companions/ch02/torch companions/ch03/torch companions/ch04/torch companions/ch05/torch companions/ch06/torch companions/ch07/torch companions/ch08/torch companions/ch09/torch companions/ch10/torch companions/ch11/torch -q
+	@.venv/bin/pytest companions/ch01/torch companions/ch02/torch companions/ch03/torch companions/ch04/torch companions/ch05/torch companions/ch06/torch companions/ch07/torch companions/ch08/torch companions/ch09/torch companions/ch10/torch companions/ch11/torch companions/ch12/torch -q
 
 # Composite gates.
 
