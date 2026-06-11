@@ -1,15 +1,758 @@
 ---
 week: 14
 part: integration
+status: implemented
 title: 'Hybrid architectures and gating mechanisms'
-status: planned
-description: MAD methodology; production hybrids (Jamba/Bamba/Nemotron-H/SambaY); gating design space — B pilot home chapter.
+description: Hybrids read through the two-timescale lens — attention as the boundary layer (exact on fast, token-local structure), the decaying state as the slow manifold (compressed carried context), and composition and gate granularity as the design variables; with the production lineup as of May 2026, the MAD methodology, and the two-timescale benchmark seed for pilot B.
+provenance:
+  ai_tools:
+    - Claude Code
+  citation_backstop: research-kb
 ---
 
-import PreReleaseBanner from '@brandon_m_behring/book-scaffold-astro/components/PreReleaseBanner.astro';
+import NoteBox from '@brandon_m_behring/book-scaffold-astro/components/NoteBox.astro';
+import Theorem from '@brandon_m_behring/book-scaffold-astro/components/Theorem.astro';
+import Cite from '@brandon_m_behring/book-scaffold-astro/components/Cite.astro';
+import MarginNote from '@brandon_m_behring/book-scaffold-astro/components/MarginNote.astro';
+import Figure from '@brandon_m_behring/book-scaffold-astro/components/Figure.astro';
+import XRef from '@brandon_m_behring/book-scaffold-astro/components/XRef.astro';
 
-<PreReleaseBanner state="alpha" message="Chapter 14 is planned; not yet authored. See description above for scope. Authoring sequence: Ch 1–3 (foundations) → Ch 4–6 (discretization thread for C1) → remaining chapters per pilot needs." />
+{/*
+  Math macros (auto-loaded via ssmMacros; this chapter uses): \seqlen=L
+  Chapter-local symbols (declared in prose):
+    w — attention window;  r — SSM:attention layer ratio;  f — attention
+    fraction of mixing blocks;  ε — regime switch probability (slow rate);
+    λ — fixed forgetting rate, λ* = εK/(K−1) its matched value;
+    η — overlap dial of the two-timescale task;  ī — mean per-token
+    discrimination between regimes;  τ_id — regime identification timescale.
+*/}
 
 # Hybrid architectures and gating mechanisms
 
-This chapter is planned. See the [chapter-at-a-glance](https://github.com/brandon-behring/post_transformers/blob/main/notes/foundations_curriculum_design_2026_05_20.md) (foundations §3) for the full design; the [crosswalk](https://github.com/brandon-behring/post_transformers/blob/main/notes/foundations_curriculum_design_2026_05_20.md) (foundations §22) maps this chapter to the relevant post_transformers/roadmap.md weeks.
+<NoteBox title="Chapter 14 — at a glance">
+**Goal**: read hybrid architectures — stacks that mix attention layers with
+SSM/linear-recurrence layers — through the book's dynamical lens. The
+classical fast–slow (singular-perturbation) decomposition — Prandtl's
+boundary layer, Tikhonov's theorem — makes the division of labour precise:
+attention is *exact* on token-local structure but carries no compressed
+state; a decaying state tracks *slow* latent structure at $O(1)$ memory but
+must be timed correctly. The two design variables the production lineup
+actually tunes — the **layer ratio** and the **gate granularity** — are then
+budget and routing decisions on top of that division.
+
+**Reading time**: ~45 minutes prose; ~2 hours with the companions.
+
+**Key insight**: **a hybrid is a budget split between exactness and memory.**
+Sliding-window attention pays $O(w)$ cache for exact pairwise computation
+inside the window; a gated-decay state pays $O(1)$ for compressed context that
+must *match its forgetting rate to the timescale of what it tracks*. The
+two-timescale task of §14.6 makes both statements measurable: a fixed-decay
+filter with matched rate is *exactly* Bayes-optimal (machine-precision
+identity), and the window a local predictor needs tracks how hard the slow
+variable is to identify — not how slowly it moves.
+
+**Looking ahead**: this chapter is **pilot-B's home**. The two-timescale task
+defined in §14.6 is the seed of B's benchmark; Chapter 16 builds the
+measurement protocol around it (per-layer probing, the evaluation tiers), and
+the book-side prerequisites for B close there.
+</NoteBox>
+
+## 14.1 Two limits of sequence modeling
+
+Part of this book's argument has been that attention and state-space models
+are not rival species but two corners of one family. Chapter 9 made that
+literal: a selective SSM *is* a masked linear-attention computation
+(<XRef id="ch09:ssd-duality" />). Chapter 11 priced the recurrent corner: a
+finite additive state can hold only so many associations before interference
+swamps retrieval (<XRef id="ch11:linattn-capacity" />), and Chapter 12's
+delta-rule lineage bought back capacity with smarter writes at the cost of a
+genuine stability analysis (<XRef id="ch12:stability-dichotomy" />). The
+attention corner has the opposite ledger: retrieval is exact at any range it
+can see, and the price is a cache that grows linearly with what it has seen.
+
+The trade is not hypothetical; it is the explicit organizing axis of the
+recall-throughput frontier mapped by Based <Cite key="arora2024simple" />:
+architectures that fix state size give up recall, architectures that keep
+recall give up the $O(1)$-per-token decode that makes long generation cheap.
+Pure designs sit at the frontier's ends. The production systems of §14.5 sit
+deliberately in the middle, and the question this chapter equips you to ask
+is *why the middle is the right place* — not as an engineering compromise but
+as a statement about the sequences being modeled.
+
+The statement is statistical. Real token streams mix two kinds of structure:
+**fast**, token-local dependence — syntax, local copying, the bigram-scale
+texture a short context pins down — and **slow** latent structure — topic,
+style, the document-level regime that changes rarely but conditions
+everything. (This decomposition-by-capability is also field practice: it is
+the premise of the synthetic-probe methodology of
+<Cite key="poli2024mechanistic" /> and <Cite key="arora2024zoology" /> that
+§14.6 takes up.) A layer that is exact over a short window serves the first;
+a compressed state that persists serves the second. Neither serves both: the
+window forgets the regime the moment it scrolls past the evidence, and the
+compressed state cannot reproduce exact local interactions it never stored.
+That intuition — two statistical timescales, two architectural resources — is
+the chapter's lens. The next section gives it a theorem in the continuous
+prototype, and §14.6 an *exactly computable* discrete counterpart.
+
+## 14.2 The two-timescale lens
+
+The continuous prototype for "fast and slow living together" is a singularly
+perturbed linear system: a slow variable $x$ and a fast variable $y$ whose
+own dynamics relax on a timescale $\varepsilon \ll 1$,
+$$
+\dot{x} \;=\; A x + B y, \qquad
+\varepsilon\,\dot{y} \;=\; C x + D y ,
+$$
+with $D$ Hurwitz (every eigenvalue in the open left half-plane — a stable
+fast subsystem, the timescale separation that *defines* the stiff regime
+Chapter 6 tamed with implicit methods; <XRef id="ch06:be-a-stable" />).
+Setting $\varepsilon = 0$ formally gives $y = -D^{-1}C x$: the
+**slow manifold**, the surface on which the fast variable has equilibrated to
+whatever the slow variable is doing. What happens off the surface is the
+**boundary layer**: a transient, of duration $O(\varepsilon)$, in which $y$
+collapses onto the manifold.<MarginNote>The vocabulary is a century old:
+Prandtl introduced the boundary layer in 1904 for viscous flow past a body,
+and *matched asymptotic expansions* — solve inside the layer, solve on the
+manifold, match in an overlap region — became the standard technique for
+problems where neither description suffices alone. Tikhonov's theorem made
+the program rigorous for ODEs.</MarginNote>
+
+<Theorem id="ch14:slow-manifold-tracking" type="theorem" title="Slow-manifold tracking, linear fast–slow systems">
+Let $\dot{x} = Ax + By$, $\varepsilon\dot{y} = Cx + Dy$ with $D$ Hurwitz, so
+that $\|e^{Dt}\| \le M e^{-\beta t}$ for some $M \ge 1$, $\beta > 0$. Define
+the deviation from the slow manifold $\eta = y + D^{-1}Cx$. Then for every
+fixed horizon $T$ and every bounded initial condition, as $\varepsilon \to 0$:
+
+1. **Boundary layer.** $\|\eta(t)\| \le M e^{-\beta t/\varepsilon}\,\|\eta(0)\| + O(\varepsilon)$ —
+   the fast variable reaches an $O(\varepsilon)$ neighbourhood of the
+   manifold in time $O(\varepsilon\log(1/\varepsilon))$.
+2. **Reduced dynamics.** The slow variable tracks the reduced system
+   $\dot{x}_r = (A - BD^{-1}C)\,x_r$, $x_r(0) = x(0)$, with
+   $\sup_{t \le T}\|x(t) - x_r(t)\| = O(\varepsilon)\,(1 + \|\eta(0)\|)$.
+</Theorem>
+
+The proof is a change of variables and one Grönwall estimate.
+Differentiating $\eta$ along trajectories,
+$$
+\varepsilon\,\dot{\eta}
+\;=\; \varepsilon\,\dot{y} + \varepsilon\,D^{-1}C\,\dot{x}
+\;=\; D\eta \;+\; \varepsilon\,D^{-1}C\,(Ax + By),
+$$
+since $Cx + Dy = D(y + D^{-1}Cx) = D\eta$. The first term contracts at rate
+$\beta/\varepsilon$; the second is a bounded forcing of size $O(\varepsilon)$
+on bounded trajectories. Variation of constants gives claim 1. For claim 2,
+substitute $y = -D^{-1}Cx + \eta$ into the slow equation:
+$\dot{x} = (A - BD^{-1}C)\,x + B\eta$, so the difference $e = x - x_r$ obeys
+$\dot{e} = (A - BD^{-1}C)\,e + B\eta$ with $e(0) = 0$, and Grönwall bounds
+$\|e(t)\|$ by a constant times $\int_0^t \|\eta\|$, which claim 1 bounds by
+$M\|\eta(0)\|\,\varepsilon/\beta + O(\varepsilon)\,T$. Exercise 14.4 carries
+the scalar case through explicitly; the nonlinear generalization is
+Tikhonov's theorem <Cite key="kokotovic1986singular" />.
+
+The theorem licenses a reading of the hybrid division of labour — the
+reading Chapter 12's closing section previewed:
+
+- **Attention is boundary-layer machinery.** Within its window it computes
+  pairwise interactions *exactly* — no compression, no model of how the past
+  decays — which is precisely what fast, token-local structure needs, and
+  exactly what a regime *transient* needs at the moment the slow context
+  shifts.
+- **A decaying state is slow-manifold machinery.** It carries a compressed,
+  $O(1)$-size summary forward — the manifold parameterization — and its
+  forgetting rate plays the role of the timescale assumption: Chapter 9's
+  selectivity and Chapter 11's decay masks (<XRef id="ch11:gla-ltv-duality" />)
+  are mechanisms for making that rate *fit the data's* slow rate.
+- **A hybrid is a matching construction.** Sequential stacks, parallel gated
+  blocks, and interleaved layers (§14.3) are different ways of joining the
+  two descriptions — different *matching conditions*, in the asymptotics
+  vocabulary.
+
+**What this lens does and does not claim.** The theorem above is a statement
+about linear fast–slow ODEs, and in §14.6 an exact discrete counterpart is
+proved for a filtering task. The architectural reading — attention $\approx$
+boundary layer, decaying state $\approx$ slow manifold, hybrid $\approx$
+matched expansion — is an **interpretive map between idealized
+computations**, not a theorem about trained networks: nothing here claims
+that a trained hybrid *implements* a matching condition, and no such result
+exists. The map earns its keep where it is testable: it predicts which restriction
+fails on which statistics, and §14.6 measures exactly that. Its third leg is
+weaker, and we say so: the lens supplies the two *specialists*, not yet a
+theory of the *joint* — it does not by itself predict which matching
+condition (sequential, parallel, gated) wins where. The one careful
+cross-vendor comparison available — Lee et al.'s finding that sequential
+hybrids win at short context and parallel hybrids at long context
+<Cite key="lee2025understanding" /> — is *consistent* with components that
+specialize as the map says, and it is precisely the kind of data a theory of
+the joint would have to explain. Consistency is evidence for a lens, not
+proof of a mechanism; we will say "the lens predicts," never "the network
+performs asymptotic matching."
+
+## 14.3 The composition design space
+
+Fix the two primitives the rest of the chapter mixes, in the exact form the
+companion implements: **sliding-window attention** — causal softmax attention
+in which position $t$ attends to positions $t-w+1, \dots, t$ — and a
+**gated-decay SSM**, the per-channel EMA recurrence
+$$
+h_t \;=\; g_t \odot h_{t-1} \;+\; (1 - g_t) \odot x_t,
+\qquad g_t \in [0,1]^d,
+$$
+the diagonal skeleton of Chapter 11's gated linear attention, kept minimal so
+that every composition claim below is checkable to machine precision. Three
+composition patterns cover the production space:
+
+1. **Sequential**: one primitive feeds the other *within a block*,
+   $\mathrm{attn}(\mathrm{ssm}(x))$ or $\mathrm{ssm}(\mathrm{attn}(x))$ —
+   the in-series pairing every stacked hybrid uses locally.
+2. **Parallel-gated**: both read the same input and a gate blends them,
+   $g \odot \mathrm{attn}(x) + (1-g) \odot \mathrm{ssm}(x)$ — the
+   Hymba <Cite key="dong2024hymba" />/GMU-style pattern, and the carrier of
+   §14.4's granularity question.
+3. **Interleaved at ratio $r\!:\!1$**: a residual stack in which every
+   $(r{+}1)$-th *block* is attention and the rest are SSM — the layer-ratio
+   pattern, the design variable Chapter 12 deferred here from Kimi Linear's
+   3:1 choice <Cite key="kimiteam2025kimi" />.
+
+One boundary needs drawing, because the literature cuts this space twice.
+*Sequential* here is a within-block statement (primitives composed directly,
+no residual between them); a repeating *block* pattern — Griffin's two
+recurrent blocks then one local-attention block, Jamba's one attention block
+per eight — is an **interleave** in this vocabulary, whatever its authors
+call it. Lee et al.'s sequential-vs-parallel dichotomy
+<Cite key="lee2025understanding" /> is the coarser cut: their "sequential"
+covers every design in which information passes through the primitives in
+series — all interleaves included — against parallel-branch designs. We keep
+the finer three-way split and map their finding onto it where it is used
+(§14.5).
+
+The companion pins the algebra that makes these well-posed objects of study
+(measured printouts; the tests pin each identity below $10^{-12}$): the
+band-masked windowed attention equals its per-position oracle to
+$4.4 \times 10^{-16}$; window $w \ge \seqlen$ *is* full causal attention
+(identical outputs, exactly); under constant input $\bar{x}$ the EMA matches
+its closed form $h_t = (1 - g^t)\bar{x}$ to $8.9 \times 10^{-16}$; and
+the parallel gate's endpoint reductions are exact — $g = 1$ returns the
+attention branch bitwise, $g = 0$ the SSM branch.
+
+Why does the *ratio* — rather than, say, the window alone — carry so much
+design weight? Because decode-time memory is the binding constraint at
+production context lengths, and the ratio sets it:
+
+<Theorem id="ch14:decode-cost" type="proposition" title="Decode-state accounting">
+A stack of $n$ mixing blocks of width $d$, of which $n_a$ are
+sliding-window-attention blocks (window $w$) and $n - n_a$ are gated-decay SSM
+blocks, carries decode-time state
+$$
+\mathrm{state}(f) \;=\; n_a \cdot 2wd \;+\; (n - n_a)\,d
+\;=\; n\,d\,\bigl(1 + f\,(2w - 1)\bigr) \quad \text{floats},
+\qquad f = n_a/n,
+$$
+independent of the sequence length $\seqlen$. A pure full-attention stack
+carries $n \cdot 2\seqlen d$, growing linearly in $\seqlen$. Per block, the
+hybrid budget is linear in the attention fraction $f$.
+</Theorem>
+
+The proof is counting: each attention block holds a rolling $w \times d$ key
+buffer and a $w \times d$ value buffer; each SSM block holds its $d$-float
+state. The companion refuses to leave it at arithmetic — it materializes the
+buffers and asserts the formula against their actual sizes. At a
+production-shaped configuration ($n = 24$, $d = w = 1024$), the measured
+totals are $12{,}601{,}344$ floats at ratio $3\!:\!1$ and $6{,}312{,}960$ at
+$7\!:\!1$, against $3{,}221{,}225{,}472$ for full attention at
+$\seqlen = 65{,}536$ — factors of $255.6$ and $510.3$.
+
+<Figure id="ch14:fig:cost-frontier" src="/figures/ch14/cost-frontier.png" alt="Log-scale plot of decode state per block in millions of floats versus attention fraction from 0 to 1. A solid curve rises from about a thousand floats at fraction 0 to about 2 million at fraction 1, far below a dashed full-attention reference line at 134 million. Five production models are marked as dots on the curve between fractions 0.085 and 0.5." caption="The decode-state budget per mixing block as a function of the attention fraction $f$ ($d = w = 1024$), with the full-attention reference at context length $65{,}536$. Production attention fractions, as of May 2026, cluster at the low end: Nemotron-H at $f = 0.085$ ($751.2\times$ below full attention), Bamba $0.094$ ($679.5\times$), Jamba $0.125$ ($510.3\times$), Kimi Linear $0.25$ ($255.6\times$), Samba $0.5$ ($127.9\times$). Curve and points are computed from the same audited cost function. Produced by companions/ch14/jax/hybrid_block.py; the formula is pinned against materialized buffers in tests/test_hybrid_block.py." />
+
+Two structural notes close the composition story. First, interleaving is the
+pattern that *preserves trainability*: every layer in the stack remains
+chunkwise-parallelizable — the SSM blocks by Chapter 11's recurrent↔parallel
+duality and the delta-rule blocks by the WY machinery of
+<XRef id="ch12:wy-representation" /> — so the ratio is a pure budget dial,
+not a training-throughput sacrifice. Second, the window and the ratio are
+not interchangeable: $w$ buys *reach* for the exact path, $f$ buys *how
+often* the exact path appears in depth. The two-timescale lens says their
+jobs differ in kind — $w$ must cover the fast structure's correlation
+length, while the slow signal needs *some* carried state at *some* depth —
+and §14.6 measures exactly that asymmetry.
+
+## 14.4 The gating design space
+
+Composition decides where the two paths sit; **gating** decides, position by
+position and channel by channel, how much each path contributes. The
+production designs of §14.5 differ more in their gates than in anything
+else, and the differences organize cleanly along two axes.
+
+**Granularity** — what shape the gate is:
+
+<Theorem id="ch14:gate-granularity" type="proposition" title="Gate granularity is an expressivity ordering">
+Fix the two branch maps and consider parallel-gated blocks
+$y = g \odot \mathrm{attn}(x) + (1 - g) \odot \mathrm{ssm}(x)$. The families
+$$
+\mathcal{G}_{\mathrm{scalar}} = \{\,g \in [0,1]\,\}
+\;\subsetneq\;
+\mathcal{G}_{\mathrm{vector}} = \{\,g \in [0,1]^d\,\}
+\;\subsetneq\;
+\mathcal{G}_{\mathrm{input}} = \{\,g = g(x) \in [0,1]^d\,\}
+$$
+are nested as sets of realizable input–output maps, and each inclusion is
+strict under its own non-degeneracy condition: the first whenever the
+branches differ on at least two channels at some input; the second whenever
+the branches differ at two *distinct* inputs. Endpoints reduce
+exactly: $g \equiv 1$ gives the attention branch, $g \equiv 0$ the SSM
+branch; a $\{0,1\}$-valued vector gate routes each channel to its branch.
+</Theorem>
+
+The first strictness is a two-line argument: a $\{0,1\}$ vector gate that
+sends channel $1$ to attention and channel $2$ to the SSM would force a
+scalar gate to satisfy $g = 1$ and $g = 0$ simultaneously wherever the
+branches disagree on both channels. The second — input-dependent gates are
+genuinely stronger than constant ones — needs its two-input condition (a
+constant vector gate can already realize any single-input behaviour) and is
+Exercise 14.6. Both conditions hold generically for the actual attention/EMA
+branches. The companion pins the reductions and the channel-routing witness
+exactly (differences of $0.0$, not merely small). The lineup also uses one
+coarser point on the same axis: **block granularity**, where the "gate" is
+the structural choice of which block type occupies which position — a
+$\{0,1\}$ routing decision made once, at design time, for a whole block.
+
+The ordering is the cheap part; the design question is where on it to sit.
+A scalar gate costs one number and one design meeting; a vector gate is
+Chapter 11's decay-mask vocabulary (<XRef id="ch11:gla-ltv-duality" />)
+applied to branch mixing; input-conditioned vector gates are exactly the move
+selective SSMs made in Chapter 9, now steering the *blend* rather than the
+state. Production examples, as of May 2026: Nemotron-H mixes with a fixed
+schedule and no per-channel gate <Cite key="nvidia2025nemotron" />. Gated
+DeltaNet's decay gate is the *scalar* $\gamma_t$ per head
+<Cite key="yang2025gateddeltanet" /> — input-dependent but
+coarse — and Kimi's KDA is precisely the per-channel (vector) refinement of
+it <Cite key="kimiteam2025kimi" />, the granularity class Griffin's RG-LRU
+also occupies <Cite key="de2024griffin" />. SambaY's Gated Memory Unit is an
+element-wise (vector) gate whose *value* is computed from a shared memory
+stream — input-dependent — while its *placement* across decoder layers is a
+fixed structural choice <Cite key="ren2025decoder" />; the trigger axis below
+classifies the value, not the wiring.
+
+**Trigger** — what the gate responds to. A gate can be set by *position* (a
+fixed schedule: every $(r{+}1)$-th block, Hunyuan TurboS's macro-block
+patterns <Cite key="hunyuanteam2025hunyuan" />), by the *input* (every
+selective/gated recurrence above), or — the 2026 frontier — by the model's
+own *output state*: AMOR invokes attention only at positions where
+prediction entropy crosses a threshold, reporting attention on roughly 22%
+of tokens with long-context stability <Cite key="zheng2026amor" />. The
+trigger axis has a sharp theoretical caution attached: Basu's analysis of
+content-based routing argues that mechanisms which avoid pairwise token
+comparison cannot route precisely (1–29% routing accuracy across recurrent,
+memory-bank, and bandit-style gates) — high-precision routing needs pairwise
+*machinery*, the representational ingredient cheap gates omit, though not
+necessarily full attention: the same paper constructs a 99.7%-accurate
+router from a rank-one pairwise projection at linear cost
+<Cite key="basu2026content" />.
+
+<Figure id="ch14:fig:design-space" src="/figures/ch14/design-space.png" alt="Categorical scatter plot with gate granularity on the horizontal axis (scalar, vector, block) and gate trigger on the vertical axis (fixed schedule, input-dependent, output-triggered). Nine architectures are placed as labeled dots: Nemotron-H and Jamba and Hunyuan TurboS along the fixed-schedule row, Gated DeltaNet and SambaY and Griffin and Kimi Linear and Hymba on the input-dependent row, AMOR alone on the output-triggered row." caption="The gating design space, as of May 2026: granularity (scalar / vector / block) against trigger (fixed schedule / input-dependent / output-triggered), with nine named designs placed per their papers' descriptions (the trigger classifies the gate's value, not its wiring). The lower rows are crowded and the top row is nearly empty — output-triggered gating (AMOR) is the frontier, and Basu's routing bound says filling it honestly requires pairwise machinery. Schematic placement (no measured quantity); produced by companions/ch14/jax/hybrid_block.py." />
+
+Two families that belong to this design space by shape are treated
+elsewhere: xLSTM's exponential gates (granularity: vector; trigger: input;
+plus a stabilizer state the sigmoid families do not need) and the test-time
+memory writes of the Titans line (trigger: the *loss*, a fourth trigger
+class) are Chapter 13's subjects, where their matrix-memory context lives.
+
+## 14.5 The production lineup, as of May 2026
+
+The lens and the design space were built to read a real lineup, so here it
+is.<MarginNote>Production claims rot fast — every row below is a snapshot
+**as of May 2026**, the throughput and ranking numbers are the papers' own,
+and the right way to read the table a year later is as a dated cross-section
+of a moving frontier, not as current advice.</MarginNote> Mix pattern uses
+§14.3's vocabulary; gate class uses §14.4's.
+
+| Model | Mix pattern (attention fraction $f$) | Gating | Reported headline (paper's own) |
+|---|---|---|---|
+| Griffin <Cite key="de2024griffin" /> | interleaved, 2 RG-LRU : 1 local attention ($f = 1/3$) | vector, input-dep. | matches Llama-2 quality with faster long-sequence inference |
+| Samba <Cite key="ren2024samba" /> | interleaved 1:1 Mamba + sliding window ($f = 1/2$) | vector (Mamba's) | linear-time training at 4K, length extrapolation to 256K context |
+| Jamba <Cite key="lieber2024jamba" /> | interleaved 1:7 attention:Mamba, MoE FFNs ($f = 1/8$) | block-structural | 256K context at 12B-active scale |
+| Bamba (IBM, HF blog) <Cite key="bambateam2024bamba" /> | interleaved 3:29 attention:Mamba-2 ($f \approx 0.09$) | block-structural | fully open data recipe; ~2.5× vLLM decode throughput vs comparable transformers |
+| Nemotron-H <Cite key="nvidia2025nemotron" /> | interleaved, 10 attention of 118 layers ($f \approx 0.08$) | scalar schedule | ~3× faster inference than similarly sized transformers at comparable accuracy |
+| SambaY / Phi-4-mini-flash <Cite key="ren2025decoder" /> | Samba self-decoder + GMU cross-decoder, single full-attention layer | vector (GMU) | ~10× decoding throughput on long-generation reasoning |
+| Hunyuan TurboS <Cite key="hunyuanteam2025hunyuan" /> | AMF/MF macro-blocks (attention–Mamba–FFN), MoE | block schedule | top-10 LMSYS arena placement at 56B activated |
+| Kimi Linear <Cite key="kimiteam2025kimi" /> | interleaved 3:1 KDA:full attention (MLA) ($f = 1/4$) | vector, input-dep. | 75% KV-cache reduction, up to ~6× decode at 1M context |
+
+Read the table against <XRef id="ch14:decode-cost" /> and the figure that
+draws it: every row sits low on the attention-fraction curve, exactly where
+the budget argument says the cheap exactness should be spent. The
+within-family motion is also informative: Samba → SambaY replaces
+cross-attention with a *gate* (GMU) and gains its throughput from the gating
+design space, not from a new mixing pattern; Jamba → Bamba → Nemotron-H is a
+march *down* the attention fraction as the slow-path layers improved
+(Mamba-1 → Mamba-2 <Cite key="dao2024mamba2" />); Kimi reaches the same
+neighbourhood from the delta-rule side, with Chapter 12's gated-delta
+machinery as the slow path.<MarginNote>The MoE column of the table is its
+own frontier: Jamba and TurboS put mixture-of-experts in the FFNs *around*
+the mixing blocks, and Kimi Linear ships MoE on a delta-rule slow path. MoE
+is orthogonal to the fast/slow split — it widens capacity per FLOP, not the
+state budget — which is why this book leaves it at a margin note.</MarginNote>
+
+One cross-vendor regularity deserves its own sentence. Lee et al., comparing
+sequential against parallel mixing across vendors and scales, find sequential
+hybrids stronger at short context and parallel hybrids stronger at long
+context <Cite key="lee2025understanding" /> — the single most
+design-relevant empirical fact in the lineup. (Their dichotomy is the
+coarser cut §14.3 reconciled: "sequential" there spans the interleaves
+above.) Per §14.2's flag, it is a consistency check for the matching lens —
+the kind of regularity a theory of the joint would have to explain — not a
+verification of it.
+
+## 14.6 MAD and the two-timescale benchmark seed
+
+How should claims like the table's be *tested*? Full-scale training runs
+answer with averages over everything at once. The mechanistic-architecture-
+design (MAD) methodology <Cite key="poli2024mechanistic" /> answers with
+small, synthetic, *capability-isolating* tasks — in-context recall,
+compression, copying — chosen so that performance on the probe predicts
+scaling behaviour of the full architecture; the MQAR family
+<Cite key="arora2024zoology" /> did the same for associative recall
+specifically, and Chapter 11 already used it to measure the capacity wall.
+This section contributes the probe the two-timescale lens calls for, and it
+is pilot B's seed.<MarginNote>Pilot B — two-timescale benchmarks — is one of
+the two research pilots this book serves (the other, C1, closed at
+Chapter 10). The task below is B's layer-0 deliverable; Chapter 16 supplies
+the protocol around it. See the [B kickoff](https://github.com/brandon-behring/post_transformers/blob/main/notes/research_kickoff_b_two_timescale_benchmarks.md)
+in the post_transformers repository.</MarginNote>
+
+**The task.** A hidden Markov model with the two timescales built in:
+
+- a **slow regime** $z_t \in \{1, \dots, K\}$ with sticky transition
+  $T(\varepsilon) = (1-\varepsilon)\,I + \tfrac{\varepsilon}{K-1}(J - I)$ —
+  stay with probability $1 - \varepsilon$, else jump uniformly ($J$ the
+  all-ones matrix);
+- a **fast process**: given the regime, tokens follow a regime-specific
+  bigram table, $P(x_{t+1} \mid z_{t+1} = j, x_t) = B_j[x_t, \cdot]$ on a
+  vocabulary of size $V$;
+- an **overlap dial** $\eta \in (0,1]$: the tables interpolate between a
+  shared table and regime-specific ones, $B_j = (1-\eta)C + \eta D_j$,
+  controlling how *hard the regimes are to tell apart locally* — measured by
+  the mean per-token discrimination $\bar{\imath}$ (the average pairwise KL
+  between regime rows).
+
+Because the model is known, every predictor below is exact — no training, no
+approximation other than the stated information restriction — so every claim
+is a computation, checkable to machine precision. The Bayes-optimal
+predictor is the HMM forward filter, and the companion validates it against
+a brute-force enumeration over *every* regime path — $K^{t+1}$ paths for the
+prediction at position $t$, an independent code path that is only feasible
+on short validation instances ($\seqlen = 7$): maximum prediction difference
+$1.1 \times 10^{-16}$.
+
+Three restrictions mirror the architectural resources:
+
+- **window-$w$** (the attention idealization): the same Bayes computation,
+  restricted to the last $w$ tokens with a uniform regime prior at the
+  window edge — exact pairwise machinery, zero carried state. With
+  $w \ge \seqlen$ it reproduces the full filter exactly (difference $0.0$).
+- **fixed-decay** (the state idealization): the filter run with the
+  mixing-to-uniform prior update $M(\lambda) = (1-\lambda)I + \tfrac{\lambda}{K}J$ —
+  a compressed state forgotten toward uniform at a *fixed* rate, the EMA of
+  §14.3 wearing filtering clothes.
+- **unigram** (the slow-manifold-only idealization): regime tracking with
+  each bigram row replaced by the regime's stationary unigram — carried
+  state, no fast structure.
+
+The fixed-decay restriction is the one with a theorem in it:
+
+<Theorem id="ch14:matched-decay-optimal" type="theorem" title="The matched decay is exactly Bayes-optimal">
+For every $K \ge 2$ and $\varepsilon \le (K-1)/K$,
+$$
+T(\varepsilon) \;=\; M(\lambda^\star)
+\qquad \text{at} \qquad
+\lambda^\star \;=\; \frac{\varepsilon K}{K - 1},
+$$
+entrywise. Consequently the fixed-decay filter with rate $\lambda^\star$
+**is** the exact Bayes filter for the two-timescale task: a fixed-decay
+state model is optimal when its forgetting rate matches the regime's
+switching rate, and every other fixed $\lambda$ is the Bayes filter for a
+*misspecified* switching rate — strictly costly whenever the regimes are
+distinguishable at all (the measured V-shape below; in the degenerate
+identical-tables limit every $\lambda$ ties).
+</Theorem>
+
+The proof is two lines of algebra on the diagonal and off-diagonal entries
+(Exercise 14.5). The companion measures the identity at
+$1.1 \times 10^{-16}$ entrywise and the resulting prediction agreement between the
+matched-decay filter and the optimal filter at $3.3 \times 10^{-16}$. This
+is the chapter's sharpest statement of the slow-manifold half of the lens:
+*gating is timescale matching*. Chapter 9's selectivity and Chapter 11's
+decay masks let a model **learn** $\lambda$; the theorem says what the
+target of that learning is, and the V-shaped mistiming cost below says what
+missing it costs.
+
+**What each restriction costs, measured.** At the committed reference
+configuration ($K = 4$, $V = 12$, $\eta = 0.4$, $\varepsilon = 0.02$,
+$\seqlen = 8192$, burn-in $128$, $\bar{\imath} = 0.534$ nats/token), the
+optimal filter achieves $1.9289$ nats. The window-8 predictor pays an excess
+of $0.0246$ nats; a fixed decay matched to the *wrong* rate
+($\lambda^\star(0.2)$ where the truth is $\varepsilon = 0.02$) pays
+$0.0512$; the unigram predictor pays $0.4965$ — twenty times the window's
+tax. Dropping the fast structure is catastrophic; carrying the wrong-decay
+state or a modest window is merely costly.
+
+<Figure id="ch14:fig:two-timescale" src="/figures/ch14/two-timescale-error.png" alt="Two stacked panels sharing a log-scale switch-probability axis. Top panel: excess cross-entropy of the window-8 predictor falls from 0.058 nats at the slowest regimes toward zero at fast regimes; window-64 sits at zero throughout; the fixed-decay curve is V-shaped, touching zero at the matched switch rate 0.05 and rising on both sides. Bottom panel, on a ten-times larger scale: the unigram predictor's excess stays between 0.41 and 0.55 nats across all switch rates." caption="Excess cross-entropy over the exact filter as the regime speed $\varepsilon$ varies (overlap $\eta = 0.4$, $\seqlen = 8192$). Top: the window-8 predictor's tax is largest for the slowest regimes — carried state is worth most exactly when the latent moves slowest — while window-64 is indistinguishable from optimal here, and the fixed-decay filter (rate matched at $\varepsilon = 0.05$) shows the V-shaped mistiming cost that vanishes only at its matched point, the measured face of the matched-decay theorem. Bottom (note the scale): discarding fast structure costs ~0.5 nats regardless of regime speed. Differences below about $2 \times 10^{-4}$ nats are at the single-sequence Monte-Carlo floor. Produced by companions/ch14/jax/two_timescale.py; the reference-configuration values are pinned in tests/test_two_timescale.py." />
+
+**The third timescale, and the benchmark design lesson.** The window curves
+above collapse to zero by $w = 64$. Why so small? Because with $\eta = 0.4$
+the regimes are still locally distinguishable enough that a few dozen tokens
+identify the current regime — the *identification timescale*
+$\tau_{\mathrm{id}}$ is short. The overlap dial exists to control exactly
+this, and the crossover figure sweeps it:
+
+<Figure id="ch14:fig:crossover" src="/figures/ch14/window-crossover.png" alt="Excess cross-entropy versus window size on a log-2 axis from 2 to 256, one curve per overlap value. The sharp-regime curve starts highest at window 2 but plunges to zero by window 8. The intermediate-overlap curve crosses it, decaying to zero near window 32. The low-overlap curve starts lowest but decays slowest, still positive at window 64." caption="The window a local predictor needs tracks identification difficulty, not regime speed ($\varepsilon = 0.005$ fixed). With sharply distinct regimes ($\eta = 1.0$, $\bar{\imath} = 3.04$ nats/token) a window of 8 is already near-optimal; at $\eta = 0.4$ ($\bar{\imath} = 0.53$) the tax persists to $w \approx 32$; at $\eta = 0.2$ ($\bar{\imath} = 0.21$) it persists past $w = 64$. The curves cross: harder identification lowers the value of regime knowledge but stretches how long a window must be to acquire it. Produced by companions/ch14/jax/two_timescale.py; the legend's discrimination values and the $\eta$-monotonicity are pinned in tests/test_two_timescale.py." />
+
+The design lesson is the section's payload, and it is a constraint on
+benchmarks rather than on architectures: a two-timescale task separates
+fast-path from slow-path machinery **only when the three timescales are
+ordered** $w \ll \tau_{\mathrm{id}} \ll 1/\varepsilon$. Make the regimes too
+distinguishable ($\eta \to 1$) and a sliding window solves everything —
+the benchmark measures nothing about carried state. Make them too similar
+and even the optimal filter gains little — there is nothing to measure at
+all. Pilot B's benchmark must therefore *report* $\bar{\imath}$ (or place
+$\tau_{\mathrm{id}}$ directly) as a task parameter alongside $\varepsilon$,
+exactly as this companion does. One measurement is deliberately deferred
+with the protocol: the *composite* restriction — a window-$w$ filter seeded
+at its edge with a decayed carried prior instead of the uniform one — is the
+idealized matched expansion itself, the natural probe of §14.2's third leg,
+and it belongs with B's protocol work rather than this chapter's seed. What
+else does **not** transfer to Chapter 16
+from here: the per-layer probing protocol that asks where a *trained* hybrid
+stores the regime posterior, the evaluation tiers around real benchmarks,
+and B's five-axis decomposition — that is Chapter 16's subject.
+
+## 14.7 What's next
+
+This chapter mixed the layer families of Chapters 9–12 into hybrids and read
+the mixture through a fast–slow lens with one continuous theorem
+(<XRef id="ch14:slow-manifold-tracking" />) and one discrete one
+(<XRef id="ch14:matched-decay-optimal" />) holding the interpretation to
+account. **Chapter 13** lives inside the gates themselves: exponential
+gating with its stabilizer states (xLSTM) and the generalized delta rule
+(RWKV-7) extend Chapter 12's lineage to matrix memories with their own
+stability questions.
+**Chapter 15** plays prosecution — the counter-evidence file on what
+SSM-heavy designs provably cannot do, and the diagnostic toolkit for
+detecting it. **Chapter 16** builds the evaluation methodology this
+chapter's benchmark seed feeds into — the protocol around the task, the
+per-layer probes, and the point where pilot B's book-side prerequisites
+close.
+
+## 14.8 Exercises
+
+Three short problems (solutions inline) and three longer ones (solutions in §14.9).
+
+### Exercise 14.1 (short)
+
+A 32-block hybrid has width $d = 2048$, window $w = 2048$, and ratio
+$7\!:\!1$ (so $n_a = 4$). Using <XRef id="ch14:decode-cost" />, compute the
+decode state in floats, the same stack's full-attention cache at
+$\seqlen = 131{,}072$, and the ratio. At what context length $\seqlen^\star$ does full
+attention's cache equal the hybrid's?
+
+<details>
+<summary>Solution</summary>
+
+State $= 4 \cdot 2 \cdot 2048 \cdot 2048 + 28 \cdot 2048 = 33{,}611{,}776$
+floats. Full attention:
+$32 \cdot 2 \cdot 131{,}072 \cdot 2048 = 17{,}179{,}869{,}184$ — a factor of
+$511.1$. Setting $32 \cdot 2\seqlen d = 33{,}611{,}776$ gives
+$\seqlen^\star = 256.4$: past a
+few hundred tokens of context, this hybrid already stores less than full
+attention ever would.
+</details>
+
+### Exercise 14.2 (short, code)
+
+Run `companions/ch14/jax/two_timescale.py`. Report the reference-configuration
+excesses (window-8, mistimed decay, unigram), then change `_FIG_OVERLAP` to
+$1.0$ and to $0.2$ and report how the window-8 excess at $\varepsilon = 0.005$
+moves. One sentence: why does the *hardest*-to-identify task show the
+*smallest* window-8 excess?
+
+<details>
+<summary>Solution</summary>
+
+Reference: $0.0246$ (window-8), $0.0512$ (decay mistimed by a factor 10),
+$0.4965$ (unigram). From the script's printed crossover sweep, the window-8
+excess at
+$\varepsilon = 0.005$ is $0.0038$ at $\eta = 1.0$, $0.0496$ at $\eta = 0.4$,
+$0.0240$ at $\eta = 0.2$. Identification difficulty cuts both ways: at
+$\eta = 0.2$ the regimes are hard to identify in a window, but knowing the
+regime is also worth less (the tables nearly coincide), so the achievable
+excess shrinks even as the window needed to remove it grows.
+</details>
+
+### Exercise 14.3 (short)
+
+Let $a = \mathrm{attn}(x)$ and $s = \mathrm{ssm}(x)$ be the two branch
+outputs at one position, and suppose $a \ne s$ in every channel. Show that
+the set of outputs reachable by a scalar gate is a line segment in
+$\mathbb{R}^d$, that the vector-gate reachable set is the full axis-aligned
+box with corners $a$ and $s$, and conclude the dimension counts ($1$ versus
+$d$) behind <XRef id="ch14:gate-granularity" />.
+
+<details>
+<summary>Solution</summary>
+
+Scalar: $\{g a + (1-g) s : g \in [0,1]\}$ is the segment from $s$ to $a$.
+Vector: channel $j$ of the output is $g_j a_j + (1-g_j) s_j$, which ranges
+over the interval with endpoints $s_j, a_j$ independently of other channels —
+the product of $d$ nondegenerate intervals, i.e. the box. A segment is
+one-dimensional; the box is $d$-dimensional, so for $d \ge 2$ the inclusion
+is strict — and the $\{0,1\}$ corners of the box are exactly the
+channel-routing witnesses the companion pins.
+</details>
+
+### Exercise 14.4 (theory) — solution in §14.9
+
+Prove <XRef id="ch14:slow-manifold-tracking" /> in the scalar case
+$\dot{x} = ax + by$, $\varepsilon\dot{y} = cx + dy$ with $d < 0$: solve the
+$\eta = y + (c/d)x$ dynamics exactly, exhibit the boundary layer, and bound
+$|x - x_r|$ on $[0, T]$ explicitly, identifying where each hypothesis
+($d < 0$, fixed $T$, bounded initial data) is used.
+
+### Exercise 14.5 (theory) — solution in §14.9
+
+Prove <XRef id="ch14:matched-decay-optimal" />, then compute the spectrum of
+$T(\varepsilon)$ and of $M(\lambda)$, the stationary distribution of each,
+and the mixing time of the regime chain. Conclude that for large $K$ the
+matched rate $\lambda^\star \approx \varepsilon$: forgetting toward uniform
+at the switching rate.
+
+### Exercise 14.6 (theory) — solution in §14.9
+
+Complete the second strictness in <XRef id="ch14:gate-granularity" />:
+construct two inputs $x^{(1)}, x^{(2)}$ and a target map realizable by an
+input-dependent vector gate but by no *constant* vector gate. Then explain
+why a gate computed from another layer's state (the GMU pattern) sits in the
+input-dependent class.
+
+## 14.9 Full solutions to theory exercises
+
+### Solution to Exercise 14.4
+
+With $\eta = y + (c/d)x$ the fast equation becomes, exactly as in the matrix
+case,
+$$
+\varepsilon\dot{\eta} \;=\; d\,\eta \;+\; \varepsilon\,\frac{c}{d}\,(ax + by),
+$$
+a scalar linear ODE with constant contraction rate $|d|/\varepsilon$ (here
+$d < 0$ is used — without it $\eta$ grows and there is no layer). Variation
+of constants:
+$$
+\eta(t) \;=\; e^{dt/\varepsilon}\eta(0) \;+\;
+\frac{c}{d}\int_0^t e^{d(t-s)/\varepsilon}\,(ax + by)(s)\,ds .
+$$
+On $[0, T]$ the trajectory $(x, y)$ is bounded **uniformly in
+$\varepsilon$**, say by $R$ — and this is where $d < 0$ earns its keep a
+*second* time. Fixed horizon and bounded data alone give only an
+$\varepsilon$-dependent bound (the system matrix has $O(1/\varepsilon)$
+entries); with $d < 0$, the contraction keeps
+$|\eta(t)| \le |\eta(0)| + O(\varepsilon R)$, hence
+$|y| \le |c/d|\,|x| + |\eta(0)| + O(\varepsilon R)$, the slow equation then
+bounds $|x|$ by an $\varepsilon$-independent Grönwall constant, and a
+standard bootstrap (pick $R$ dominating both estimates; continuity keeps
+the trajectory inside) closes the loop. Without $d < 0$ the fast variable
+blows up as $\varepsilon \to 0$ and no uniform $R$ exists. With $R$ in
+hand, $|(ax + by)(s)| \le (|a| + |b|)R$, so the integral term is at most
+$\tfrac{|c|}{|d|}(|a| + |b|) R \cdot \tfrac{\varepsilon}{|d|}(1 - e^{dt/\varepsilon}) \le \tfrac{|c|(|a| + |b|) R}{d^2}\,\varepsilon$:
+the boundary-layer estimate
+$|\eta(t)| \le e^{-|d| t/\varepsilon}|\eta(0)| + O(\varepsilon)$, with the
+layer over by $t \sim \varepsilon\log(1/\varepsilon)$. Substituting
+$y = -(c/d)x + \eta$ into the slow equation gives $\dot{x} = (a - bc/d)x + b\eta$,
+so $e = x - x_r$ obeys $\dot{e} = (a - bc/d)e + b\eta$, $e(0) = 0$, and
+$$
+|e(t)| \;\le\; |b|\,e^{|a - bc/d|\,T} \int_0^T |\eta(s)|\,ds
+\;\le\; |b|\,e^{|a - bc/d|\,T}\Bigl(\frac{\varepsilon}{|d|}|\eta(0)| +
+\frac{|c|(|a| + |b|) R}{d^2}\,\varepsilon\,T\Bigr) \;=\; O(\varepsilon),
+$$
+where the fixed horizon $T$ is used to keep the Grönwall factor a constant.
+Each piece of the theorem's statement appears with explicit constants.
+$\blacksquare$
+
+### Solution to Exercise 14.5
+
+**The identity.** Diagonal entries: $T(\varepsilon)_{ii} = 1 - \varepsilon$
+and $M(\lambda)_{ii} = 1 - \lambda + \lambda/K$; equality forces
+$\lambda(1 - 1/K) = \varepsilon$, i.e. $\lambda^\star = \varepsilon K/(K-1)$.
+Off-diagonal: $T_{ij} = \varepsilon/(K-1)$ and $M_{ij} = \lambda/K$, and at
+$\lambda^\star$ indeed $\lambda^\star/K = \varepsilon/(K-1)$. Both matrices
+are row-stochastic, so matching all entries matches the matrices; the
+constraint $\lambda^\star \le 1$ is $\varepsilon \le (K-1)/K$. Since the
+Bayes filter's only use of the regime chain is the prior update
+$p \mapsto p\,T(\varepsilon)$, replacing $T$ by $M(\lambda^\star)$ changes nothing at
+any step: the fixed-decay filter at the matched rate is the Bayes filter,
+identically. $\blacksquare$
+
+**Spectra and mixing.** Both matrices are of the form $\alpha I + \beta J$:
+eigenvalues $\alpha + K\beta$ on the all-ones vector and $\alpha$ on its
+$(K-1)$-dimensional complement. For $T(\varepsilon)$: eigenvalue $1$
+(stochasticity) and $1 - \varepsilon - \varepsilon/(K-1) = 1 - \lambda^\star$
+with multiplicity $K - 1$; for $M(\lambda)$: $1$ and
+$1 - \lambda$. The stationary distribution of each is uniform (both are
+doubly stochastic). The regime chain forgets its initial condition at
+geometric rate $1 - \lambda^\star$ per step — mixing time
+$\sim 1/\lambda^\star$ — which is the precise sense in which $1/\varepsilon$
+is the slow timescale. As $K \to \infty$,
+$\lambda^\star = \varepsilon K/(K-1) \to \varepsilon$: forget toward uniform
+at exactly the switching rate. $\blacksquare$
+
+### Solution to Exercise 14.6
+
+Take $d = 1$ (one channel suffices) and any two inputs with
+$a^{(1)} := \mathrm{attn}(x^{(1)}) \ne \mathrm{ssm}(x^{(1)}) =: s^{(1)}$ and
+likewise $a^{(2)} \ne s^{(2)}$. Define the target map to output the
+*attention* branch on $x^{(1)}$ and the *SSM* branch on $x^{(2)}$. A
+constant gate $g \in [0,1]$ must satisfy
+$g a^{(1)} + (1-g) s^{(1)} = a^{(1)}$, forcing $g = 1$, and
+$g a^{(2)} + (1-g) s^{(2)} = s^{(2)}$, forcing $g = 0$ — contradiction. An
+input-dependent gate with $g(x^{(1)}) = 1$, $g(x^{(2)}) = 0$ realizes the
+target, so the inclusion is strict.
+(With $d \ge 2$ the same argument runs per channel.)
+
+A GMU-style gate is computed from the hidden state of another layer — a
+deterministic function of the network input — so as an input–output map it
+is exactly an input-dependent vector gate: $g = g(x)$, with the *cross-layer
+sharing* changing where the gate's information comes from (a memory stream
+computed once and reused) but not the function class. That is why SambaY's
+throughput gain is a systems gain — fewer recomputations of expensive
+context — while its expressivity class is the one already characterized
+here. $\blacksquare$
+
+## 14.10 Companion code
+
+The companions live in `companions/ch14/{jax,torch}` and are float64
+throughout. The JAX modules are canonical and produce all four figures; the
+torch modules mirror the hybrid block and the filter family with
+cross-framework parity pinned to $< 10^{-9}$ (tokens drawn once and fed to
+both implementations). No Julia module this chapter: the numerical core is
+filtering linear algebra, not the integrator analysis that earned Julia its
+seat in Chapters 10 and 12.
+
+```bash
+# JAX (canonical; emits the four figures to public/figures/ch14/)
+PYTHONPATH=. python companions/ch14/jax/hybrid_block.py
+PYTHONPATH=. python companions/ch14/jax/two_timescale.py
+
+# Tests: JAX identities (< 1e-12), torch parity (< 1e-9)
+.venv/bin/pytest companions/ch14 -q
+```
+
+- `hybrid_block.py` — sliding-window attention with its per-position oracle,
+  the gated-decay EMA and its closed form, the three composition patterns
+  with exact gate reductions, the $r\!:\!1$ schedule, and the decode-cost
+  accounting audited against materialized buffers; produces the cost-frontier
+  and design-space figures (§§14.3–14.5).
+- `two_timescale.py` — the two-timescale HMM with the overlap dial, the
+  exact forward filter validated against brute-force path enumeration, the
+  window / fixed-decay / unigram restrictions, the matched-decay identity at
+  machine precision, and the discrimination diagnostic $\bar{\imath}$;
+  produces the two-timescale-error and window-crossover figures (§§14.2,
+  14.6). This module is pilot B's seed artifact.
+- `torch/` — eager mirrors of both modules plus the buffers-vs-Parameters
+  distinction in a minimal gated-mix layer (the learned blend is a
+  Parameter; the fixed decay rates are a buffer).

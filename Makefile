@@ -94,7 +94,7 @@ companion-jax-tests:
 #   uv pip install -e 'companions/_shared[torch]'
 # Local gate only; never wired into `check` (CI stays jax/torch-free).
 companion-torch-tests:
-	@.venv/bin/pytest companions/ch01/torch companions/ch02/torch companions/ch03/torch companions/ch04/torch companions/ch05/torch companions/ch06/torch companions/ch07/torch companions/ch08/torch companions/ch09/torch companions/ch10/torch companions/ch11/torch companions/ch12/torch -q
+	@.venv/bin/pytest companions/ch01/torch companions/ch02/torch companions/ch03/torch companions/ch04/torch companions/ch05/torch companions/ch06/torch companions/ch07/torch companions/ch08/torch companions/ch09/torch companions/ch10/torch companions/ch11/torch companions/ch12/torch companions/ch14/torch -q
 
 # Composite gates.
 
