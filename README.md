@@ -2,7 +2,7 @@
 
 A lens-led 17-chapter foundations book for post-transformer sequence-model architectures, foregrounding the dynamical-systems perspective: continuous-time math first, then discretization theory, then the SSM family and its delta-rule / gating / hybrid cousins.
 
-> **Status — alpha (updated 2026-06-10)**: Chapters 1–12 are authored (`status: implemented`) — the foundations (1–6) and SSM-core (7–10) lines plus the first two beyond-SSM chapters (11, linear attention + Hyena; 12, the delta-rule lineage); Ch 13–17 are planned stubs. Expect breaking changes to structure and prose. Pre-release banner is live site-wide. Substantive feedback welcome via issues.
+> **Status — alpha (updated 2026-06-10)**: Chapters 1–12 and 14 are authored (`status: implemented`) — the foundations (1–6) and SSM-core (7–10) lines, the first two beyond-SSM chapters (11, linear attention + Hyena; 12, the delta-rule lineage), and the first integration chapter (14, hybrid architectures and gating — the pilot-B anchor); Ch 13 and 15–17 are planned stubs. Expect breaking changes to structure and prose. Pre-release banner is live site-wide. Substantive feedback welcome via issues.
 
 ---
 
@@ -41,7 +41,7 @@ A lens-led 17-chapter foundations book for post-transformer sequence-model archi
 | 11 | `implemented` | beyond-ssm | Linear attention and Hyena |
 | 12 | `implemented` | beyond-ssm | Delta-rule lineage: DeltaNet, Gated DeltaNet, Kimi Linear |
 | 13 | `planned` | beyond-ssm | Exponential gates and matrix memory: xLSTM, RWKV-7 |
-| 14 | `planned` | integration | Hybrid architectures and gating mechanisms |
+| 14 | `implemented` | integration | Hybrid architectures and gating mechanisms |
 | 15 | `planned` | integration | Counter-evidence and diagnostic tools |
 | 16 | `planned` | integration | Empirical methodology: benchmarks and evaluation |
 | 17 | `planned` | synthesis | Niche-pilot integration |

@@ -5,9 +5,9 @@ The at-a-glance complement to the deeper audit capability (see
 `audits/2026-06-04_ecosystem_checkpoint.md` §4). Hand-maintained; refresh the
 artifact columns with the snippet at the bottom and reconcile `status:` by eye.
 
-**Verified:** 2026-06-10 (post Ch-12 ship: delta-rule lineage authored vertical —
-all three companion languages, four figures, four review subagents incl. the
-backward-Euler correction to ch11 §11.7).
+**Verified:** 2026-06-10 (post Ch-14 ship: hybrid architectures authored vertical —
+JAX+torch companions, four figures, four review subagents; first integration-part
+chapter and the pilot-B anchor, incl. the two-timescale benchmark seed).
 
 ## Scoreboard
 
@@ -26,7 +26,7 @@ backward-Euler correction to ch11 §11.7).
 | 11 | Linear attention and Hyena | beyond-ssm | `implemented` | ✓ | ✓ | ✓ | ✓ | 4 | ✓ |
 | 12 | Delta-rule lineage: DeltaNet, Gated DeltaNet, Kimi | beyond-ssm | `implemented` | ✓ | ✓ | ✓ | ✓ | 4 | ✓ |
 | 13 | Exponential gates and matrix memory: xLSTM, RWKV-7 | beyond-ssm | `planned` | — | — | — | — | 0 | stub |
-| 14 | Hybrid architectures and gating mechanisms | integration | `planned` | — | — | — | — | 0 | stub |
+| 14 | Hybrid architectures and gating mechanisms | integration | `implemented` | ✓ | — | ✓ | ✓ | 4 | ✓ |
 | 15 | Counter-evidence and diagnostic tools | integration | `planned` | — | — | — | — | 0 | stub |
 | 16 | Empirical methodology: benchmark protocols | integration | `planned` | — | — | — | — | 0 | stub |
 | 17 | Niche-pilot integration | synthesis | `planned` | — | — | — | — | 0 | stub |
@@ -37,18 +37,20 @@ backward-Euler correction to ch11 §11.7).
 
 ## Trust notes
 
-- **Ch 1–12** are `implemented`: prose + exercises + companions authored, `make check` (content gates +
+- **Ch 1–12 and 14** are `implemented`: prose + exercises + companions authored, `make check` (content gates +
   bibkey/xref lint) green, companion suites green, deployed. JAX is the canonical reference for every
-  chapter; **torch parity is complete for ch01–12** (ch01–10 backfilled via the Ch-11 runway, closing
-  0527-F27; ch11–12 authored with parity from the start).
+  chapter; **torch parity is complete for ch01–12 and ch14** (ch01–10 backfilled via the Ch-11 runway, closing
+  0527-F27; ch11–12 and ch14 authored with parity from the start).
 - **Julia is a selective track, not a universal gate** — present where the chapter's numerical core
   warrants a cross-language check (ch04 via `DifferentialEquations.jl`; ch05–07 and ch10–12 stdlib-only);
-  absent by design elsewhere. A `—` in the Julia column is *not* a gap.
+  absent by design elsewhere (ch14's core is filtering linear algebra — JAX+torch only, per its brief).
+  A `—` in the Julia column is *not* a gap.
 - **`claim-skeptic` is new (2026-06-04)** and has **not** been run retroactively on Ch 1–10; its adversarial
-  math-claim pass is a forward gate (exercised on Ch 11–12; on Ch 12 it confirmed the backward-Euler
-  derivation and drove three artifact-truthfulness fixes), so the Ch 1–10 rows do not yet reflect a
-  claim-skeptic review.
-- **Ch 13–17** are `planned` stubs (no original prose/companions); the deployed pages show only the
+  math-claim pass is a forward gate (exercised on Ch 11–12 and 14; on Ch 14 it confirmed the fast–slow
+  theorem and decode-cost arithmetic and drove the gating-taxonomy corrections — Gated DeltaNet is a
+  *scalar* gate, the GMU's trigger classifies its value not its wiring), so the Ch 1–10 rows do not yet
+  reflect a claim-skeptic review.
+- **Ch 13 and 15–17** are `planned` stubs (no original prose/companions); the deployed pages show only the
   pre-release banner.
 
 ## Refresh the artifact columns
