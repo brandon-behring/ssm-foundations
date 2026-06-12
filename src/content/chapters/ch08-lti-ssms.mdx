@@ -38,7 +38,7 @@ import Figure from '@brandon_m_behring/book-scaffold-astro/components/Figure.ast
 # LTI SSMs: S4, S4D, S5 as discretized continuous systems
 
 <NoteBox title="Chapter 8 — at a glance">
-**Goal**: take the HiPPO recurrence Chapter 7 ended on and build the S4 architecture <Cite key="gu2022s4" /> on top of it. An S4 layer *is* the zero-order-hold discretization (Chapter 4) of the HiPPO LTI system (Chapter 7) with a learnable timescale. We prove the **convolution–recurrence duality** that lets the same layer train as an FFT convolution and run as a scan, sketch the diagonal-plus-low-rank structure behind S4's fast kernel, then specialize twice: **S4D** drops the low-rank term for a diagonal model whose stability is enforced by construction, and **S5** keeps the diagonal but computes it with a parallel associative scan.
+**Goal**: take the HiPPO recurrence Chapter 7 ended on and build the S4 architecture <Cite key="gu2022s4" /> on top of it. An S4 layer *is* a discretization (Chapter 4) of the HiPPO LTI system (Chapter 7) with a learnable timescale — the original paper used the bilinear transform; this chapter, like S5 and the Mamba line, uses the zero-order hold. We prove the **convolution–recurrence duality** that lets the same layer train as an FFT convolution and run as a scan, sketch the diagonal-plus-low-rank structure behind S4's fast kernel, then specialize twice: **S4D** drops the low-rank term for a diagonal model whose stability is enforced by construction, and **S5** keeps the diagonal but computes it with a parallel associative scan.
 
 **Reading time**: ~50 minutes prose; 90+ minutes with the JAX and PyTorch companions.
 
@@ -49,11 +49,11 @@ import Figure from '@brandon_m_behring/book-scaffold-astro/components/Figure.ast
 
 ## 8.1 State-space to discrete: the S4 setup
 
-Chapter 7 closed on a recurrence and called it the recurrent view of an S4 layer. Make the layer explicit. S4 fixes a single-input, single-output (SISO) continuous system
+Chapter 7 closed on a recurrence and called it the recurrent view of an S4-style layer. Make the layer explicit. S4 fixes a single-input, single-output (SISO) continuous system
 $$
 \ddt \statevec(t) = \statemat\, \statevec(t) + \inputmat\, u(t), \qquad y(t) = \outputmat\, \statevec(t) + D\, u(t),
 $$
-with $\statemat \in \R^{N\times N}$ the HiPPO-LegS matrix of §7.3, $\inputmat \in \R^{N\times 1}$, $\outputmat \in \R^{1\times N}$, and $D$ a scalar feedthrough. To run it on a sampled sequence $u_0, u_1, \dots$ we discretize with Chapter 4's **zero-order hold** at step $\stepsize$,
+with $\statemat \in \R^{N\times N}$ the HiPPO-LegS matrix of §7.3, $\inputmat \in \R^{N\times 1}$, $\outputmat \in \R^{1\times N}$, and $D$ a scalar feedthrough. To run it on a sampled sequence $u_0, u_1, \dots$ we discretize at step $\stepsize$. The S4 paper itself uses Chapter 4's **bilinear transform** (§4.4), $\discA = (I - \tfrac{\stepsize}{2}\statemat)^{-1}(I + \tfrac{\stepsize}{2}\statemat)$ <Cite key="gu2022s4" />; this book standardizes on the **zero-order hold** (§4.3) — the rule S5 <Cite key="smith2023simplified" /> and the Mamba line <Cite key="gu2024mamba" /> later adopted, and one whose difference from bilinear the S4D ablations measure as negligible <Cite key="gu2022s4d" />:
 $$
 \discA = e^{\statemat \stepsize}, \qquad \discB = \statemat^{-1}\!\left(e^{\statemat\stepsize} - I\right)\inputmat, \qquad
 \statevec_{k+1} = \discA\, \statevec_k + \discB\, u_k, \quad y_k = \outputmat\, \statevec_{k+1} + D\, u_k,
@@ -121,7 +121,7 @@ The Cauchy machinery is the price of keeping the rank-one term $PQ^*$. **S4D** a
 $$
 K_l = \sum_{n} \outputmat_n\, \bar B_n\, \bar\Lambda_n^{\,l}, \qquad \bar\Lambda_n = e^{\lambda_n \stepsize}, \quad \bar B_n = \frac{\bar\Lambda_n - 1}{\lambda_n},
 $$
-with $\bar B_n$ the per-mode diagonal ZOH input. In practice the $N$ real states are carried as $N/2$ complex conjugate pairs and the real kernel is reconstructed as $K_l = 2\,\Re\!\big(\sum_n \outputmat_n \bar B_n \bar\Lambda_n^{\,l}\big)$.
+with $\bar B_n$ the per-mode diagonal ZOH input (this book's convention; the S4D paper itself treats the integration rule as interchangeable — its base version keeps S4's bilinear — and measures no noticeable difference between the two). In practice the $N$ real states are carried as $N/2$ complex conjugate pairs and the real kernel is reconstructed as $K_l = 2\,\Re\!\big(\sum_n \outputmat_n \bar B_n \bar\Lambda_n^{\,l}\big)$.
 
 <Theorem id="ch08:s4d-vandermonde" type="proposition">
 **(S4D Vandermonde kernel and stability.)** For diagonal $\statemat = \diag(\lambda_n)$ the kernel is the Vandermonde sum $K_l = \sum_n \outputmat_n \bar B_n \bar\Lambda_n^{\,l}$ with $\bar\Lambda_n = e^{\lambda_n\stepsize}$. The discrete system is stable — every $\abs{\bar\Lambda_n} < 1$ — if and only if $\Re(\lambda_n) < 0$ for all $n$.

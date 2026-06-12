@@ -41,7 +41,7 @@ import Figure from '@brandon_m_behring/book-scaffold-astro/components/Figure.ast
 # Discretization theory: ZOH, bilinear, exponential families
 
 <NoteBox title="Chapter 4 — at a glance">
-**Goal**: take the continuous linear state-space system of Chapter 1, $\ddt \statevec(t) = \statemat \statevec(t) + \inputmat u(t)$, and turn it into a discrete recurrence $\statevec_{k+1} = \discA \statevec_k + \discB u_k$ that a computer can step through one time index at a time. Three schemes do the heavy lifting in this book: **zero-order hold** (ZOH, the S4/Mamba default), **bilinear** (Tustin, the second-order signal-processing classic), and **exponential-trapezoidal** (Mamba-3's pick for stiff dynamics). By the end you can derive all three from first principles, prove each preserves stability for left-half-plane $\statemat$, and read the empirical order of accuracy off a log-log slope.
+**Goal**: take the continuous linear state-space system of Chapter 1, $\ddt \statevec(t) = \statemat \statevec(t) + \inputmat u(t)$, and turn it into a discrete recurrence $\statevec_{k+1} = \discA \statevec_k + \discB u_k$ that a computer can step through one time index at a time. Three schemes do the heavy lifting in this book: **zero-order hold** (ZOH, the S5/Mamba default and this book's workhorse), **bilinear** (Tustin, the second-order signal-processing classic — and the original S4 paper's choice), and **exponential-trapezoidal** (Mamba-3's pick for stiff dynamics). By the end you can derive all three from first principles, prove each preserves stability for left-half-plane $\statemat$, and read the empirical order of accuracy off a log-log slope.
 
 **Reading time**: ~40 minutes prose; 60–90 minutes with the JAX and Julia companions.
 
@@ -90,7 +90,7 @@ The two ingredients combine.
 
 Convergence is what you actually want: that the discrete iterates approach the true continuous trajectory as you refine the grid. The theorem says you cannot get there by being consistent alone (you also need stability) or by being stable alone (you also need consistency). Both are necessary, and together they are sufficient. This is the convergence criterion every scheme in this chapter must pass.
 
-<MarginNote>Lax-Richtmyer was originally stated for finite-difference schemes for PDEs. The ODE specialization is folklore; see Hairer–Nørsett–Wanner <Cite key="hairer1993ordinary" /> §II.3 for a textbook treatment.</MarginNote>
+<MarginNote>Lax-Richtmyer was originally stated for finite-difference schemes for PDEs. The ODE analogue is **Dahlquist's equivalence theorem** for multistep methods — convergence ⇔ consistency + zero-stability <Cite key="dahlquist1956convergence" />; the one-step specialization used here is folklore. See Hairer–Nørsett–Wanner <Cite key="hairer1993ordinary" /> §II.3 for a textbook treatment.</MarginNote>
 
 For a *stable LTI test problem* — meaning $\statemat$ has all eigenvalues in the open left half-plane — there is a stronger notion sitting on top of zero-stability: a scheme is **A-stable** if $\rho(\discA) \le 1$ for *every* step size $\stepsize > 0$, not just for sufficiently small $\stepsize$. Forward Euler is *not* A-stable; ZOH, bilinear, and exp-trapezoidal *are*. The geometry of A-stability — the set of $\statemat \stepsize$ values for which the scheme behaves well — is the subject of Chapter 5.
 
@@ -106,7 +106,7 @@ $$
 $$
 This is the **zero-order hold** (ZOH) discretization. The hold refers to the input assumption; "zero-order" refers to the polynomial degree of the held signal (a constant is a zero-degree polynomial).
 
-A practical wrinkle: writing $\discB$ as $\statemat^{-1}(e^{\statemat \stepsize} - I) \inputmat$ requires $\statemat$ to be invertible. The HiPPO matrix of Chapter 7 is invertible; some structured $\statemat$ in later chapters are not. The **augmented matrix exponential trick** handles both cases uniformly. Build the block matrix
+A practical wrinkle: writing $\discB$ as $\statemat^{-1}(e^{\statemat \stepsize} - I) \inputmat$ requires $\statemat$ to be invertible. The HiPPO matrix of Chapter 7 is invertible; some structured $\statemat$ in later chapters are not. The **augmented matrix exponential trick** <Cite key="vanloan1978computing" /> handles both cases uniformly. Build the block matrix
 $$
 M = \begin{pmatrix} \statemat \stepsize & \inputmat \stepsize \\ 0 & 0 \end{pmatrix} \in \R^{(N+P) \times (N+P)},
 $$
@@ -114,7 +114,7 @@ where $P$ is the input dimension. Then
 $$
 \exp(M) = \begin{pmatrix} e^{\statemat \stepsize} & \statemat^{-1}(e^{\statemat \stepsize} - I) \inputmat \\ 0 & I \end{pmatrix},
 $$
-and a single `expm` call extracts both $\discA$ (top-left block) and $\discB$ (top-right block) without ever inverting $\statemat$. The S4 reference implementation uses this trick; so does the JAX companion `discretization_comparison.py`.
+and a single `expm` call extracts both $\discA$ (top-left block) and $\discB$ (top-right block) without ever inverting $\statemat$. The block identity goes back to Van Loan <Cite key="vanloan1978computing" />; the JAX companion `discretization_comparison.py` uses it.
 
 <Theorem id="ch04:zoh-stability" type="proposition">
 **(ZOH preserves Lyapunov stability.)** If every eigenvalue $\lambda_i$ of $\statemat$ has $\operatorname{Re}(\lambda_i) < 0$ and $\stepsize > 0$, then every eigenvalue $\mu_i = e^{\lambda_i \stepsize}$ of $\discA = e^{\statemat \stepsize}$ satisfies $\abs{\mu_i} < 1$. ZOH is therefore A-stable.
@@ -186,7 +186,7 @@ Notice that $\discA$ is the same as ZOH, so **exp-trapezoidal preserves stabilit
 
 Exp-trapezoidal is the discretization of choice when the continuous dynamics are stiff — when $\statemat$ has eigenvalues with very different magnitudes, so the linear part is *the* hard part of the problem. By treating $e^{\statemat \stepsize}$ exactly the scheme sidesteps the step-size restriction that explicit methods inherit from the stiff eigenvalues, and the matrix exponential is computed once per layer in practice. Chapter 10 returns to this story for Mamba-3, which adopts exp-trapezoidal precisely because the input-dependent $\statemat(u_t)$ in selective SSMs produces stiff dynamics that ZOH and bilinear handle poorly.
 
-A subtle implementation point: $\varphi_2(\statemat \stepsize)$ is *not* numerically equal to $(e^{\statemat \stepsize} - I - \statemat \stepsize)/(\statemat \stepsize)^2$ when this formula is computed naively, because catastrophic cancellation in the numerator destroys precision for small $\stepsize$. The standard remedy is to compute all $\varphi$-functions simultaneously from one augmented matrix exponential, again using the trick that produced $\discB$ for ZOH. Both companions (`exp_trapezoidal.py` in JAX and `discretization_atlas.jl` in Julia) implement the augmented form.
+A subtle implementation point: $\varphi_2(\statemat \stepsize)$ is *not* numerically equal to $(e^{\statemat \stepsize} - I - \statemat \stepsize)/(\statemat \stepsize)^2$ when this formula is computed naively, because catastrophic cancellation in the numerator destroys precision for small $\stepsize$. The standard remedy is to compute all $\varphi$-functions simultaneously from one augmented matrix exponential <Cite key="almohy2011computing" />, again using the trick that produced $\discB$ for ZOH. Both companions (`exp_trapezoidal.py` in JAX and `discretization_atlas.jl` in Julia) implement the augmented form.
 
 <Figure id="ch04:fig:exp-trap-convergence" src="/figures/ch04/exp_trap_convergence.png" alt="Log-log error vs step size for exp-trapezoidal, ZOH, and bilinear on a forced damped oscillator." caption="Exp-trapezoidal (rose) achieves the same slope-2 convergence as bilinear (gold) while inheriting ZOH's autonomous-exactness — the best of both. ZOH (navy) lags at slope 1. Empirical fit on the two finest step sizes confirms the theoretical orders. Produced by companions/ch04/jax/exp_trapezoidal.py." />
 
@@ -205,13 +205,13 @@ The empirical order can be read directly off a log-log plot of error against ste
 
 <Figure id="ch04:fig:order-convergence" src="/figures/ch04/order_convergence.png" alt="Log-log plot of max error versus step size for ZOH (slope ~1), bilinear and exp-trapezoidal (slope ~2) on a forced damped oscillator." caption="Empirical order of accuracy of the three schemes on the forced damped oscillator $\\ddot q + 0.5 \\dot q + 4 q = \\sin(2t)$. ZOH (navy): slope 1 on the log-log plot, confirming first-order convergence. Bilinear (gold) and exp-trapezoidal (rose): slope 2, confirming second-order convergence. Produced by companions/ch04/jax/discretization_comparison.py." />
 
-The hierarchy is not strict: ZOH's autonomous-exactness can outweigh its first-order accuracy when the forcing is mild relative to the homogeneous decay. Bilinear's exact imaginary-axis preservation can outweigh its non-exactness on autonomous problems when the system has long-lived oscillations. Exp-trapezoidal combines the best of both — exact on autonomous, second-order on forced — at the cost of computing more $\varphi$-functions per step. The trade-offs are recurring themes throughout the SSM literature: S4 uses ZOH for its simplicity and exactness on the (autonomous) HiPPO drift; S4D and S5 follow suit; Mamba-3 switches to exp-trapezoidal once the input-dependence makes the dynamics stiff enough that the second-order error compounding matters.
+The hierarchy is not strict: ZOH's autonomous-exactness can outweigh its first-order accuracy when the forcing is mild relative to the homogeneous decay. Bilinear's exact imaginary-axis preservation can outweigh its non-exactness on autonomous problems when the system has long-lived oscillations. Exp-trapezoidal combines the best of both — exact on autonomous, second-order on forced — at the cost of computing more $\varphi$-functions per step. The trade-offs are recurring themes throughout the SSM literature: the original S4 discretized with bilinear <Cite key="gu2022s4" />; S4D supports either rule and finds the choice empirically negligible <Cite key="gu2022s4d" />; S5 and the Mamba line settled on ZOH for its simplicity and exactness on the (autonomous) drift; Mamba-3 switches to exp-trapezoidal once the input-dependence makes the dynamics stiff enough that the second-order error compounding matters.
 
 ## 4.7 What's next
 
 This chapter introduced three schemes and proved each preserves Lyapunov stability. **Chapter 5** zooms in on the *stability region* of each scheme — the set of $\statemat \stepsize$ values for which $\rho(\discA) \le 1$ — and develops the Butcher-tableau machinery for systematically constructing higher-order Runge–Kutta methods. **Chapter 6** then asks what to do when even A-stability is not enough — when the system is stiff or Hamiltonian and you need *L-stable* implicit methods, or *symplectic* methods that preserve geometric invariants. The exp-trapezoidal scheme of §4.5 turns out to be a member of a much larger family of exponential integrators, all of which deserve a place in your numerical-analysis toolkit.
 
-Forward-looking SSM connections: ZOH is the default in Chapters 7–9 (HiPPO, S4, S4D, S5, Mamba-1/2). Bilinear shows up in S4D when the HiPPO matrix is diagonalized. Exp-trapezoidal is the Mamba-3 scheme, treated in Chapter 10.
+Forward-looking SSM connections: ZOH is this book's default in Chapters 7–9, and natively the choice of S5 and Mamba-1/2; the original S4 and S4D papers used bilinear, with the S4D ablations finding the two interchangeable. Exp-trapezoidal is the Mamba-3 scheme, treated in Chapter 10.
 
 ## 4.8 Exercises
 

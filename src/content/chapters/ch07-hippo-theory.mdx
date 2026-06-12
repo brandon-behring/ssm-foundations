@@ -37,7 +37,7 @@ import Figure from '@brandon_m_behring/book-scaffold-astro/components/Figure.ast
 # HiPPO theory: orthogonal-basis projection operators
 
 <NoteBox title="Chapter 7 — at a glance">
-**Goal**: answer the question Chapter 4 left open — *what should the matrix $\statemat$ be?* The HiPPO framework <Cite key="gu2020hippo" /> derives a structured $\statemat$ from a single principle: the state should hold the coefficients of the best $N$-term approximation of the input history $u(s),\, s\in[0,t]$, in an orthogonal polynomial basis. We build the HiPPO-LegS operator from that principle, prove it is lower-triangular with spectrum exactly $\{-1,\dots,-N\}$, discretize it with Chapter 4's zero-order hold to recover the S4 recurrence, and confront the basis-conditioning issue that drives one of this book's research niches.
+**Goal**: answer the question Chapter 4 left open — *what should the matrix $\statemat$ be?* The HiPPO framework <Cite key="gu2020hippo" /> derives a structured $\statemat$ from a single principle: the state should hold the coefficients of the best $N$-term approximation of the input history $u(s),\, s\in[0,t]$, in an orthogonal polynomial basis. We build the HiPPO-LegS operator from that principle, prove it is lower-triangular with spectrum exactly $\{-1,\dots,-N\}$, discretize it with Chapter 4's zero-order hold to recover an S4-style recurrence, and confront the basis-conditioning issue that drives one of this book's research niches.
 
 **Reading time**: ~45 minutes prose; 90+ minutes with the JAX, Julia, and PyTorch companions.
 
@@ -107,15 +107,15 @@ The derivation (Exercise 7.4, §7.10) substitutes the Legendre three-term recurr
 
 This is the answer to Chapter 4's open question. Where Chapter 4 asked "given $\statemat$, how do we discretize it?", HiPPO supplies the $\statemat$ — not by guessing, but as the projection-update operator of an optimal polynomial memory. Random initialization of $\statemat$ produces eigenvalues scattered across the complex plane and dynamics that vanish or explode over long horizons; the HiPPO $\statemat$ is engineered so that its discretization gives stable, long-memory recurrences <Cite key="gu2020hippo" />.
 
-## 7.4 From the operator to the S4 recurrence
+## 7.4 From the operator to the S4-style recurrence
 
 To run the HiPPO operator on sampled data we discretize the LTI system $\ddt \statevec = \statemat \statevec + \inputmat u$ exactly as in Chapter 4 §4.3. The **zero-order hold** gives
 $$
 \discA = e^{\statemat \stepsize}, \qquad \discB = \statemat^{-1}\!\left(e^{\statemat \stepsize} - I\right)\inputmat, \qquad \statevec_{k+1} = \discA\, \statevec_k + \discB\, u_k,
 $$
-computed in practice through the augmented matrix-exponential trick of Chapter 4 (the HiPPO $\statemat$ is invertible — that promise from §4.3 is kept here). Because every eigenvalue of $\statemat$ has negative real part (§7.7), Chapter 4's ZOH stability proposition applies verbatim: every discrete eigenvalue satisfies $\abs{\mu_i} = e^{\operatorname{Re}(\lambda_i)\stepsize} < 1$, so the recurrence is stable for *any* step size. ZOH is the default discretization throughout Chapters 7–9 precisely because it preserves the HiPPO spectrum so cleanly.
+computed in practice through the augmented matrix-exponential trick of Chapter 4 (the HiPPO $\statemat$ is invertible — that promise from §4.3 is kept here). Because every eigenvalue of $\statemat$ has negative real part (§7.7), Chapter 4's ZOH stability proposition applies verbatim: every discrete eigenvalue satisfies $\abs{\mu_i} = e^{\operatorname{Re}(\lambda_i)\stepsize} < 1$, so the recurrence is stable for *any* step size. ZOH is this book's default discretization throughout Chapters 7–9 precisely because it preserves the HiPPO spectrum so cleanly (the original S4 paper used the bilinear transform instead — Chapter 8 sorts out that attribution).
 
-This recurrence is the **recurrent view** of an S4 layer <Cite key="gu2022s4" />. Chapter 8 adds the second view — unrolling the recurrence into a convolution and computing it with an FFT — and shows the two views are identical for zero initial state. The HiPPO matrix is exactly the initialization that S4 places on $\statemat$ before training; S4D <Cite key="gu2022s4d" /> then diagonalizes it for speed, a move §7.5 explains is delicate precisely because of conditioning. Everything S4 does is downstream of the operator in §7.3.
+This recurrence is the **recurrent view** of an S4-style layer <Cite key="gu2022s4" />. Chapter 8 adds the second view — unrolling the recurrence into a convolution and computing it with an FFT — and shows the two views are identical for zero initial state. The HiPPO matrix is exactly the initialization that S4 places on $\statemat$ before training; S4D <Cite key="gu2022s4d" /> then diagonalizes it for speed, a move §7.5 explains is delicate precisely because of conditioning. Everything S4 does is downstream of the operator in §7.3.
 
 ## 7.5 Conditioning of the HiPPO basis
 

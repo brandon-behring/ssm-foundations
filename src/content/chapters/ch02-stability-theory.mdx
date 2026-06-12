@@ -152,7 +152,7 @@ where $R(z)$ is the integrator's **stability function**, evaluated at the matrix
 - **Forward (explicit) Euler**: $\statevec_{n+1} = \statevec_n + \stepsize \statemat \statevec_n$, so $R_{\text{FE}}(z) = 1 + z$.
 - **Backward (implicit) Euler**: $\statevec_{n+1} = \statevec_n + \stepsize \statemat \statevec_{n+1}$, giving $R_{\text{BE}}(z) = 1/(1-z)$.
 - **Bilinear (Tustin / trapezoidal)**: $R_{\text{bil}}(z) = (1 + z/2)/(1 - z/2)$.
-- **Exact (zero-order hold)**: $R_{\text{ZOH}}(z) = e^z$. This is the integrator S4 uses by default.
+- **Exact (zero-order hold)**: $R_{\text{ZOH}}(z) = e^z$. This is the integrator S5 and the Mamba line use by default (the original S4 used bilinear; see Chapter 8).
 
 The discrete recurrence is Lyapunov-stable if and only if every eigenvalue $\mu_i$ of $R(\stepsize \statemat)$ satisfies $\abs{\mu_i} \le 1$ (the discrete-time analog of the LHP criterion is the unit disk). Since the eigenvalues of $R(\stepsize \statemat)$ are $R(\stepsize \lambda_i)$ where $\lambda_i$ are the eigenvalues of $\statemat$, the question reduces to: for which $z = \stepsize \lambda_i$ in the complex plane is $\abs{R(z)} \le 1$?
 
@@ -171,13 +171,13 @@ The four examples above:
 - **Forward Euler**: $\abs{1 + z} \le 1$ ⇔ $z$ in the closed disk of radius 1 around $-1$. Tiny region; not A-stable. For a continuous system with eigenvalue $\lambda = -100$ (fast decay), forward Euler requires $\stepsize < 2/100$ to avoid blowup.
 - **Backward Euler**: $\abs{1/(1-z)} \le 1$ ⇔ $\abs{1-z} \ge 1$ ⇔ $z$ outside the open disk of radius 1 around $1$. This contains the entire closed LHP. **A-stable.**
 - **Bilinear (trapezoidal)**: $\abs{R_{\text{bil}}(z)} \le 1$ ⇔ $\Re(z) \le 0$ exactly. The stability region is *exactly* the closed LHP. **A-stable**, and the boundary coincides with the imaginary axis — a property called **L-stability** when combined with $R(z) \to 0$ as $\Re(z) \to -\infty$, which bilinear *does not* satisfy ($R_{\text{bil}}(-\infty) = -1$).
-- **Zero-order hold (matrix exponential)**: $\abs{e^z} = e^{\Re(z)} \le 1$ ⇔ $\Re(z) \le 0$. The stability region is the closed LHP. **A-stable** and **L-stable**. This is the gold standard for LTI discretization — and it's what S4 uses internally.
+- **Zero-order hold (matrix exponential)**: $\abs{e^z} = e^{\Re(z)} \le 1$ ⇔ $\Re(z) \le 0$. The stability region is the closed LHP. **A-stable** and **L-stable**. This is the gold standard for LTI discretization — and it's the scheme S5, the Mamba line, and this book's SSM chapters standardize on.
 
 <Figure id="ch02:fig:stability-regions" src="/figures/ch02/stability_regions.png" alt="Stability regions in the complex plane for forward Euler, backward Euler, bilinear, and ZOH integrators." caption="Stability regions S = { z : |R(z)| ≤ 1 } for four common integrators. Forward Euler's tiny disk around -1 makes it conditionally stable only; backward Euler and bilinear/trapezoidal are A-stable; ZOH (the matrix exponential) is A-stable and L-stable, with stability region exactly the closed left half-plane. The eigenvalue distribution of a learned SSM's A matrix overlaid on these regions tells you immediately which integrators are safe to use. Produced by companions/ch02/jax/stability_regions.py." />
 
 ### Why this matters for SSMs
 
-The S4 family uses ZOH discretization, and is therefore stable at every step size for which the continuous system is stable. Mamba-1 uses ZOH as well. Mamba-3's exponential-trapezoidal rule (Chapter 10) is a second-order generalization of bilinear that retains A-stability <Cite key="lahoti2026mamba3" />. The C1 research pilot (see Chapter 6) asks whether *symplectic* integrators — A-stable methods designed to preserve geometric invariants — can do better for complex-state SSMs whose $\statemat$ has near-imaginary eigenvalues.
+The S4 family discretizes with A-stable schemes throughout — bilinear in the original S4, ZOH in S5 — so the layer is stable at every step size for which the continuous system is stable. Mamba-1 uses ZOH as well. Mamba-3's exponential-trapezoidal rule (Chapter 10) is a second-order generalization of bilinear that retains A-stability <Cite key="lahoti2026mamba3" />. The C1 research pilot (see Chapter 6) asks whether *symplectic* integrators — A-stable methods designed to preserve geometric invariants — can do better for complex-state SSMs whose $\statemat$ has near-imaginary eigenvalues.
 
 When a stability-region analysis fails, it usually fails dramatically: a forward-Euler discretization of a stiff system blows up in a handful of steps. This is exactly the failure mode that careful integrator choice prevents.
 

@@ -9,6 +9,10 @@ src/content/chapters/ch03-linear-algebra.mdx:generic-api-key:127
 src/content/chapters/ch03-linear-algebra.mdx:generic-api-key:233
 src/content/chapters/ch04-discretization.mdx:generic-api-key:64
 src/content/chapters/ch04-discretization.mdx:generic-api-key:152
+# ch04 §4.2 margin note: dahlquist1956convergence cite key (entropy 4.22)
+src/content/chapters/ch04-discretization.mdx:generic-api-key:93
+# ch08 §8.1: smith2023simplified cite key (entropy 3.51) in the discretization-attribution sentence
+src/content/chapters/ch08-lti-ssms.mdx:generic-api-key:56
 src/content/chapters/ch06-implicit-and-symplectic.mdx:generic-api-key:85
 src/content/chapters/ch06-implicit-and-symplectic.mdx:generic-api-key:151
 src/content/chapters/ch07-hippo-theory.mdx:generic-api-key:122
