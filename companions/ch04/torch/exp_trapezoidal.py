@@ -12,7 +12,8 @@ $$h_{k+1} = e^{A \\Delta} h_k + \\Delta \\, \\varphi_1(A \\Delta) B u_k
     + \\Delta \\, \\varphi_2(A \\Delta) B (u_{k+1} - u_k),$$
 where $\\varphi_1(z) = (e^z - 1)/z$ and $\\varphi_2(z) = (e^z - 1 - z)/z^2$ are the first two
 $\\varphi$-functions, computed via the **augmented matrix exponential** trick
-(Al-Mohy & Higham 2011) — see §4.5 and Exercise 4.6.
+(Van Loan 1978 for the block identity; Al-Mohy & Higham 2011 for the
+simultaneous-$\\varphi$ formulation) — see §4.5 and Exercise 4.6.
 
 JAX↔PyTorch contrast
 --------------------

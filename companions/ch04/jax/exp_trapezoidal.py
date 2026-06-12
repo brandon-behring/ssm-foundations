@@ -8,8 +8,9 @@ are the first two $\\varphi$-functions of the exponential family
 (see §4.5 and Exercise 4.6 in Chapter 4).
 
 The matrix $\\varphi$-functions are computed via the **augmented matrix
-exponential** trick (Al-Mohy & Higham 2011), which is both numerically stable
-for small $\\Delta$ and well-defined for singular $A$:
+exponential** trick (the block-matrix identity is Van Loan 1978; Al-Mohy &
+Higham 2011 give the modern simultaneous-$\\varphi$ formulation), which is
+both numerically stable for small $\\Delta$ and well-defined for singular $A$:
 
   exp(diag([A \\Delta, B \\Delta, B \\Delta]) with one shifted block) returns
   $e^{A \\Delta}$, $\\Delta \\varphi_1(A \\Delta) B$, and
