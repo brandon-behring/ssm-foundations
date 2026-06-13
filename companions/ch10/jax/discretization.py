@@ -164,10 +164,11 @@ def discretize_exp_trapezoidal(
 ) -> tuple[jnp.ndarray, jnp.ndarray, jnp.ndarray]:
     r"""Exponential-trapezoidal (second-order). ``x_k = alpha x_{k-1} + beta u_{k-1} + gamma u_k``.
 
-    Mamba-3's integrator (Chapter 4 §4.5). Keeps the *exact* exponential
-    transition and approximates the forcing integral by linear interpolation of
-    the input between the interval endpoints. Deriving via variation of constants
-    over $[t_{k-1}, t_k]$ with $u(t_{k-1}+s) = u_{k-1} + (s/\Delta)(u_k - u_{k-1})$:
+    Mamba-3's second-order integrator (the exponential-integrator family of
+    Chapter 4 §4.5, in trapezoidal-*quadrature* form). Keeps the *exact* exponential
+    transition and approximates the forcing integral by the trapezoidal quadrature
+    rule — the $\lambda$-weighted endpoint average of §10.2, not the linear-interpolant
+    integration of §4.5's $\varphi$-family:
 
     .. math::
 

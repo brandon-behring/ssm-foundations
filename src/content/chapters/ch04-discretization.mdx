@@ -182,7 +182,7 @@ Reading off the discrete matrices in the form $\statevec_{k+1} = \discA \stateve
 $$
 \discA = e^{\statemat \stepsize}, \qquad \discB_0 = \stepsize \, \varphi_1(\statemat \stepsize) \, \inputmat, \qquad \discB_1 = \stepsize \, \varphi_2(\statemat \stepsize) \, \inputmat.
 $$
-Notice that $\discA$ is the same as ZOH, so **exp-trapezoidal preserves stability identically to ZOH**: A-stable, exact for autonomous systems, eigenvalues in the unit disk for any $\stepsize > 0$. The improvement is in the *order of accuracy*: by interpolating $u$ linearly rather than holding it constant, exp-trapezoidal becomes second-order accurate (provided $u$ is $C^1$).
+Notice that $\discA$ is the same as ZOH, so **exp-trapezoidal preserves stability identically to ZOH**: A-stable, exact for autonomous systems, eigenvalues in the unit disk for any $\stepsize > 0$. The improvement is in the *order of accuracy*: by interpolating $u$ linearly rather than holding it constant, exp-trapezoidal becomes second-order accurate (provided $u$ is $C^2$ — the linear-interpolation error is governed by $u''$).
 
 Exp-trapezoidal is the discretization of choice when the continuous dynamics are stiff — when $\statemat$ has eigenvalues with very different magnitudes, so the linear part is *the* hard part of the problem. By treating $e^{\statemat \stepsize}$ exactly the scheme sidesteps the step-size restriction that explicit methods inherit from the stiff eigenvalues, and the matrix exponential is computed once per layer in practice. Chapter 10 returns to this story for Mamba-3, which adopts exp-trapezoidal precisely because the input-dependent $\statemat(u_t)$ in selective SSMs produces stiff dynamics that ZOH and bilinear handle poorly.
 
