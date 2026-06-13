@@ -50,18 +50,21 @@ data. All 17 chapters now `implemented` + deployed).
   ch13's cross-checks the exponential-gate stabilizer, ch15's the QR-Lyapunov diagnostic, ch17's the C1 symplectic
   atlas cell's energy conservation, the C1 pilot's atlas being itself Julia); absent by design elsewhere (ch14 and ch16
   are filtering linear algebra + counting — JAX+torch only, per their briefs). A `—` in the Julia column is *not* a gap.
-- **`claim-skeptic` is new (2026-06-04)** and has **not** been run retroactively on Ch 1–10; its adversarial
-  math-claim pass is a forward gate (exercised on Ch 11–17; on Ch 17 it confirmed the two integration
-  signatures are genuinely new — not re-runs of the chapters they compose — the no-trained-results scope,
-  and the provisional verdict bounded by the TC⁰ ceiling; on Ch 15 it confirmed all three propositions —
-  the capacity bound's non-duplication of ch11/ch16, the Lyapunov estimator's coupling-not-degeneracy
-  resolution limit, the two-route regime cross-check — and verified the cited-not-proven boundary for the
-  TC⁰/illusion-of-state results; on Ch 13 it verified all three propositions against the authoritative NXAI
-  xLSTM reference implementation, and on Ch 16 it confirmed all four propositions and drove the
-  expected-vs-realized excess-CE distinction), so the Ch 1–10 rows do not yet reflect a claim-skeptic review.
-- **All 17 chapters are `implemented` and deployed — the book is content-complete (M6).** Post-M6 work is
-  upkeep: the retroactive `claim-skeptic` sweep over Ch 1–10, a STYLE §8 companion-section refresh, and the
-  toolkit re-bumps tracked in the repo's issues.
+- **`claim-skeptic` (added 2026-06-04) has now been run on all of Ch 1–17.** As a forward gate it covered
+  Ch 11–17 as authored (on Ch 17 confirming the two integration signatures are genuinely new and the
+  TC⁰-bounded provisional verdict; on Ch 15 all three propositions + the cited-not-proven boundary; on
+  Ch 13 the three propositions against the NXAI xLSTM reference; on Ch 16 all four propositions + the
+  expected-vs-realized excess-CE distinction). The **retroactive Ch 1–10 sweep ran 2026-06-13** as Stage 1
+  of the post-M6 beta gate (`audits/2026-06-13_post-m6_recheck.md`): 42 findings — including genuine math
+  errors (a false Jordan-block-size formula, a self-contradictory ZOH modulus claim, an explicit-RK
+  trilemma against the chapter's own theorem) and misattributions (HiPPO conditioning miscited to a paper
+  proving no such result) — remediated across PRs #32–#35 + close-out and re-verified clean. **The Ch 1–10
+  rows now reflect a claim-skeptic review.**
+- **All 17 chapters are `implemented` and deployed — the book is content-complete (M6).** The post-M6
+  **Stage 1 beta gate** — Ch 1–10 hardening (the retroactive `claim-skeptic` sweep + 2026-05-27-audit
+  remediation + a STYLE §8 refresh) — is **complete**; remaining post-M6 work is **Stage 2** (tooling +
+  toolkit re-bumps, tracked in the repo's issues) and the readiness-gated **M7** (fold C1/B pilot results
+  into Ch 15/16/17 and flip `alpha → beta`).
 
 ## Refresh the artifact columns
 

@@ -326,6 +326,14 @@ companions/chXX/torch/<script>.py`. Torch is compute-and-parity only; figures
 stay JAX-produced (the caption credits the JAX script). See Ch 7–10 §X.10 for
 the established shape.
 
+**Integration companions (synthesis chapters).** A synthesis chapter (Ch 17)
+may ship *integration companions* that **compose** already-shipped companion
+instruments into a new measured signature rather than introduce a new kernel.
+Such companions legitimately have **no torch parity** (there is no new kernel to
+port), and their reductions to the composed components double as consistency
+checks; a synthesis chapter may carry **0 new theorems** and still be
+`status: implemented` (prose + exercises + companions suffice). See Ch 17 §17.6.
+
 **Companion test bar (audit 0527-F26).** Every companion ships a real test
 suite — pytest for JAX/torch, `runtests.jl` for Julia — with *numeric*
 assertions, never smoke tests: exact identities to `< 1e-12`, cross-framework
@@ -472,3 +480,10 @@ lints will enforce them.
   non-conforming entry in `bibliography.bib`; it was renamed to
   `anonymous2025lyapunov` as part of the F5 landing commit (see
   audit F19's sibling note).
+- **Ch 17 is a synthesis chapter.** It has ~5 content sections (the §1
+  positional convention accommodates <6, as for Ch 5), **0 new theorems** (it
+  composes already-shipped results — `status: implemented` needs prose +
+  exercises + companions, not theorems), and **integration companions that
+  compose shipped instruments** with **no torch parity** by design (§8). Its
+  pilot verdicts are *provisional*, bounded by the cited TC⁰ ceiling pending
+  the M7 empirical-results integration.
