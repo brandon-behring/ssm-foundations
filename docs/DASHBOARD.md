@@ -5,10 +5,10 @@ The at-a-glance complement to the deeper audit capability (see
 `audits/2026-06-04_ecosystem_checkpoint.md` §4). Hand-maintained; refresh the
 artifact columns with the snippet at the bottom and reconcile `status:` by eye.
 
-**Verified:** 2026-06-11 (post Ch-16 ship: empirical methodology authored vertical —
-JAX+torch companions, four figures, four review subagents; the second pilot-B anchor,
-closing B's book-side prerequisites: the eval-protocol stack, the composite predictor,
-and the probe-signature method).
+**Verified:** 2026-06-13 (post Ch-13 ship: exponential gates and matrix memory authored
+vertical — JAX + torch + a stdlib Julia stabilizer module, three figures, four review
+subagents; the generalized diagonal-plus-rank-one transition unifying RWKV-7 and xLSTM,
+extending the Ch 12 lineage to matrix memories with their own stability questions).
 
 ## Scoreboard
 
@@ -26,7 +26,7 @@ and the probe-signature method).
 | 10 | Mamba-3 and the exp-trapezoidal integrator | ssm-core | `implemented` | ✓ | ✓ | ✓ | ✓ | 3 | ✓ |
 | 11 | Linear attention and Hyena | beyond-ssm | `implemented` | ✓ | ✓ | ✓ | ✓ | 4 | ✓ |
 | 12 | Delta-rule lineage: DeltaNet, Gated DeltaNet, Kimi | beyond-ssm | `implemented` | ✓ | ✓ | ✓ | ✓ | 4 | ✓ |
-| 13 | Exponential gates and matrix memory: xLSTM, RWKV-7 | beyond-ssm | `planned` | — | — | — | — | 0 | stub |
+| 13 | Exponential gates and matrix memory: xLSTM, RWKV-7 | beyond-ssm | `implemented` | ✓ | ✓ | ✓ | ✓ | 3 | ✓ |
 | 14 | Hybrid architectures and gating mechanisms | integration | `implemented` | ✓ | — | ✓ | ✓ | 4 | ✓ |
 | 15 | Counter-evidence and diagnostic tools | integration | `planned` | — | — | — | — | 0 | stub |
 | 16 | Empirical methodology: benchmark protocols | integration | `implemented` | ✓ | — | ✓ | ✓ | 4 | ✓ |
@@ -38,20 +38,22 @@ and the probe-signature method).
 
 ## Trust notes
 
-- **Ch 1–12, 14, and 16** are `implemented`: prose + exercises + companions authored, `make check` (content gates +
+- **Ch 1–14 and 16** are `implemented`: prose + exercises + companions authored, `make check` (content gates +
   bibkey/xref lint) green, companion suites green, deployed. JAX is the canonical reference for every
-  chapter; **torch parity is complete for ch01–12, ch14, and ch16** (ch01–10 backfilled via the Ch-11 runway, closing
-  0527-F27; ch11–12, ch14, and ch16 authored with parity from the start).
+  chapter; **torch parity is complete for ch01–14 and ch16** (ch01–10 backfilled via the Ch-11 runway, closing
+  0527-F27; ch11–14 and ch16 authored with parity from the start).
 - **Julia is a selective track, not a universal gate** — present where the chapter's numerical core
-  warrants a cross-language check (ch04 via `DifferentialEquations.jl`; ch05–07 and ch10–12 stdlib-only);
-  absent by design elsewhere (ch14 and ch16 are filtering linear algebra + counting — JAX+torch only,
-  per their briefs). A `—` in the Julia column is *not* a gap.
+  warrants a cross-language check (ch04 via `DifferentialEquations.jl`; ch05–07 and ch10–13 stdlib-only —
+  ch13's cross-checks the exponential-gate stabilizer's log-domain overflow control); absent by design
+  elsewhere (ch14 and ch16 are filtering linear algebra + counting — JAX+torch only, per their briefs).
+  A `—` in the Julia column is *not* a gap.
 - **`claim-skeptic` is new (2026-06-04)** and has **not** been run retroactively on Ch 1–10; its adversarial
-  math-claim pass is a forward gate (exercised on Ch 11–12, 14, and 16; on Ch 16 it confirmed all four
+  math-claim pass is a forward gate (exercised on Ch 11–14 and 16; on Ch 13 it verified all three
+  propositions against the authoritative NXAI xLSTM reference implementation, and on Ch 16 it confirmed all four
   propositions and drove the expected-vs-realized excess-CE distinction, a previously nonexistent
   companion check being added, and attribution tightenings — Zoology's recall-gap finding, the
   §14.5 axis-differentiation claim), so the Ch 1–10 rows do not yet reflect a claim-skeptic review.
-- **Ch 13, 15, and 17** are `planned` stubs (no original prose/companions); the deployed pages show only the
+- **Ch 15 and 17** are `planned` stubs (no original prose/companions); the deployed pages show only the
   pre-release banner.
 
 ## Refresh the artifact columns

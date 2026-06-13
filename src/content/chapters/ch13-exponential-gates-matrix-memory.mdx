@@ -1,15 +1,571 @@
 ---
 week: 13
 part: beyond-ssm
+status: implemented
 title: 'Exponential gates and matrix memory: xLSTM and RWKV-7'
-status: planned
-description: Exponential gating vs sigmoid; matrix-valued memory; vector-valued gating; in-context learning rates.
+description: One generalized linear recurrence whose transition is diagonal-plus-rank-one — RWKV-7's generalized delta rule (rank-one removal in a learned direction, not the key) and xLSTM's matrix memory with exponential gating (and the log-domain stabilizer state that overflow forces) — extending Chapter 12's delta-rule lineage to matrix memories with their own stability questions.
+provenance:
+  ai_tools:
+    - Claude Code
+  citation_backstop: research-kb
 ---
 
-import PreReleaseBanner from '@brandon_m_behring/book-scaffold-astro/components/PreReleaseBanner.astro';
+import NoteBox from '@brandon_m_behring/book-scaffold-astro/components/NoteBox.astro';
+import Theorem from '@brandon_m_behring/book-scaffold-astro/components/Theorem.astro';
+import Cite from '@brandon_m_behring/book-scaffold-astro/components/Cite.astro';
+import MarginNote from '@brandon_m_behring/book-scaffold-astro/components/MarginNote.astro';
+import Figure from '@brandon_m_behring/book-scaffold-astro/components/Figure.astro';
+import XRef from '@brandon_m_behring/book-scaffold-astro/components/XRef.astro';
 
-<PreReleaseBanner state="alpha" message="Chapter 13 is planned; not yet authored. See description above for scope. Authoring sequence: Ch 1–3 (foundations) → Ch 4–6 (discretization thread for C1) → remaining chapters per pilot needs." />
+{/*
+  Math macros (auto-loaded via ssmMacros in astro.config; this chapter uses):
+    \seqlen=L
+  Chapter-local symbols (declared in prose):
+    S_t — matrix state ℝ^{d_v×d_k}, retrieval S q (Chapter 12's convention);
+    A_t — the transition Diag(w_t) − c_t a_t a_t^⊤ acting on the right, S_{t-1} A_t;
+    w_t — diagonal decay vector (RWKV-7 generalization of Ch 12's scalar γ_t);
+    a_t — unit removal direction (RWKV-7's "learned direction, not the key");
+    c_t — rank-one removal coefficient ≥ 0;  u_t b_t^⊤ — the write (value u_t, key b_t);
+    C_t — xLSTM matrix memory ℝ^{d_v×d_k};  n_t — its normalizer vector;
+    i_t = exp(ĩ_t), f_t = σ(f̃_t) — exponential input gate, sigmoid forget gate;
+    m_t — the log-domain max-state stabilizer.
+*/}
 
 # Exponential gates and matrix memory: xLSTM and RWKV-7
 
-This chapter is planned. See the [chapter-at-a-glance](https://github.com/brandon-behring/post_transformers/blob/main/notes/foundations_curriculum_design_2026_05_20.md) (foundations §3) for the full design; the [crosswalk](https://github.com/brandon-behring/post_transformers/blob/main/notes/foundations_curriculum_design_2026_05_20.md) (foundations §22) maps this chapter to the relevant post_transformers/roadmap.md weeks.
+<NoteBox title="Chapter 13 — at a glance">
+**Goal**: take Chapter 12's delta-rule lineage one generalization further. Both
+of this chapter's architectures keep the linear recurrence $S_t = S_{t-1} A_t +
+\text{write}_t$ but free the transition $A_t$ from the delta rule's rigid
+$\gamma_t(I - \beta_t k_t k_t^\top)$ to a full **diagonal-plus-rank-one** form:
+RWKV-7's *generalized delta rule* removes along a **learned direction** rather
+than the key, and xLSTM's **mLSTM** carries a matrix memory written with
+**exponential gates** — gates moved inside the nonlinearity, which buys
+expressivity at the price of a numerical stability problem the architecture must
+solve in its own state.
+
+**Reading time**: ~45 minutes prose; ~2 hours with the companions.
+
+**Key insight**: **moving the gate inside the exponential imports a stability
+question into the state.** The book's stability thread — bounded states
+(Chapter 2), the explicit/implicit dichotomy (Chapters 5–6), the delta rule's
+finite stability interval (Chapter 12) — returns here in *two registers*: as the
+*spectrum* of the generalized transition (when does $\mathrm{Diag}(w) - c\,aa^\top$
+contract?), a question about the state's trajectory; and as the *overflow* of the
+exponential input gate (xLSTM's log-domain max-state is the numerical shadow of an
+implicit method's unconditional guarantee — stability of the *computation* where
+Chapter 6 gave stability of the *dynamics*).
+
+**Looking ahead**: Chapter 13 is **not** a pilot anchor — C1's prerequisites
+closed at Chapter 10 and B's at Chapter 16. It completes the beyond-SSM lineage
+and sets up **Chapter 15**, whose diagnostic tools (Lyapunov exponents, regime
+detection) probe exactly the matrix-memory stability questions raised here, *on
+trained models* rather than at the architecture level.
+</NoteBox>
+
+## 13.1 The move: the gate inside the nonlinearity
+
+Chapter 12 read a sequence layer's state update as one step of an optimizer and
+organized the delta-rule family around a single linear recurrence,
+$$
+S_t \;=\; S_{t-1}\,A_t \;+\; \text{write}_t ,
+$$
+with the state $S \in \mathbb{R}^{d_v \times d_k}$ retrieved by $S q$ and the
+transition acting on the right. Every architecture in that chapter shared one
+transition shape: $A_t = \gamma_t\,(I - \beta_t k_t k_t^\top)$ — a *scalar* decay
+$\gamma_t$ times the identity, minus a rank-one term **locked to the write key**
+$k_t$. Gated DeltaNet's $\gamma_t$ was the only freedom beyond the delta rule,
+and it was a single number per step (<XRef id="ch14:gate-granularity" /> measures
+what that granularity costs).
+
+Two threads were left open. Chapter 12 ended at the capacity wall
+(<XRef id="ch11:linattn-capacity" />): a rank-$d_k$ state holds at most $d_k$
+independent associations, and the delta rule erases interference without raising
+that ceiling. And its transition forgot only in the *write* direction — the
+orthogonal complement was inert, persistent memory that gradient flow on the
+current pair never cleans up. This chapter's two architectures attack both by
+**generalizing the transition itself**, in two independent generalizations of the
+same linear recurrence:
+
+1. **RWKV-7** <Cite key="peng2025rwkv" /> keeps the rank-one shape but frees the
+   removal direction and the diagonal: the erase direction need not be the key,
+   and the decay is per-channel, not scalar. This is its "generalized delta
+   rule," and Chapter 12's whole lineage falls out as a special case.
+2. **xLSTM** <Cite key="beck2024xlstm" /> keeps a *matrix* memory $C_t$ and
+   writes it with **exponential** gates — the input gate is $\exp(\tilde i_t)$,
+   unbounded — which requires a stabilizer state to keep the recurrence inside
+   float range.
+
+The unifying object is the **generalized transition**
+$$
+A_t \;=\; \mathrm{Diag}(w_t) \;-\; c_t\, a_t a_t^\top, \qquad \|a_t\| = 1,\ c_t \ge 0 ,
+$$
+a diagonal decay $w_t$ (replacing Chapter 12's scalar $\gamma_t I$) minus a
+rank-one removal in a unit direction $a_t$ (replacing the key-locked $k_t$). The
+rest of the chapter is two questions about this one matrix — *when does it
+contract* (§13.2), and *what does freeing $a_t$ buy* (§13.3) — followed by
+xLSTM's exponential-gate variant and the stabilizer it forces (§13.4).
+
+## 13.2 The generalized transition and its spectrum
+
+Whether the recurrence $S_t = S_{t-1} A_t + \text{write}_t$ keeps a bounded
+state is, as in Chapter 12, a question about the eigenvalues of the transition.
+The generalized $A_t$ is built from a diagonal and a symmetric rank-one term, so
+it is itself symmetric — and therefore has a real spectrum we can read exactly.
+
+<Theorem id="ch13:generalized-spectrum" type="proposition" title="Spectrum of the diagonal-plus-rank-one transition">
+Let $A = \mathrm{Diag}(w) - c\,a a^\top$ with $a \in \mathbb{R}^d$ a unit vector
+and $c \ge 0$. Then $A$ is symmetric, and:
+
+1. **(Secular equation, interlacing.)** Its eigenvalues are the $w_i$ for which
+   $a_i = 0$, together with the roots $\lambda \notin \{w_i\}$ of
+   $$
+   f(\lambda) \;=\; 1 - c\sum_{i} \frac{a_i^2}{w_i - \lambda} \;=\; 0 .
+   $$
+   The rank-one downdate pushes every eigenvalue down without crossing the next
+   diagonal entry, so the spectrum interlaces the sorted $w_i$ and lies in
+   $[\,\min_i w_i - c,\ \max_i w_i\,]$.
+2. **(Scalar-diagonal case.)** If $w = w_0\mathbf 1$, exactly one eigenvalue
+   moves: the spectrum is $\{w_0 - c\}\cup\{w_0\}^{d-1}$, with spectral radius
+   $\rho(A) = \max(|w_0|,\ |w_0 - c|)$. At $w_0 = 1$ this is $\max(1, |1 - c|)$,
+   recovering DeltaNet's $k$-direction radius $|1 - \beta\|k\|^2|$
+   (<XRef id="ch12:stability-dichotomy" />) under the identification
+   $c = \beta\|k\|^2$ — and the contractivity boundary $c = 2$ is exactly forward
+   Euler's.
+</Theorem>
+
+The proof is the matrix-determinant lemma: $\det(A - \lambda I) = \prod_i(w_i -
+\lambda)\cdot f(\lambda)$, so the roots of $f$ are the eigenvalues away from the
+diagonal entries; the scalar case is the direct eigendecomposition of $w_0 I -
+c\,aa^\top$, whose only non-$w_0$ eigenvalue lies along $a$ (Exercise 13.4
+carries the derivation). The companion reads the spectrum two ways — `eigvalsh`
+of the materialized $A$ against the scalar-diagonal closed form — and they agree
+to a measured $6.7 \times 10^{-16}$; the secular residual at the general-diagonal
+eigenvalues is $3.2 \times 10^{-12}$.
+
+<MarginNote>The downdate-of-a-diagonal eigenproblem is textbook numerical linear
+algebra: the secular equation and interlacing are exactly the structure that
+makes divide-and-conquer symmetric eigensolvers work. RWKV-7's transition is a
+single step of one.</MarginNote>
+
+One reading of <XRef id="ch13:generalized-spectrum" /> matters for everything
+that follows. With a *scalar* diagonal at $w_0 = 1$, the radius is $\max(1, |1 -
+c|) \ge 1$: the transition is never strictly contractive, because the $d - 1$
+directions orthogonal to $a$ sit at eigenvalue exactly $1$ — Chapter 12's inert
+persistent memory, unchanged. Strict contraction of those directions is what the
+*diagonal* $w$ buys: entries $w_i < 1$ forget per-channel, the generalization of
+Gated DeltaNet's single $\gamma_t$ to a vector. Freeing the diagonal and freeing
+the removal direction are the two independent degrees of freedom RWKV-7 adds, and
+the spectrum shows they do different jobs — decay versus erasure.
+
+<Figure id="ch13:fig:spectrum" src="/figures/ch13/transition-spectrum.png" alt="Two panels. Left: for a scalar diagonal at w0 = 1, two eigenvalue curves versus the removal coefficient c — a flat line at 1 (the persistent directions) and a descending line 1 minus c that crosses below minus 1 at c = 2, where the unstable region is shaded and annotated as Chapter 12's boundary. Right: for a general six-entry diagonal, six eigenvalue trajectories all sliding downward as c grows, each staying between dotted lines marking the diagonal entries, illustrating interlacing." caption="The generalized transition's spectrum, from Proposition 13.1. Left: scalar diagonal $w_0 = 1$ — one eigenvalue slides to $w_0 - c = 1 - c$ and crosses $-1$ at $c = 2$, exactly DeltaNet's $\beta\|k\|^2 = 2$ boundary; the other $d-1$ eigenvalues stay pinned at $1$ (persistent memory). Right: a general six-entry diagonal — the rank-one downdate pushes the whole spectrum down, every eigenvalue interlacing the diagonal entries (dotted) and confined to $[\min_i w_i - c, \max_i w_i]$. Produced by companions/ch13/jax/generalized_transition.py; eigvalsh matches the scalar-diagonal closed form to a measured $6.7\times10^{-16}$ (pinned $<10^{-13}$) and the secular function zeroes at the eigenvalues to a measured $3.2\times10^{-12}$, pinned in tests/test_generalized_transition.py." />
+
+## 13.3 RWKV-7's generalized delta rule
+
+RWKV-7 <Cite key="peng2025rwkv" /> runs the generalized transition over a stream,
+$$
+S_t \;=\; S_{t-1}\bigl(\mathrm{Diag}(w_t) - c_t\, a_t a_t^\top\bigr) \;+\; u_t b_t^\top ,
+$$
+with a per-channel decay $w_t$, a unit removal direction $a_t$, a removal
+coefficient $c_t$, and a write $u_t b_t^\top$ whose key $b_t$ is decoupled from
+$a_t$. The paper's own framing is "a newly generalized formulation of the delta
+rule with vector-valued gating and in-context learning rates" — and the precise
+sense in which it *generalizes* the delta rule is a one-line reduction.
+
+<Theorem id="ch13:rwkv-reduction" type="proposition" title="The generalized rule contains the delta-rule lineage">
+Set $w_t = \gamma_t\mathbf 1$ (scalar diagonal), $a_t = k_t/\|k_t\|$ (removal
+direction = unit key), $c_t = \gamma_t\,\beta_t\,\|k_t\|^2$, and write
+$u_t b_t^\top = \beta_t\, v_t k_t^\top$. Then the generalized recurrence equals
+Gated DeltaNet's update
+$$
+S_t \;=\; \gamma_t\, S_{t-1}\,(I - \beta_t k_t k_t^\top) \;+\; \beta_t\, v_t k_t^\top
+$$
+identically. Hence plain DeltaNet ($\gamma_t \equiv 1$) and the entire Chapter 12
+lineage are the **scalar-diagonal, removal-locked-to-the-key** special case;
+RWKV-7's added freedom is precisely the per-channel diagonal $w_t$ and the
+learned direction $a_t \ne k_t$.
+</Theorem>
+
+The proof substitutes and matches: $c_t a_t a_t^\top = \gamma_t\beta_t\|k_t\|^2
+\cdot \hat k_t \hat k_t^\top = \gamma_t\beta_t\, k_t k_t^\top$, and the scalar
+diagonal contributes the $\gamma_t I$, so $\mathrm{Diag}(w_t) - c_t a_t a_t^\top
+= \gamma_t(I - \beta_t k_t k_t^\top)$ (Exercise 13.5). The companion runs the
+generalized recurrence with these parameters against Chapter 12's
+`gated_delta_recurrent` and pins the difference at $8.9 \times 10^{-16}$; the
+rank-one `lax.scan` form matches the materialized-transition Python-loop oracle
+at $5.3 \times 10^{-15}$.
+
+What does the *learned direction* buy, concretely? In Chapter 12 the only way to
+remove the association stored on a key $k_A$ was to write again with key $k_A$ —
+erasure was welded to the write. RWKV-7 can aim its rank-one removal at $k_A$
+while writing some *other*, orthogonal pair, evicting the old association without
+overwriting it. Store $(k_A, v_A)$ on a unit key, then perform $T$ writes whose
+keys are orthogonal to $k_A$:
+
+- with the removal **aimed at $k_A$** (direction $a_t = k_A$, coefficient $c$),
+  the retrieval decays as exactly $\|S_T k_A\| = (1 - c)^T\,\|v_A\|$ — eviction
+  with no overwrite;
+- with the removal **locked to the write key** (Chapter 12's $a_t = b_t \perp
+  k_A$), the orthogonal writes never touch $k_A$ and $\|S_T k_A\| = \|v_A\|$ —
+  flat, the same inert-complement fact from §13.2.
+
+The companion measures the decay at $c = 0.1$, $T = 30$ as $\|S_T k_A\| =
+0.028576$, matching $(1-c)^T\|v_A\|$ to $1.7 \times 10^{-17}$, against a flat
+locked baseline of $\|v_A\| = 0.674096$. Decoupling the erase direction from the
+key is the whole content of "generalized" — and it is what lets RWKV-7 track
+state, not merely store associations.
+
+<MarginNote>RWKV-7's paper reports that it recognizes all regular languages
+<Cite key="peng2025rwkv" /> — formal state tracking that exceeds the
+$\mathsf{TC}^0$ ceiling on what attention can express. Chapter 15 places that
+claim against the impossibility results on the other side.</MarginNote>
+
+<Figure id="ch13:fig:learned-direction" src="/figures/ch13/learned-direction.png" alt="A single plot of retrieval norm of an old key versus number of orthogonal writes T, from 0 to 90. One curve labeled Chapter 12 locked stays flat at about 0.67. A second set of points labeled RWKV-7 targeted decays smoothly toward zero, overlaid with a dashed analytic curve (1 minus c) to the T power times the value norm at c equals 0.1." caption="What freeing the removal direction buys. Storing $(k_A, v_A)$ then performing $T$ writes orthogonal to $k_A$: RWKV-7's *targeted* removal ($a_t = k_A$) evicts the old association as exactly $(1-c)^T\|v_A\|$ ($c = 0.1$; measured $0.028576$ at $T = 30$, matching the closed form to $1.7\times10^{-17}$), while Chapter 12's *key-locked* removal leaves it flat at $\|v_A\| = 0.674096$ — orthogonal writes cannot touch it. Produced by companions/ch13/jax/generalized_transition.py; pinned in tests/test_generalized_transition.py." />
+
+## 13.4 xLSTM: matrix memory and exponential gating
+
+xLSTM <Cite key="beck2024xlstm" /> arrives at the same matrix recurrence from the
+LSTM side rather than the delta-rule side. Its mLSTM cell carries a **matrix**
+memory $C_t \in \mathbb{R}^{d_v \times d_k}$ and a normalizer vector $n_t$,
+$$
+C_t = f_t\,C_{t-1} + i_t\,v_t k_t^\top, \qquad
+n_t = f_t\,n_{t-1} + i_t\,k_t, \qquad
+h_t = \frac{C_t q_t}{\max(|n_t^\top q_t|,\ 1)} ,
+$$
+written with *scalar* gates the architecture moves **inside an exponential**: the
+forget gate $f_t = \sigma(\tilde f_t) \in (0, 1]$ is bounded, but the input gate
+$i_t = \exp(\tilde i_t)$ is **not**. An unbounded input gate is the deliberate
+move: it lets a single high-surprise token's write dominate the entire running
+memory — a sharper, winner-take-more selectivity than any sigmoid can express.
+(xLSTM's other cell, sLSTM, applies the same exponential gates to a scalar memory
+with a memory-mixing recurrence; the matrix mLSTM is this chapter's subject.) That
+expressivity is exactly the source of the problem: $\exp(\tilde i_t)$ overflows
+float64 once $\tilde i_t \gtrsim 709$, and the naive recurrence then produces
+`inf`/`nan`.
+
+The fix is a **stabilizer state**, a running maximum carried in the log domain:
+$$
+m_t \;=\; \max\bigl(\log f_t + m_{t-1},\ \log i_t\bigr), \qquad m_0 = -\infty ,
+$$
+with which the gates are rescaled and the memory is carried in scaled
+coordinates $C_t \exp(-m_t)$, $n_t \exp(-m_t)$. This is the online-softmax
+running-max trick, and it is exact:
+
+<Theorem id="ch13:stabilizer-exactness" type="proposition" title="The exponential-gate stabilizer is exact, not approximate">
+Let $\bar C_t, \bar n_t$ be the naive mLSTM states with raw gates $\bar f_t =
+\exp(\log f_t)$, $\bar i_t = \exp(\log i_t)$, and define the stabilized states
+$C_t = e^{-m_t}\bar C_t$, $n_t = e^{-m_t}\bar n_t$ via the max-state $m_t$ above.
+Then:
+
+1. **(Range.)** The rescaled gates $f'_t = e^{\log f_t + m_{t-1} - m_t}$ and
+   $i'_t = e^{\log i_t - m_t}$ lie in $(0, 1]$ (because $m_t \ge \log f_t +
+   m_{t-1}$ and $m_t \ge \log i_t$ by definition of the max), so the scaled
+   recurrence $C_t = f'_t C_{t-1} + i'_t v_t k_t^\top$ never overflows.
+2. **(Exactness.)** The readout is invariant under the rescaling:
+   $$
+   \frac{\bar C_t q_t}{\max(|\bar n_t^\top q_t|,\ 1)}
+   \;=\;
+   \frac{C_t q_t}{\max(|n_t^\top q_t|,\ e^{-m_t})} .
+   $$
+   The only change is that the floor $1$ becomes $e^{-m_t}$. Wherever the naive
+   recurrence is finite the two agree to machine precision; where it overflows,
+   the stabilized one stays finite and still correct.
+</Theorem>
+
+Part 1 is the definition of the max; part 2 factors $e^{m_t}$ out of numerator
+and denominator (Exercise 13.6). The one place the rescaling is visible is the
+readout floor — the constant $1$ becomes $e^{-m_t}$ — and getting that scaling
+right is exactly what makes the stabilizer a **change of variables** rather than a
+numerical approximation: it buys range and costs nothing in the answer. The
+companion confirms both halves: in the safe regime the stabilized and naive
+readouts agree to $3.1 \times 10^{-15}$; pushed to an input log-gate of $700$,
+the naive memory reaches a peak entry of $5.9 \times 10^{303}$ — finite, but a
+hair from the ceiling — and the readouts still agree to $8.9 \times 10^{-16}$; at
+$760$ the naive recurrence overflows ($50\%$ of its readout entries become
+`nan`), while the stabilized one stays bounded (peak entry $2.5$) and exact.
+
+<MarginNote>Part 2 is the same algebra as the log-sum-exp trick and as
+attention's softmax stabilization: subtract a running max before exponentiating,
+divide it back out. xLSTM's contribution is carrying that max as a *state*
+$m_t$ so the trick survives an unbounded recurrence, not just a single
+softmax.</MarginNote>
+
+The cleanest statement of what the stabilizer guarantees is a recovery property.
+Store one pair $(k, v)$ on a unit key with input log-gate $\tilde i$, then read at
+$q = k$: the stabilized readout is *exactly* $v$, for **any** $\tilde i$. With one
+write, $C_1 = i'_1\, v k^\top$ and $n_1 = i'_1\, k$ with $i'_1 = 1$, so $h_1 =
+v\,\|k\|^2 / \max(\|k\|^2, e^{-m_1}) = v$ — the normalizer cancels the gate, which
+is what the exponential input gate is *for*. The companion stores the fixed pair
+$v = [0.3, -0.7, 1.1]$ and recovers it to $1.1 \times 10^{-16}$ even at $\tilde i
+= 800$, where the naive recurrence has long since overflowed; the Julia companion
+recovers the identical value, a cross-language anchor on the stabilized readout.
+
+This is the book's stability thread reappearing inside the architecture. Chapter
+2 asked when a state stays bounded; Chapters 5–6 answered it for integrators with
+the explicit/implicit dichotomy, and Chapter 6's implicit methods bought
+unconditional stability by solving rather than extrapolating
+(<XRef id="ch06:be-a-stable" />). xLSTM's stabilizer is the same bargain made
+*numerically*: it does not change which mathematical object the recurrence
+computes, it changes the coordinates so the computation stays in range — an
+unconditional guarantee that the matrix memory never overflows, paid for with one
+extra scalar of state.
+
+<Figure id="ch13:fig:overflow" src="/figures/ch13/stabilizer-overflow.png" alt="Two panels. Left: log base 10 of the peak memory entry versus the peak input log-gate, on a linear axis; the naive curve rises linearly and stops at a vertical line where it overflows near 710, with a dashed horizontal line at the float64 ceiling exponent of about 308, while the stabilized curve stays flat near zero. Right: the maximum readout gap between naive and stabilized versus the input log-gate on a log axis, sitting near 1e-15 below the 1e-12 pin line until a shaded region where the naive output becomes nan." caption="The exponential input gate and its stabilizer (Proposition 13.3). Left: the naive matrix memory's peak entry grows like $\exp(\tilde i)$ and overflows float64 at $\tilde i \approx 710$ (vertical line; ceiling $\sim 10^{308}$ dashed), while the stabilized memory stays $O(1)$. Right: where the naive recurrence survives the two readouts agree to $\sim 10^{-15}$ (the change-of-variables exactness), and past the overflow cliff the naive output is `nan` while the stabilized one remains exact. Produced by companions/ch13/jax/xlstm.py; the safe-regime gap is pinned $<10^{-12}$ and the overflow behavior in tests/test_xlstm.py." />
+
+## 13.5 Stability, the trigger taxonomy, and the production lineup
+
+Both architectures put a stability question inside the state — but in two
+different *registers*, and the difference is the point. RWKV-7's is *dynamical*:
+the generalized transition contracts only when the diagonal decays and the
+rank-one removal stays within the boundary <XRef id="ch13:generalized-spectrum" />
+draws — the explicit-method story from Chapter 12, now per-channel, a statement
+about the *trajectory* of the state. xLSTM's is *numerical*: the exponential gate
+would overflow, and the max-state stabilizer is an in-state guarantee that it does
+not — not a claim about the dynamics at all, but about keeping the *computation*
+in float range, the implicit method's unconditional-stability bargain made about
+representation rather than about the step. Chapter 15 returns to both with
+diagnostic tools (Lyapunov exponents, regime detection) that measure these
+stabilities on *trained* networks rather than asserting them at the architecture
+level.
+
+There is a taxonomy worth closing here. Chapter 14 organized gates by *what
+triggers a memory write* — the input (content), the output, the position in the
+data stream (<XRef id="ch14:gate-granularity" />). xLSTM's exponential input gate
+is the sharpest *input*-triggered write in production. The remaining class is
+triggered by neither input nor position but by the model's own **loss**: the
+Titans line <Cite key="behrouz2025titans" /> writes to a neural long-term memory
+at *test time*, taking a gradient step on a surprise objective as it reads — a
+memory whose update rule is itself learned and fired by prediction error. That
+makes it a fourth trigger class (the *loss*), and it lives on a matrix memory of
+exactly the kind this chapter studies; its test-time-training mechanics are a
+distinct enough subject that this book names and places the trigger class here but
+does not pursue the test-time-training machinery further.
+
+In production as of mid-2026 these are not toys: xLSTM has been trained at the
+$7$B-parameter scale and RWKV-7 ("Goose") at $2.9$B, the latter reaching
+state-of-the-art multilingual performance at its size on dramatically fewer
+training tokens than comparable models <Cite key="peng2025rwkv" />. The
+diagonal-plus-rank-one transition and the exponential-gate stabilizer are not
+pedagogical simplifications — they are what these models run.
+
+## 13.6 What's next
+
+Chapter 14 has already mixed these layers with attention into production hybrids,
+where the layer-ratio and gate-granularity decisions become design variables;
+Chapter 16 built the methodology that measures them honestly. The natural sequel
+to *this* chapter is **Chapter 15**, the counter-evidence file: it takes the
+stability questions raised here — when does a matrix memory's recurrence stay
+bounded, and what can it provably *not* do — and turns them into diagnostics
+(Lyapunov exponents, effective state size) and impossibility results (the
+$\mathsf{TC}^0$ ceiling RWKV-7's state-tracking claim brushes against). The
+generalized transition and the stabilizer state are the objects those diagnostics
+will probe.
+
+## 13.7 Exercises
+
+### Exercise 13.1 (short)
+
+For the scalar-diagonal transition $A = I - c\,aa^\top$ (so $w_0 = 1$, $a$ unit),
+use <XRef id="ch13:generalized-spectrum" /> to give the spectral radius $\rho(A)$
+at $c = 0.5$, $c = 1.0$, and $c = 2.5$. Which is non-contractive, and why is
+$\rho(A) \ge 1$ for *every* $c$ at this diagonal?
+
+<details>
+<summary>Solution</summary>
+
+The spectrum is $\{1 - c\}\cup\{1\}^{d-1}$, so $\rho = \max(1, |1 - c|)$. At
+$c = 0.5$: $\max(1, 0.5) = 1$. At $c = 1.0$: $\max(1, 0) = 1$. At $c = 2.5$:
+$\max(1, 1.5) = 1.5$ — non-contractive (the iteration diverges, exactly forward
+Euler past its boundary). The radius is $\ge 1$ for every $c$ because the $d-1$
+directions orthogonal to $a$ sit at eigenvalue $1$: with the diagonal pinned at
+$w_0 = 1$ there is no per-channel decay, so the rank-one removal can shrink only
+the single direction $a$. Strict contraction requires diagonal entries $w_i < 1$
+— the role of RWKV-7's vector-valued $w_t$.
+</details>
+
+### Exercise 13.2 (short, code)
+
+Run `companions/ch13/jax/generalized_transition.py`. Report the P3 reduction
+error (generalized rule vs Chapter 12's gated DeltaNet) and the decoupled-eviction
+measurement at $c = 0.1$, $T = 30$: the targeted retrieval norm and the locked
+baseline. What does the gap between them demonstrate?
+
+<details>
+<summary>Solution</summary>
+
+The reduction error is $8.9 \times 10^{-16}$ — the generalized recurrence
+reproduces gated DeltaNet to machine precision, confirming
+<XRef id="ch13:rwkv-reduction" />. The eviction run reports targeted $\|S_T k_A\|
+= 0.028576$ (matching $(1-0.1)^{30}\|v_A\|$ to $1.7\times10^{-17}$) against a
+locked baseline of $0.674096 = \|v_A\|$. The gap demonstrates the payoff of the
+*learned direction*: RWKV-7 can evict an old key by aiming its removal at it,
+while Chapter 12's key-locked removal — under writes orthogonal to $k_A$ — leaves
+the association untouched. Decoupling the erase direction from the key is what
+"generalized" means.
+</details>
+
+### Exercise 13.3 (short, code)
+
+Run `companions/ch13/jax/xlstm.py`. Report the safe-regime readout gap between the
+naive and stabilized recurrences, and the single-pair recovery error at input
+log-gate $800$. Why is the recovery error not affected by the gate's magnitude?
+
+<details>
+<summary>Solution</summary>
+
+The safe-regime readout gap is $3.1 \times 10^{-15}$ (the change-of-variables
+exactness of <XRef id="ch13:stabilizer-exactness" />), and single-pair recovery at
+$\tilde i = 800$ returns the stored value to $1.1 \times 10^{-16}$ — even though
+$\exp(800)$ overflows float64 and the naive recurrence is `nan` there. The
+magnitude does not matter because the readout is a *ratio*: a single write makes
+$C_1 = i'_1 v k^\top$ and $n_1 = i'_1 k$ with the *same* rescaled gate $i'_1 = 1$,
+and reading at $q = k$ gives $C_1 k / \max(|n_1^\top k|, e^{-m_1}) = v$. The
+normalizer cancels the input gate exactly — which is precisely what an
+unbounded input gate needs in order to be usable.
+</details>
+
+### Exercise 13.4 (theory) — solution in §13.8
+
+Prove part 1 of <XRef id="ch13:generalized-spectrum" />. Using the matrix-
+determinant lemma $\det(M + uv^\top) = \det(M)(1 + v^\top M^{-1} u)$, derive the
+secular equation $f(\lambda) = 1 - c\sum_i a_i^2/(w_i - \lambda) = 0$ for the
+eigenvalues of $\mathrm{Diag}(w) - c\,aa^\top$ away from the diagonal entries, and
+specialize to $w = w_0\mathbf 1$ to recover the scalar-diagonal spectrum.
+
+### Exercise 13.5 (theory) — solution in §13.8
+
+Prove <XRef id="ch13:rwkv-reduction" />. Substitute $w_t = \gamma_t\mathbf 1$,
+$a_t = k_t/\|k_t\|$, $c_t = \gamma_t\beta_t\|k_t\|^2$, $u_t b_t^\top = \beta_t v_t
+k_t^\top$ into the generalized recurrence and show term-by-term that it equals
+Gated DeltaNet's update. Identify which special case recovers plain DeltaNet, and
+which two degrees of freedom RWKV-7 adds over it.
+
+### Exercise 13.6 (theory) — solution in §13.8
+
+Prove <XRef id="ch13:stabilizer-exactness" />. (a) Show $f'_t, i'_t \in (0, 1]$
+from the definition of $m_t$. (b) By induction, show $C_t = e^{-m_t}\bar C_t$ and
+$n_t = e^{-m_t}\bar n_t$ where $\bar C_t, \bar n_t$ are the raw-gate states. (c)
+Conclude the readout identity, and explain why the constant floor $1$ must become
+$e^{-m_t}$ rather than staying $1$.
+
+## 13.8 Full solutions to theory exercises
+
+### Solution to Exercise 13.4
+
+Write $A = \mathrm{Diag}(w) - c\,a a^\top$ and fix $\lambda \notin \{w_i\}$, so
+$\mathrm{Diag}(w) - \lambda I$ is invertible. Apply the matrix-determinant lemma
+with $M = \mathrm{Diag}(w) - \lambda I$, $u = a$, $v = -c\,a$:
+$$
+\det(A - \lambda I) = \det(M)\,\bigl(1 - c\,a^\top M^{-1} a\bigr)
+= \prod_i (w_i - \lambda)\,\Bigl(1 - c\sum_i \frac{a_i^2}{w_i - \lambda}\Bigr) .
+$$
+Since $\prod_i(w_i - \lambda) \ne 0$ for $\lambda \notin \{w_i\}$, the eigenvalues
+there are exactly the roots of $f(\lambda) = 1 - c\sum_i a_i^2/(w_i - \lambda)$.
+(A diagonal entry $w_j$ is itself an eigenvalue iff $a_j = 0$, with eigenvector
+$e_j$; then the $j$-term drops out of $f$.) On each interval between consecutive
+distinct $w_i$, $f$ is continuous and strictly monotone with poles of opposite
+sign at the endpoints, giving exactly one root per gap — the interlacing — and
+because $c \ge 0$ shifts $f$ so that all roots lie at or below the corresponding
+$w_i$, the spectrum sits in $[\min_i w_i - c, \max_i w_i]$.
+
+For $w = w_0\mathbf 1$: $\mathrm{Diag}(w) - c aa^\top = w_0 I - c\,aa^\top$. Any
+vector orthogonal to $a$ is an eigenvector with eigenvalue $w_0$ (the rank-one
+term annihilates it), giving multiplicity $d - 1$; and $a$ itself is an
+eigenvector, $(w_0 I - c aa^\top)a = (w_0 - c)a$ since $\|a\| = 1$. So the
+spectrum is $\{w_0 - c\}\cup\{w_0\}^{d-1}$ and $\rho = \max(|w_0|, |w_0 - c|)$. At
+$w_0 = 1$, $\rho = \max(1, |1 - c|)$, equal to $|1 - c|$ once $c \ge 0$ pushes the
+moving eigenvalue below $1$; with $c = \beta\|k\|^2$ this is DeltaNet's $|1 -
+\beta\|k\|^2|$ in the write direction, and $\rho > 1$ exactly when $c > 2$.
+$\blacksquare$
+
+### Solution to Exercise 13.5
+
+The generalized recurrence is $S_t = S_{t-1}(\mathrm{Diag}(w_t) - c_t a_t a_t^\top) + u_t b_t^\top$. Substitute the four assignments. The diagonal term is
+$S_{t-1}\,\mathrm{Diag}(\gamma_t\mathbf 1) = \gamma_t S_{t-1}$. The rank-one term
+is
+$$
+c_t\, a_t a_t^\top = \gamma_t\beta_t\|k_t\|^2 \cdot \frac{k_t}{\|k_t\|}\frac{k_t^\top}{\|k_t\|}
+= \gamma_t\beta_t\, k_t k_t^\top ,
+$$
+so $S_{t-1}(\mathrm{Diag}(w_t) - c_t a_t a_t^\top) = \gamma_t S_{t-1} -
+\gamma_t\beta_t\, S_{t-1} k_t k_t^\top = \gamma_t S_{t-1}(I - \beta_t k_t
+k_t^\top)$. The write term is $u_t b_t^\top = \beta_t v_t k_t^\top$. Adding gives
+$$
+S_t = \gamma_t S_{t-1}(I - \beta_t k_t k_t^\top) + \beta_t v_t k_t^\top ,
+$$
+which is exactly Gated DeltaNet's update (<XRef id="ch12:stability-dichotomy" />).
+Setting $\gamma_t \equiv 1$ (equivalently $w_t = \mathbf 1$) recovers plain
+DeltaNet, $S_t = S_{t-1}(I - \beta_t k_t k_t^\top) + \beta_t v_t k_t^\top$. The two
+degrees of freedom RWKV-7 adds over the lineage are (i) the **per-channel
+diagonal** $w_t$ in place of the scalar $\gamma_t$ — vector-valued forgetting,
+the strict-contraction lever of §13.2 — and (ii) the **learned removal direction**
+$a_t \ne k_t/\|k_t\|$, which decouples erasure from the write key (§13.3).
+$\blacksquare$
+
+### Solution to Exercise 13.6
+
+**(a)** By definition $m_t = \max(\log f_t + m_{t-1}, \log i_t)$, so $m_t \ge \log
+f_t + m_{t-1}$ and $m_t \ge \log i_t$. Hence $\log f_t + m_{t-1} - m_t \le 0$ and
+$\log i_t - m_t \le 0$, so $f'_t = e^{\log f_t + m_{t-1} - m_t} \in (0, 1]$ and
+$i'_t = e^{\log i_t - m_t} \in (0, 1]$. Both are positive (exponentials) and at
+most $1$.
+
+**(b)** Induct on $t$. At $t = 0$, $\bar C_0 = C_0 = 0$ and $m_0 = -\infty$ gives
+$e^{-m_0} = 0$, consistent with the convention that the first write ($f'_1 = 0$)
+discards the empty initial state. Assume $C_{t-1} = e^{-m_{t-1}}\bar C_{t-1}$.
+Then
+$$
+C_t = f'_t C_{t-1} + i'_t v_t k_t^\top
+= e^{\log f_t + m_{t-1} - m_t} e^{-m_{t-1}}\bar C_{t-1} + e^{\log i_t - m_t} v_t k_t^\top
+= e^{-m_t}\bigl(\bar f_t \bar C_{t-1} + \bar i_t v_t k_t^\top\bigr)
+= e^{-m_t}\bar C_t ,
+$$
+using $\bar f_t = e^{\log f_t}$, $\bar i_t = e^{\log i_t}$. The identical
+computation gives $n_t = e^{-m_t}\bar n_t$.
+
+**(c)** Substitute $\bar C_t = e^{m_t}C_t$ and $\bar n_t = e^{m_t}n_t$ into the
+naive readout:
+$$
+\frac{\bar C_t q_t}{\max(|\bar n_t^\top q_t|, 1)}
+= \frac{e^{m_t} C_t q_t}{\max(e^{m_t}|n_t^\top q_t|, 1)}
+= \frac{e^{m_t} C_t q_t}{e^{m_t}\max(|n_t^\top q_t|, e^{-m_t})}
+= \frac{C_t q_t}{\max(|n_t^\top q_t|, e^{-m_t})} .
+$$
+The floor must scale to $e^{-m_t}$: the constant $1$ inside the naive $\max$ lives
+in *unscaled* coordinates, and factoring $e^{m_t}$ out of the denominator divides
+it down to $e^{-m_t}$. Keeping the floor at $1$ in scaled coordinates would change
+the readout whenever the normalizer is small — the floor is the one place the
+change of variables is visible, and getting it right is what makes the stabilizer
+exact rather than approximate. $\blacksquare$
+
+## 13.9 Companion code
+
+The companions live in `companions/ch13/{jax,torch,julia}` and are float64
+throughout; the JAX modules are canonical, the torch modules mirror their scoring
+paths with cross-framework parity pinned $<10^{-9}$, and the Julia module
+cross-checks the stabilizer.
+
+- **`jax/generalized_transition.py`** — the diagonal-plus-rank-one transition, its
+  spectrum (`eigvalsh` against the scalar-diagonal closed form and the secular
+  equation, <XRef id="ch13:generalized-spectrum" />), the generalized delta-rule
+  recurrence (rank-one `lax.scan` vs a materialized-transition Python-loop oracle),
+  the exact reduction to Chapter 12's gated DeltaNet
+  (<XRef id="ch13:rwkv-reduction" />), and the decoupled-eviction demo. Produces
+  `transition-spectrum.png` and `learned-direction.png`.
+- **`jax/xlstm.py`** — the mLSTM matrix-memory recurrence, the naive
+  (overflow-prone) and log-domain-stabilized forms, the change-of-variables
+  exactness (<XRef id="ch13:stabilizer-exactness" />), the overflow cliff, and the
+  single-pair recovery anchor. Produces `stabilizer-overflow.png`.
+- **`torch/{generalized_transition,xlstm}.py`** — eager mirrors of the scoring
+  paths, pinned to the JAX outputs in `torch/tests/test_ch13_torch.py`.
+- **`julia/xlstm_stabilization.jl`** — a stdlib-only cross-language check of the
+  stabilizer: the same P2 exactness, gate boundedness, overflow behavior, and the
+  single-pair recovery of $v = [0.3, -0.7, 1.1]$ at input log-gate $800$.
+
+```bash
+PYTHONPATH=. python companions/ch13/jax/generalized_transition.py
+PYTHONPATH=. python companions/ch13/jax/xlstm.py
+make companion-jax-tests          # all chapters' JAX suites
+make companion-torch-tests        # JAX↔torch parity
+julia --project=companions/ch13/julia companions/ch13/julia/runtests.jl
+```

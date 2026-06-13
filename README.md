@@ -2,7 +2,7 @@
 
 A lens-led 17-chapter foundations book for post-transformer sequence-model architectures, foregrounding the dynamical-systems perspective: continuous-time math first, then discretization theory, then the SSM family and its delta-rule / gating / hybrid cousins.
 
-> **Status — alpha (updated 2026-06-11)**: Chapters 1–12, 14, and 16 are authored (`status: implemented`) — the foundations (1–6) and SSM-core (7–10) lines, the first two beyond-SSM chapters (11, linear attention + Hyena; 12, the delta-rule lineage), and the integration pair anchoring pilot B (14, hybrid architectures and gating; 16, empirical methodology — with which B's book-side prerequisites are complete); Ch 13, 15, and 17 are planned stubs. Expect breaking changes to structure and prose. Pre-release banner is live site-wide. Substantive feedback welcome via issues.
+> **Status — alpha (updated 2026-06-13)**: Chapters 1–14 and 16 are authored (`status: implemented`) — the foundations (1–6) and SSM-core (7–10) lines, the beyond-SSM chapters (11, linear attention + Hyena; 12, the delta-rule lineage; 13, exponential gates and matrix memory — xLSTM and RWKV-7), and the integration pair anchoring pilot B (14, hybrid architectures and gating; 16, empirical methodology — with which B's book-side prerequisites are complete); Ch 15 and 17 are planned stubs. Expect breaking changes to structure and prose. Pre-release banner is live site-wide. Substantive feedback welcome via issues.
 
 ---
 
@@ -40,7 +40,7 @@ A lens-led 17-chapter foundations book for post-transformer sequence-model archi
 | 10 | `implemented` | ssm-core | Mamba-3 and the exponential-trapezoidal integrator |
 | 11 | `implemented` | beyond-ssm | Linear attention and Hyena |
 | 12 | `implemented` | beyond-ssm | Delta-rule lineage: DeltaNet, Gated DeltaNet, Kimi Linear |
-| 13 | `planned` | beyond-ssm | Exponential gates and matrix memory: xLSTM, RWKV-7 |
+| 13 | `implemented` | beyond-ssm | Exponential gates and matrix memory: xLSTM, RWKV-7 |
 | 14 | `implemented` | integration | Hybrid architectures and gating mechanisms |
 | 15 | `planned` | integration | Counter-evidence and diagnostic tools |
 | 16 | `implemented` | integration | Empirical methodology: benchmark protocols and evaluation |
