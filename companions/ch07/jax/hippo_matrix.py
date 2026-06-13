@@ -33,8 +33,9 @@ HiPPO-LegS construction ported from
 ``post_transformers/experiments/jax/week04/s4_hippo.py`` (``make_hippo_legs``), which
 in turn follows ``experiments/refs/s4/src/models/hippo/hippo.py`` (Gu et al., 2020,
 arXiv:2008.07669) and the Annotated S4. We switch float32 -> float64 to match this
-book's global ``jax_enable_x64`` (Chapter 4) and to keep the §7.5 conditioning demo
-honest at larger $N$.
+book's global ``jax_enable_x64`` (Chapter 4) and to keep the eigenvalue
+computation accurate at larger $N$ (HiPPO-LegS is highly non-normal — §7.5 — so
+its spectrum is sensitive in low precision).
 
 Output
 ------
@@ -55,8 +56,9 @@ from pathlib import Path
 
 import jax
 
-# Enable float64 before any jnp array is created (matches Chapter 4). The §7.5
-# conditioning story needs the extra precision once N grows past ~32.
+# Enable float64 before any jnp array is created (matches Chapter 4). HiPPO-LegS's
+# §7.5 non-normality makes its spectrum sensitive, so the eigenvalue figure needs
+# the extra precision once N grows past ~32.
 jax.config.update("jax_enable_x64", True)
 
 import jax.numpy as jnp  # noqa: E402
