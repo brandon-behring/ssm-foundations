@@ -78,7 +78,7 @@ check-xrefs:
 # companions/ch04/julia/runtests.jl.
 
 companion-julia-tests:
-	@for ch in ch05 ch06 ch07 ch10 ch11 ch12 ch13 ch15; do \
+	@for ch in ch05 ch06 ch07 ch10 ch11 ch12 ch13 ch15 ch17; do \
 		echo "==> $$ch julia tests"; \
 		julia --project=companions/$$ch/julia companions/$$ch/julia/runtests.jl || exit 1; \
 	done

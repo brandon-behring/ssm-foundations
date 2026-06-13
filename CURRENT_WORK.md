@@ -3,52 +3,49 @@
 One-screen resume context (the `sessions.md` §1 pattern). Update on context switch / session end.
 For the durable index, see the Claude Code project-memory `MEMORY.md`.
 
-**Right now:** Ch 1–16 `implemented`, shipped, and deployed. Ch 15 (counter-evidence and
-diagnostic tools — integration, "the prosecution's file") authored vertical 2026-06-13 —
-greenfield JAX companions (`copying_bound` + `lyapunov_diagnostics`, 25 tests) + torch parity
-mirror (11 tests) + a stdlib **Julia** QR-Lyapunov cross-check (12 tests), three figures, +3 bib
-adds (Merrill–Petty–Sabharwal illusion-of-state; Merrill–Sabharwal TC⁰/parallelism; Bick–Xing–Gu
-Gather-and-Aggregate), all four review subagents run and findings fixed pre-ship. **Impossibility-first**
-arc: a *cited-not-proven* ceiling (TC⁰, the illusion of state, the copying separation) plus three
-*proven* propositions — (1) an **architecture-agnostic capacity bound** (pigeonhole; ch11's rank
-wall and ch16's slot model are *instances* it backward-refs, not a re-derivation — the
-duplication-trap → higher-altitude lesson), (2) the **Lyapunov estimator** (recovery O(1/T); the
-divergence identity Σλ=⟨log|det J|⟩ exact; the resolution limit is about *coupling/non-normality*,
-not degeneracy — S4D-Lin's degenerate-but-decoupled spectrum recovers exactly, ch2's non-normal
-ring scatters), (3) **regime separation via effective state size** with a two-route
-(algebraic↔dynamical) anti-circularity cross-check. All diagnostics validated on *constructed*
-systems; trained-model probing is pilot B's program. No pilot milestone rides on Ch 15 (C1 closed
-at Ch 10, B at Ch 16) — but it builds the instruments B uses.
+**Right now:** **The book is content-complete (M6).** All **Ch 1–17 `implemented`, shipped, and
+deployed.** Ch 17 (niche-pilot integration — synthesis, the crown-jewel/last chapter) authored
+vertical 2026-06-13: two JAX **integration companions** that *compose* shipped instruments —
+`c1_integration` (the C1 symplectic atlas cell: ch6 Verlet/RK4 × ch10 complex-mode SSM) and
+`b_integration` (the B disentanglement pipeline: ch14 HMM → ch16 protocol → ch15 effective state
+size) — plus a stdlib **Julia** C1 symplectic energy cross-check (no torch by design — compositions
+introduce no new kernel); two figures; **+0 bib** (all anchors present); all four review subagents
+run and findings fixed. Two NEW integrated signatures (the Ch-15 duplication-trap guard): **C1** —
+on a conservative SSM mode the diagonal exact-exponential dominates both Verlet and RK4, so the
+symplectic advantage bites only *off-diagonal* (the pilot's real question); **B** — effective state
+size ↔ regime-probe accuracy ↔ cross-entropy cohere monotonically across the predictor family.
+**Honest boundary**: every demo is on *idealized* systems; trained-model results are the pilots'
+forthcoming program (forward-ref'd to post_transformers). PR #31-or-next, merge = M6.
 
-**Why:** The six-chapter campaign (approved 2026-06-10) ran in the refined order
-**12 → 14 → 16 → 13 → 15 → 17**. 12, 14, 16, 13, 15 are done — **one chapter left**.
+**Why:** the six-chapter campaign (approved 2026-06-10, order **12 → 14 → 16 → 13 → 15 → 17**) is
+**COMPLETE — 6/6.** The 17-chapter book is content-complete; cadence proven **11×** (Ch 7–17).
 
-**Next step:** **Ch 17 — *Niche-pilot integration*** (synthesis, the campaign's last chapter).
-Start with the playbook step-0: brief at `docs/briefs/ch17-<slug>.md` + `/exploring-options`.
-**Step-0 flag:** the standard 6-content-section skeleton may not fit a synthesis chapter — decide a
-sanctioned STYLE §13 deviation *deliberately* at kickoff (Ch 1 and Ch 5 are the precedents). Ch 17
-integrates the two research pilots (C1 symplectic integrators; B two-timescale benchmarks): it takes
-Ch 15's diagnostic toolkit and Ch 16's benchmark protocol and points them at the pilots, and weighs
-Ch 15's counter-evidence against the fourteen chapters of construction. Likely low new-companion
-weight (it composes existing instruments); confirm at kickoff. C1 draws on Ch 1–3 + 6 + 10; B on
-Ch 12 + 14 + 15 + 16.
+**Next step:** **No next chapter.** The work shifts to the **post-M6 beta gate** (no longer
+dependency-blocked — elect when ready):
+- Retroactive `claim-skeptic` sweep over **Ch 1–10** (the forward gate only ran Ch 11–17) — a
+  Workflow fan-out candidate, needs explicit opt-in.
+- `citation-link-auditor` repo-wide sweep (bibkey hygiene + `<Cite>` resolution + cross-repo URL
+  freshness) — bib is 67 entries, last +3 at Ch 15.
+- STYLE.md §8 companion-section shape refresh (stale vs ch14/16/17 lived practice).
+- Toolkit re-bumps if upstream `book-scaffold-astro` #126 (auto-numbered headings) / #135 ship;
+  issues #26 (generate-status `--check` only checks the date), #14 (landing subtitle), #1 / #4.
+- The **pilots execute empirically** in `post_transformers` (C1 symplectic_atlas, B twotimescale);
+  Ch 17 shipped their integrated templates. Surfaced to post_transformers as the M6 notification.
 
 **Context when I return:**
-- Per-chapter cadence: brief → `/exploring-options` (4 standing questions) → companions-first →
-  prose → wire-up → all four review subagents → one PR (doc-sync rides IN it) → merge=deploy →
-  memory updates. Gates: `make check` / `make check-local-torch` + the companion suites +
-  `npm run build` (the only MDX compiler — validate does NOT compile MDX).
-- **MDX gotchas (both seen this campaign):** (1) keep every inline `$...$` span on ONE physical line
-  — a wrap whose continuation *starts* with `-`/`+`/`*` breaks acorn (the ch13 failure). (2) an
-  unquoted `description:` containing `: ` (colon-space) is parsed as a YAML mapping → "bad
-  indentation" build error (the ch15 failure — rephrase to drop the colon, or quote). Also: matplotlib
-  figure labels use mathtext, not KaTeX — `\*` is invalid there (use `^*`).
-- Open quality items (non-blocking): retroactive `claim-skeptic` sweep over Ch 1–10 (DASHBOARD
-  trust note; claim-skeptic now exercised Ch 11–16) — slot before any beta promotion; STYLE.md §8
-  companion-section shape is stale vs ch14/ch16 lived practice (Track-C doc touch); issue #26
-  (generate-status `--check` only validates the Verified date); issue #14 (landing subtitle) blocked
-  on upstream #135; upstream #126 (auto-numbered headings) — re-bump when it ships; issues #1
-  (standards hardening, P2) / #4 (ch04 Julia in default gate, P3).
-- Post-ship checklist (drift guard): a chapter-ship PR must update CLAUDE.md status lines, README
-  (banner + table row), `docs/DASHBOARD.md` (row + verified + trust notes), regenerate
-  `docs/STATUS.md`, and refresh this file.
+- Per-chapter cadence (for reference / future books): brief → `/exploring-options` (4 questions) →
+  companions-first → prose → wire-up → all four review subagents → one PR (doc-sync rides IN it) →
+  merge=deploy → memory. Gates: `make check-local-torch` + `npm run build` (the only MDX compiler).
+- **MDX/gotcha catalog (the full campaign's lessons):** every inline `$...$` span on ONE physical
+  line (a `-`/`+`/`*`-leading wrapped continuation breaks acorn — ch13); an unquoted frontmatter
+  `description:` containing `: ` breaks the build (YAML map — ch15); **the validator greps for
+  `<Theorem` even inside `{/* */}` macros comments → never write the literal `<Theorem>` in a
+  comment, use "Theorem" without brackets (ch17)**; matplotlib mathtext ≠ KaTeX (`\*` invalid, use
+  `^*`); never hard-code Theorem numbers (XRef self-refs; no XRef inside Figure captions).
+- **Synthesis-chapter pattern (ch17):** integration companions COMPOSE existing instruments into a
+  NEW measured signature (reductions-to-components are consistency checks, not the headline);
+  status:implemented needs prose+exercises+companions, NOT theorems (0 is fine); STYLE §13
+  positional accommodation for <6 content sections (Ch 5 precedent); verify numerical behavior
+  empirically before stating it (the secular-vs-endpoint metric distinction).
+- Post-ship checklist (drift guard): a chapter PR updates CLAUDE.md status lines, README (banner +
+  row), `docs/DASHBOARD.md` (row + verified + trust notes), regen `docs/STATUS.md`, refresh this file.

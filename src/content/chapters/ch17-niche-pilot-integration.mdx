@@ -2,14 +2,393 @@
 week: 17
 part: synthesis
 title: 'Niche-pilot integration: from curriculum to research output'
-status: planned
-description: How the 17-chapter foundations map to the C1 + B pilots and the broader 13-niche portfolio.
+status: implemented
+description: The crown-jewel chapter — how the 17-chapter curriculum composes into the two research pilots (C1 symplectic integrators, B two-timescale benchmarks) and the broader 13-niche portfolio, with the instruments of Chapters 6, 10, 14, 15, and 16 run end-to-end on idealized systems as the reproducible template the pilots fill with trained-model data.
+provenance:
+  ai_tools:
+    - Claude Code
+  citation_backstop: research-kb
 ---
 
-import PreReleaseBanner from '@brandon_m_behring/book-scaffold-astro/components/PreReleaseBanner.astro';
+import NoteBox from '@brandon_m_behring/book-scaffold-astro/components/NoteBox.astro';
+import Cite from '@brandon_m_behring/book-scaffold-astro/components/Cite.astro';
+import MarginNote from '@brandon_m_behring/book-scaffold-astro/components/MarginNote.astro';
+import Figure from '@brandon_m_behring/book-scaffold-astro/components/Figure.astro';
+import XRef from '@brandon_m_behring/book-scaffold-astro/components/XRef.astro';
 
-<PreReleaseBanner state="alpha" message="Chapter 17 is planned; not yet authored. See description above for scope. Authoring sequence: Ch 1–3 (foundations) → Ch 4–6 (discretization thread for C1) → remaining chapters per pilot needs." />
+{/*
+  Math macros (auto-loaded via ssmMacros). Chapter-local symbols (declared in prose):
+    H = 0.5(q^2 + p^2) — harmonic-oscillator energy (a Mamba-3 imaginary mode);
+    z = q + ip — the complex-mode state, z' = -i z;  dt — step size;
+    D_eff — effective state size (Chapter 15);  T(eps), M(lambda) — regime-propagation operators;
+    C1 — symplectic-integrators pilot;  B — two-timescale-benchmarks pilot.
+  This is a synthesis chapter: no new Theorem blocks (it composes prior results); ~5 content
+  sections under the STYLE §13 positional rule (the Ch 5 precedent).
+*/}
 
 # Niche-pilot integration: from curriculum to research output
 
-This chapter is planned. See the [chapter-at-a-glance](https://github.com/brandon-behring/post_transformers/blob/main/notes/foundations_curriculum_design_2026_05_20.md) (foundations §3) for the full design; the [crosswalk](https://github.com/brandon-behring/post_transformers/blob/main/notes/foundations_curriculum_design_2026_05_20.md) (foundations §22) maps this chapter to the relevant post_transformers/roadmap.md weeks.
+<NoteBox title="Chapter 17 — at a glance">
+**Goal**: close the book by showing the dynamical-systems lens is a *research instrument*. The
+sixteen preceding chapters built a vocabulary; this chapter composes it — the symplectic
+integrators of Chapter 6, the complex-mode SSM of Chapter 10, the two-timescale task of Chapter 14,
+the diagnostics of Chapter 15, the protocol of Chapter 16 — into the two research pilots the
+curriculum was designed around (C1, symplectic integrators; B, two-timescale benchmarks), and maps
+the broader 13-niche portfolio the pilots are drawn from.
+
+**Reading time**: ~40 minutes prose; ~1.5 hours with the companions.
+
+**Key insight**: **the instruments compose, and their composition is the integration.** Two worked
+demonstrations carry the chapter — a symplectic *atlas cell* (which integrator best preserves an
+SSM mode's energy?) and an end-to-end *disentanglement pipeline* (does a predictor's effective state
+size govern how well it separates fast from slow?). Each runs on the book's *idealized* systems and
+produces a measured signature no single prior chapter produced. The empirical payoff — running these
+on *trained* checkpoints — is the pilots' forthcoming program, so the chapter's verdict on "what the
+lens earned" is deliberately provisional.
+
+**This is the final chapter.** It does not look ahead to more curriculum; it looks *outward*, to the
+research the curriculum exists to enable. Where the work goes next (§17.6) is the pilots' empirical
+execution, tracked in the predecessor repository.
+</NoteBox>
+
+## 17.1 What the dynamical-systems lens set out to earn
+
+The book's thesis has been a single sentence applied sixteen times: **a sequence layer is a
+dynamical system, and you understand it by reading its state.** A linear recurrence is a discretized
+ODE (<XRef id="ch01:def:matexp" />); its stability is the spectrum of its transition
+(<XRef id="ch02:def:lyap" />); its capacity is the rank of its state
+(<XRef id="ch11:linattn-capacity" />); its expressive ceiling is a circuit class
+(<XRef id="ch15:capacity-bound" />). The claim was never that this lens is the only one — it is that
+it *earns its keep* as a research instrument, letting a numerical analyst ask questions about
+sequence models in their native vocabulary.
+
+A thesis like that is proven by use, not assertion. The curriculum was designed around two research
+pilots that put the lens to work, and this chapter is where the book's pieces compose into them:
+
+- **C1 — symplectic and geometric integrators for SSMs** (the primary pilot): does a trained SSM's
+  transition have enough Hamiltonian structure that a *structure-preserving* integrator would beat
+  the exp-trapezoidal default of Mamba-3? This is the question only the geometric-integration lens
+  can ask (Chapters 1–3, 6, 10).
+- **B — synthetic two-timescale benchmarks** (the parallel pilot): can an architecture cleanly
+  *disentangle* a fast process from a slow one, and does its effective state size predict whether it
+  can? This composes the singular-perturbation view <Cite key="kokotovic1986singular" /> (Chapter 14), the diagnostics (Chapter 15), and
+  the protocol (Chapter 16).
+
+Two boundaries govern everything that follows, and the chapter marks them everywhere. First,
+**cited versus demonstrated**: results we prove or measure are ours; the deep ceilings (the
+$\mathsf{TC}^0$ impossibility, <Cite key="merrill2024illusion" />) are cited. Second, and more
+load-bearing here, **idealized versus trained**: every demonstration in this chapter runs on a
+*constructed* system with a known answer — an oscillator mode, a known HMM. Turning these
+instruments on *trained* checkpoints is the pilots' empirical program, in flight, not reported here.
+The chapter ships the reproducible *template*; the data is forthcoming.
+
+## 17.2 C1 — symplectic integrators, and an atlas cell
+
+Chapter 6 built the modified-Hamiltonian theory of symplectic integration <Cite key="hairer2006geometric" />
+(<XRef id="ch06:symplectic-modified-hamiltonian" />): a symplectic step conserves a perturbed energy
+exactly, so its energy error stays in a bounded band forever, while a non-symplectic step of the
+same order lets energy drift secularly (<XRef id="ch06:fig:energy-drift" />). Chapter 10 built
+Mamba-3's complex-mode SSM <Cite key="lahoti2026mamba3" /> and its exp-trapezoidal discretization
+(<XRef id="ch10:exp-trap-order" />, <XRef id="ch10:rope-complex-equivalence" />). The C1 pilot's
+opening question fuses them: *if a trained SSM mode is near-conservative, is the exp-trapezoidal rule
+leaving structure on the table that a symplectic integrator would keep?*
+
+The bridge is exact. The harmonic oscillator $\dot q = p,\ \dot p = -q$, written as a complex state
+$z = q + ip$, obeys $\dot z = -iz$ — a Mamba-3 complex mode at the purely imaginary eigenvalue
+$\lambda = -i$. **A near-conservative SSM mode is the same mathematics on a new object, not an
+analogy** — which is what makes C1 a *direct transfer* of the geometric-integration toolkit rather
+than a metaphor for it.<MarginNote>The author's vortex-dynamics background applied symplectic,
+energy-preserving integrators to Hamiltonian systems; that lineage is the niche-decision document's
+argument for picking C1 as the primary pilot.</MarginNote> Its exact discrete transition is
+$e^{-i\,dt}$, with magnitude exactly $1$, so the *diagonal SSM's own integrator* (the exact
+exponential) conserves the mode energy $H = \tfrac12|z|^2 = \tfrac12(q^2 + p^2)$ by construction.
+
+The atlas cell measures three integrators of this one mode, composing Chapter 6's Verlet and RK4
+steppers with Chapter 10's exact complex recurrence:
+
+<Figure id="ch17:fig:c1-atlas-cell" src="/figures/ch17/c1-atlas-cell.png" alt="Two panels. Left: energy error H_k minus H_0 over the first six periods; the Verlet curve oscillates within a band of about plus-or-minus 0.00125, while RK4 and the exact-exponential curves are nearly flat at this scale. Right: a log-log plot of the absolute secular drift per period versus step size dt from 0.05 to 0.4; the RK4 line is highest and rises steeply, the Verlet line is far below it and rises gently, and the exact-exponential line sits near machine precision." caption="The C1 atlas cell (§17.2): three integrators of a harmonic-oscillator SSM mode. Left — the bounded energy oscillation each carries over the first six periods; Verlet's symplectic band ($1.25\times10^{-3}$) is larger than RK4's, the trade-off it pays. Right — the secular (accumulating, least-squares) drift per period vs step size: RK4 drifts (secular slope $-4.36\times10^{-7}$ per period at $dt = 0.1$, whose endpoint drift reproduces Chapter 6's rk4_drift_per_period to $1.3\times10^{-11}$), Verlet's secular slope is $\sim 75\times$ smaller (a measured $5.8\times10^{-9}$, effectively zero — it carries only a bounded oscillation), and the exact-exponential diagonal SSM transition conserves energy to a measured $2.8\times10^{-12}$. Produced by companions/ch17/jax/c1_integration.py (composing ch06 + ch10); cross-checked in stdlib Julia and pinned in tests/test_c1_integration.py." />
+
+The reading is sharp, and it is the C1 pilot's premise in miniature. A symplectic integrator (Verlet)
+buys zero secular energy drift at the cost of a larger bounded oscillation; a non-symplectic one
+(RK4) has a smaller oscillation but accumulates drift. **But the diagonal SSM's exact exponential
+dominates both** — it has neither drift nor oscillation, because exponentiating a purely imaginary
+eigenvalue is exactly energy-preserving. The classical symplectic-versus-standard contest is moot
+for a *diagonal* SSM. **This is not a null result for C1 — it sharpens the pilot's target:** the
+symplectic advantage can only reappear where the exponential is *not* applied exactly — a coupled or
+non-normal transition (the matrix memories of
+<XRef id="ch13:generalized-spectrum" />), or the forced integral handled at finite order. Whether a
+*trained* selective SSM drifts off the diagonal far enough for that to matter is exactly the
+empirical question the C1 pilot's symplectic atlas pursues on real matrices — and which this
+idealized cell cannot answer, only frame. The pilot's code and findings live in the predecessor
+repository's [C1 kickoff](https://github.com/brandon-behring/post_transformers/blob/main/notes/research_kickoff_c1_symplectic_integrators.md).
+
+## 17.3 B — two-timescale benchmarks, and a disentanglement pipeline
+
+The B pilot asks whether an architecture separates a fast process (token bigrams) from a slow one
+(regime drift). Chapter 14 built the two-timescale HMM and its matched-decay optimality
+(<XRef id="ch14:matched-decay-optimal" />, <XRef id="ch14:slow-manifold-tracking" />); Chapter 16
+built the probing protocol and the paired-comparison statistics
+(<XRef id="ch16:discriminative-regime" />, <XRef id="ch16:paired-comparison" />); Chapter 15 built
+the diagnostics, including effective state size (<XRef id="ch15:regime-separation" />). Each measured
+*one* facet. The integration runs all three end-to-end on the same reference instance and asks
+whether the facets cohere.
+
+For each idealized predictor on the known HMM, the pipeline computes three numbers: the effective
+state size of its regime-*propagation* operator (Chapter 15, the participation ratio of the
+operator's spectrum), its regime-recovery probe accuracy (Chapter 16, a held-out ridge probe of the
+true regime from the predictor's carried state), and its predictive cross-entropy (Chapter 14).
+
+<Figure id="ch17:fig:b-disentanglement" src="/figures/ch17/b-disentanglement.png" alt="Two panels. Left: regime-probe accuracy versus effective state size for three predictors — unigram at about (1.0, 0.55), decay at about (3.66, 0.69), and full at about (4.0, 0.84) — rising monotonically. Right: a bar chart of cross-entropy in nats for the three predictors, with full lowest at 1.93 (a dotted Bayes-floor line), decay at 1.98, and unigram highest at 2.43." caption="The B disentanglement pipeline (§17.3) on the Chapter 14 reference HMM ($K = 4$ regimes). Left — regime-recovery probe accuracy rises monotonically with the predictor's effective state size: unigram (collapsed state, $D_{\mathrm{eff}} = 1.00$, probe $0.548$), decay ($D_{\mathrm{eff}} = 3.66$, probe $0.691$), full Bayes filter ($D_{\mathrm{eff}} = 4.00$, probe $0.839$). Right — predictive loss falls in the same order ($2.43 \to 1.98 \to 1.93$ nats, the Bayes floor). The probe accuracies are exactly Chapter 16's probe_signature; the effective state sizes are Chapter 15's; the loss is Chapter 14's. Produced by companions/ch17/jax/b_integration.py; pinned in tests/test_b_integration.py." />
+
+The three instruments cohere: a predictor's effective state size, its disentanglement, and its loss
+move together.<MarginNote>The relationship is *monotone*, not linear. The decay filter has nearly
+the full effective state size ($3.66$ vs $4.00$) yet a much lower probe accuracy ($0.69$ vs $0.84$),
+because its propagation is *mistimed*, not low-dimensional — effective state size is necessary for
+disentanglement, not sufficient. The collapsed unigram, with $D_{\mathrm{eff}} = 1$, is decisively
+worst on every axis.</MarginNote> The comparison is made honest by Chapter 16's paired statistics:
+the decay-versus-full per-token loss gap is a measured $0.0512$ nats, with a paired standard error of
+$0.0033$ against an unpaired $0.0135$ — the shared per-token difficulty (correlation $0.94$) is
+subtracted off, resolving a gap that an unpaired comparison would call marginal. This is the protocol
+of <XRef id="ch16:paired-comparison" /> turned on the pilot's own task.
+
+Every predictor here is an exact idealization on a known HMM — there is no trained model and no
+fitted probe target beyond the closed-form filters. The pilot's contribution is to run this same
+pipeline on *trained* checkpoints: probe a real layer's regime recovery against its measured
+effective state size, and read its disentanglement against the impossibility ceiling
+(<XRef id="ch15:capacity-bound" />). That program — generators, baselines, the harness — lives in the
+[B kickoff](https://github.com/brandon-behring/post_transformers/blob/main/notes/research_kickoff_b_two_timescale_benchmarks.md).
+
+## 17.4 The 13-niche portfolio and the decision rubric
+
+C1 and B are two cells of a larger catalog. The curriculum was designed against a **13-niche
+portfolio** — research directions a numerical-analyst's reading of sequence models opens up — grouped
+into four families. The table below maps each niche to representative chapters it draws on *as
+shipped* (the author's reading of the finished book — not the design-time dependency matrix, which
+together with the full taxonomy and per-niche kickoffs lives in the predecessor's
+[curriculum design](https://github.com/brandon-behring/post_transformers/blob/main/notes/foundations_curriculum_design_2026_05_20.md)
+and [niche decision](https://github.com/brandon-behring/post_transformers/blob/main/notes/niche_decision_2026_05_24.md)).
+
+| Family | Niche | One line | Draws on | Status |
+|---|---|---|---|---|
+| A (diagnostics) | A1 Discretization atlas | catalog integrators against SSMs and step sizes | Ch 4–6, 10 | portfolio |
+| | A2 Update-rules-as-integrators | delta-rule updates as ODE solvers | Ch 6, 12 | portfolio |
+| | A3 Diagnostics toolkit | Lyapunov spectra + effective state size on trained models | Ch 2, 15 | portfolio |
+| | A4 Multi-signal regime detection | combine signals to localize regime boundaries | Ch 9, 15 | portfolio |
+| | A5 Gather-and-Aggregate | the head-importance mechanism behind the recall gap | Ch 14, 15 | portfolio |
+| B (benchmarks) | **B Two-timescale benchmarks** | disentangle fast from slow; the §17.3 pipeline | Ch 12, 14, 15, 16 | **active (parallel pilot)** |
+| C (NA core) | **C1 Symplectic integrators** | structure-preserving discretization; the §17.2 atlas | Ch 1–3, 6, 10 | **active (primary pilot)** |
+| | C2 Stiffness analysis | is the stiff regime the real training issue? | Ch 5, 6 | portfolio |
+| | C3 Krylov / matrix-free | the SSD scan as a Krylov target | Ch 3, 9 | portfolio |
+| | C4 HiPPO conditioning | conditioning of the HiPPO construction | Ch 3, 7 | portfolio |
+| D (theory) | D1 Reachability | control-theoretic reachability of SSM states | Ch 1, 2 | portfolio |
+| | D2 Spectral biographies | eigenvalue trajectories across training | Ch 2, 13, 15 | portfolio |
+| | D3 ODE-solver-as-architecture | architectures named by their integrator | Ch 5, 6, 10 | portfolio |
+
+The two active pilots were not chosen by enumerating value; they were chosen by a **decision rubric**
+worth stating, because it generalizes. (i) *Direct-transfer depth* — C1 is the same symplectic
+mathematics the author already knows, on a new object, not a loose analogy. (ii) *A shared publishing
+window* — A1, C1, and C2 all bear on the exp-trapezoidal integrator and share the Mamba-3 window, so
+picking any one keeps the family alive. (iii) *Non-overlapping machinery* — C1 (geometric
+integration) and B (singular perturbation) use disjoint tools, so they run in parallel without
+competing for the same hours. (iv) *Paid-up-front cost and a documented-null fallback* — C1 ships a
+structural-classification result even if its empirical case returns negative.<MarginNote>That last
+criterion is the most important and the least glamorous: a research niche is worth picking only if it
+produces a publishable artifact *even when the headline hypothesis fails*. C1's fallback is a
+documented null plus a structural classification of which SSMs have Hamiltonian structure — useful
+regardless of whether symplectic integration wins.</MarginNote> The other eleven niches stay in the
+portfolio as documented alternatives, each with the chapters it would draw on already in hand.
+
+## 17.5 What the lens earned, and its limits
+
+So: did the dynamical-systems lens earn its keep? The honest answer is *provisionally yes, and here
+is exactly how far the evidence reaches.*
+
+What it earned is **the questions, posed precisely and instrumented.** "Is exp-trapezoidal leaving
+Hamiltonian structure on the table?" is not a question the architecture literature asks; it is
+natural only once an SSM mode is a discretized ODE and the integrator is a choice with a conservation
+budget (§17.2). "Does effective state size govern disentanglement?" is measurable only once the
+state has a spectrum and a participation ratio (§17.3). The lens turned vague intuitions — "Mamba is
+unstable at long horizons", "hybrids recall better" — into quantities with diagnostics:
+Lyapunov exponents (<XRef id="ch15:lyapunov-estimator" />), effective state size, the probe signature.
+
+What it has **not** earned, and cannot from this chapter, is an empirical verdict. Every number here
+is from an *idealized* system; the trained-model evidence is the pilots' forthcoming work. And two
+limits bound even that future evidence. The first is the cited ceiling: the $\mathsf{TC}^0$
+impossibility (<XRef id="ch15:capacity-bound" />, <Cite key="merrill2024illusion" />) means no amount
+of clever discretization or benchmarking lets a fixed-state recurrence do what the complexity class
+forbids — the pilots can measure *where a model sits beneath* the ceiling, never move it. The second
+is mechanistic: the Gather-and-Aggregate finding (<Cite key="bick2025understanding" />) says the
+recall gap lives in a few attention heads, so a pure-SSM pilot result is read against a known
+mechanism, not in a vacuum. The lens is an instrument for locating a model in a landscape whose
+boundaries other tools drew; that is a real contribution, and a bounded one.
+
+## 17.6 Where this goes
+
+This is the last chapter, so "what's next" is not more curriculum — it is the research the curriculum
+exists to enable. The two pilots execute on their own timelines: C1 builds the symplectic atlas on
+trained Mamba-3 matrices and negative-eigenvalue SSM extensions; B runs the §17.3 pipeline on trained
+hybrids and reports the disentanglement signature against the ceiling. Both are tracked in the
+predecessor repository, and both have a documented-null fallback so they produce an artifact either
+way. The other eleven niches wait in the portfolio with their prerequisites in hand.
+
+With this chapter the book is **content-complete**: seventeen chapters from linear ODEs to a research
+program, every architecture read as a dynamical system. The remaining work is not authoring but
+upkeep — the ordinary maintenance of a living book, its open items tracked in the repository's issues.
+
+## 17.7 Exercises
+
+### Exercise 17.1 (short)
+
+A constructed SSM mode has eigenvalue $\lambda = -\gamma + i\omega$ with $\gamma > 0$ small. Using
+§17.2, which integrator — exact-exponential, Verlet, or RK4 — best preserves the mode's long-horizon
+energy *decay rate*, and why does the answer change if the mode is embedded in a coupled
+(non-diagonalizable) transition?
+
+<details>
+<summary>Solution</summary>
+
+For the *diagonal* mode the exact exponential wins outright: its discrete transition is
+$e^{\lambda dt}$ with magnitude $e^{-\gamma dt}$, reproducing the true decay rate exactly at any step size, with
+no oscillation and no secular drift (the companion measures the conservative limit $\gamma = 0$ at a
+band of $2.8\times10^{-12}$). Verlet and RK4 only approximate $e^{\lambda dt}$ and carry the
+oscillation/drift trade-off of §17.2. The answer changes for a *coupled* transition: when the state
+is not diagonalized (a non-normal matrix memory, <XRef id="ch13:generalized-spectrum" />), the
+exponential is not applied mode-by-mode and is no longer exact or cheap, and a structure-preserving
+integrator can beat a generic one — which is precisely the regime the C1 pilot tests on trained
+matrices.
+</details>
+
+### Exercise 17.2 (short, code)
+
+Run `companions/ch17/jax/b_integration.py`. Report the effective state size, probe accuracy, and
+cross-entropy for the full / decay / unigram predictors, and the paired decay-vs-full standard error.
+What does $\mathrm{SE}_{\text{paired}} \ll \mathrm{SE}_{\text{unpaired}}$ tell you here?
+
+<details>
+<summary>Solution</summary>
+
+The readout is full $(D_{\mathrm{eff}} = 3.998,\ \text{probe } 0.839,\ \text{CE } 1.929)$, decay
+$(3.657,\ 0.691,\ 1.980)$, unigram $(1.000,\ 0.548,\ 2.425)$ — probe accuracy and (negative) loss
+both monotone in effective state size. The paired comparison gives a mean gap $0.0512$ nats with
+$\mathrm{SE}_{\text{paired}} = 0.0033$ against $\mathrm{SE}_{\text{unpaired}} = 0.0135$. Because the
+two predictors are scored on the *same* tokens, their per-token losses are highly correlated
+($0.94$); pairing subtracts that shared difficulty (<XRef id="ch16:paired-comparison" />), so a gap
+that is only $\sim 4\sigma$ unpaired is $\sim 15\sigma$ paired. The lesson: report paired statistics
+when comparing predictors on a shared task, or you will under-resolve real differences.
+</details>
+
+### Exercise 17.3 (short)
+
+Pick a portfolio niche from §17.4 — say A3 (diagnostics toolkit) or D2 (spectral biographies). List
+the chapters it draws on and name the specific companion instruments you would compose to bootstrap
+it.
+
+<details>
+<summary>Solution</summary>
+
+*A3 (diagnostics toolkit)* draws on Chapters 2 and 15: compose `companions/ch15/jax/lyapunov_diagnostics.py`
+(`lyapunov_spectrum`, `effective_state_size`, the resolution-limit caveat) with Chapter 2's
+`qr_lyapunov` engine, and apply them to trained-model Jacobians. *D2 (spectral biographies)* draws on
+Chapters 2, 13, and 15: track `transition_spectrum` (Chapter 13) and the effective state size across
+training checkpoints, watching the eigenvalues' trajectory — the §17.3 pipeline is the per-checkpoint
+measurement, repeated over training. Both are the same move: take an idealized instrument validated
+in the book and point it at trained data, the niche supplying the experimental design.
+</details>
+
+### Exercise 17.4 (theory) — solution in §17.8
+
+Make the §17.2 bridge precise. Show that the harmonic oscillator $\dot q = p,\ \dot p = -q$ in the
+complex coordinate $z = q + ip$ satisfies $\dot z = -iz$, that the exact discrete transition over a
+step $dt$ has magnitude $1$, and conclude that a diagonal SSM with a purely imaginary eigenvalue
+conserves the mode energy under the exact exponential. Then argue when a symplectic integrator is
+nonetheless needed.
+
+### Exercise 17.5 (theory) — solution in §17.8
+
+Design a two-timescale evaluation for a given pair of architectures, respecting Chapter 16's
+discipline: size the task to the discriminative regime (<XRef id="ch16:discriminative-regime" />),
+use the distractor rule, and use paired statistics. State precisely what measured outcome would count
+as a *resolved* disentanglement difference between the two architectures, and why an unpaired
+comparison could miss it.
+
+### Exercise 17.6 (theory) — solution in §17.8
+
+Argue from the capacity bound (<XRef id="ch15:capacity-bound" />) what the C1 and B pilots can and
+cannot hope to demonstrate. Specifically: can either pilot's empirical win raise a fixed-state
+model's expressive ceiling, or only locate the model beneath it? Frame the answer in terms of the
+cited-versus-demonstrated boundary of §17.1.
+
+## 17.8 Full solutions to theory exercises
+
+### Solution to Exercise 17.4
+
+Write $z = q + ip$. Then $\dot z = \dot q + i\dot p = p + i(-q) = p - iq$. Factor:
+$-iz = -i(q + ip) = -iq + p = p - iq$, so $\dot z = -iz$ exactly. The continuous solution is
+$z(t) = e^{-it}z(0)$, and the exact discrete transition over a step $dt$ is multiplication by $e^{-i\,dt}$,
+whose magnitude is $|e^{-i\,dt}| = 1$. The mode energy is $H = \tfrac12|z|^2 = \tfrac12(q^2 + p^2)$,
+and since $|z_k| = |e^{-i\,dt}|^k |z_0| = |z_0|$, the energy is constant for all $k$ — conserved
+exactly, with no oscillation and no drift (the companion measures a band of $2.8\times10^{-12}$,
+i.e. machine precision). A *diagonal* SSM applies $e^{\lambda dt}$ mode-by-mode, so it inherits this
+exactness on every imaginary mode; the symplectic machinery of Chapter 6 buys nothing it does not
+already have. A symplectic integrator is needed only when the exponential is *not* applied exactly:
+a non-normal or coupled transition (where diagonalization is unavailable or ill-conditioned,
+<XRef id="ch13:generalized-spectrum" />), or the forced/input integral handled at finite order
+(<XRef id="ch10:exp-trap-order" />), where a structure-preserving step can keep the conservation
+budget a generic step spends. $\blacksquare$
+
+### Solution to Exercise 17.5
+
+Size the task so the load sits in the discriminative regime of <XRef id="ch16:discriminative-regime" />:
+the two architectures must differ in the capacity the task probes, or the benchmark measures nothing
+about them (a knee-region requirement, the §16.2 lesson). Construct the separation with the
+distractor rule — pad with *content* (fresher competing writes), not neutral fillers, since neutral
+padding is provably inert under an argmax read-out. Score each architecture's per-item predictive
+loss (or probe accuracy) on the *same* sampled sequences, and compute the paired statistics of
+<XRef id="ch16:paired-comparison" />. A *resolved* difference is one whose paired confidence interval
+$\text{mean diff} \pm z\,\mathrm{SE}_{\text{paired}}$ excludes zero. An unpaired comparison can miss
+it because the per-sequence difficulty is shared (both architectures find the same sequences hard),
+inflating $\mathrm{SE}_{\text{unpaired}}$ by the shared-difficulty variance that pairing removes — as
+in §17.3, where the same gap is marginal unpaired and decisive paired. One must also pre-register the
+suite and avoid post-hoc subset selection, or the selection inflation of <XRef id="ch16:selection-inflation" />
+manufactures a difference. $\blacksquare$
+
+### Solution to Exercise 17.6
+
+Neither pilot can raise the ceiling. The capacity bound (<XRef id="ch15:capacity-bound" />) and the
+cited $\mathsf{TC}^0$ impossibility (<Cite key="merrill2024illusion" />) are statements about *every*
+fixed-state recurrence: they bound what such a model can compute regardless of how it is discretized
+(C1) or benchmarked (B). A better integrator changes the *numerical fidelity* of the discretization,
+not the model's expressive class; a better benchmark changes what we can *measure*, not what the
+model can *do*. So a C1 empirical win means "a structure-preserving integrator tracks this trained
+mode's dynamics with less drift", and a B win means "this architecture's effective state size lets it
+disentangle to this measured degree" — both *locate the model beneath the ceiling*, with higher
+resolution than before. That is exactly the cited-versus-demonstrated boundary of §17.1: the ceiling
+is cited (a theorem of others, about a complexity class), and the pilots demonstrate position beneath
+it (measurements, on trained models). Confusing the two — claiming an integrator or a benchmark
+"breaks" an impossibility result — is the error the boundary exists to prevent. $\blacksquare$
+
+## 17.9 Companion code
+
+The companions live in `companions/ch17/{jax,julia}` and are float64 throughout; they *compose*
+shipped instruments rather than introduce new kernels, so there is no torch port (it would only
+re-run the JAX modules). Each produces a new integrated signature; the component values reduce to the
+originating chapters' (pinned in the tests).
+
+- **`jax/c1_integration.py`** — the C1 atlas cell (§17.2). Composes Chapter 6's symplectic/RK4
+  steppers and Chapter 10's complex-mode recurrence to compare the long-horizon energy conservation
+  of the exact-exponential, Verlet, and RK4 integrators on a harmonic-oscillator SSM mode. The reused
+  RK4 path reproduces Chapter 6's `rk4_drift_per_period` exactly. Produces `c1-atlas-cell.png`.
+- **`jax/b_integration.py`** — the B disentanglement pipeline (§17.3). Composes Chapter 14's HMM and
+  idealized predictors, Chapter 16's probe signature and paired comparison, and Chapter 15's
+  effective state size into one readout linking effective state size, probe accuracy, and loss across
+  the predictor family. Produces `b-disentanglement.png`.
+- **`julia/symplectic_crosscheck.jl`** — a stdlib-only, independent-language cross-check of the C1
+  atlas cell (the C1 pilot's atlas is itself Julia), matching the JAX energy-conservation signatures
+  to $< 10^{-9}$.
+
+```bash
+PYTHONPATH=. python companions/ch17/jax/c1_integration.py
+PYTHONPATH=. python companions/ch17/jax/b_integration.py
+make companion-jax-tests          # all chapters' JAX suites
+julia --project=companions/ch17/julia companions/ch17/julia/runtests.jl
+```
