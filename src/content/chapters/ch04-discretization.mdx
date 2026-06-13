@@ -140,7 +140,7 @@ Reading off $\discA$ and $\discB$,
 $$
 \discA = \left(I - \tfrac{\stepsize}{2}\statemat\right)^{-1}\!\left(I + \tfrac{\stepsize}{2}\statemat\right), \qquad \discB = \left(I - \tfrac{\stepsize}{2}\statemat\right)^{-1} \stepsize \, \inputmat.
 $$
-This is the **bilinear transform**, also called the **Tustin transform** after Arnold Tustin's 1947 paper introducing it in control theory <Cite key="tustin1947method" />. The S4D paper uses bilinear discretization; so do many signal-processing toolboxes.
+This is the **bilinear transform**, also called the **Tustin transform** after Arnold Tustin's 1947 paper introducing it in control theory <Cite key="tustin1947method" />. The original S4 paper uses bilinear discretization (S4D supports either bilinear or ZOH); so do many signal-processing toolboxes.
 
 The bilinear formula has a striking geometric interpretation. Restricted to a single eigenvalue $\lambda$ of $\statemat$ (commuting through the simultaneous diagonalization), the map $\lambda \mapsto \mu$ that sends a continuous eigenvalue to its discrete image is
 $$
