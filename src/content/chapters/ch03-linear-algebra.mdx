@@ -50,7 +50,7 @@ For every matrix $\statemat \in \C^{N \times N}$, there exist matrices $V$ (inve
 $$
 \statemat = V J V^{-1}.
 $$
-$J$ is the **Jordan normal form** of $\statemat$; the diagonal entries of $J$ are the eigenvalues of $\statemat$ (counted with algebraic multiplicity); the size of each Jordan block equals the difference between the algebraic and geometric multiplicities. If every eigenvalue has equal algebraic and geometric multiplicity, all Jordan blocks have size 1 and $J$ is diagonal — $\statemat$ is **diagonalizable**.
+$J$ is the **Jordan normal form** of $\statemat$; the diagonal entries of $J$ are the eigenvalues of $\statemat$ (counted with algebraic multiplicity); for each eigenvalue, the number of Jordan blocks equals its geometric multiplicity and the sum of their sizes equals its algebraic multiplicity. If every eigenvalue has equal algebraic and geometric multiplicity, all Jordan blocks have size 1 and $J$ is diagonal — $\statemat$ is **diagonalizable**.
 </Theorem>
 
 A Jordan block of size $k$ for eigenvalue $\lambda$ looks like
@@ -223,7 +223,7 @@ $$
 S_{t+1} = S_t + \beta_t (v_t - S_t k_t) k_t^\top = S_t (I - \beta_t k_t k_t^\top) + \beta_t v_t k_t^\top.
 $$
 
-The middle factor is a rank-1 correction (specifically, an identity minus a rank-1 outer product), and the whole expression is one explicit-Euler step of an online gradient-descent update on the per-token association loss. The Longhorn paper <Cite key="dao2024mamba2" /> (well, the linear-attention lineage more generally) frames this as a discretization of an implicit-rank-1-correction online ODE.
+The middle factor is a rank-1 correction (an identity minus a rank-1 outer product), and the whole expression is one **explicit (forward-Euler)** step of an online gradient-descent update on the per-token association loss — the **DeltaNet** view <Cite key="yang2024deltanet" /> developed in Chapter 12. Longhorn <Cite key="liu2024longhorn" /> is the *implicit (backward-Euler)* cousin, reaching the same online-ODE picture by solving at the endpoint.
 
 The key takeaway: **structured + low-rank corrections give you efficient matrix-vector products without giving up expressiveness**. This is the design pattern unifying S4, DeltaNet, GLA, and the Mamba-2 SSD framework — each is a different choice of base structure and correction pattern.
 

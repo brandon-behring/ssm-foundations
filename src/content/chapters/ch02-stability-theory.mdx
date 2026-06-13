@@ -293,7 +293,7 @@ $$
 \statemat^\top P + P \statemat = \int_0^\infty \left( \statemat^\top e^{\statemat^\top t} Q e^{\statemat t} + e^{\statemat^\top t} Q e^{\statemat t} \statemat \right) dt = \int_0^\infty \ddt \left( e^{\statemat^\top t} Q e^{\statemat t} \right) dt = [e^{\statemat^\top t} Q e^{\statemat t}]_0^\infty = -Q,
 $$
 
-using the decay of $e^{\statemat t}$ at $\infty$. Uniqueness of $P$ follows from the linearity of the Lyapunov operator $\mathcal{L}(P) := \statemat^\top P + P \statemat$ and the fact that its kernel is trivial when $\statemat$ has no purely imaginary eigenvalues. ∎
+using the decay of $e^{\statemat t}$ at $\infty$. Uniqueness of $P$ follows from the linearity of the Lyapunov operator $\mathcal{L}(P) := \statemat^\top P + P \statemat$: its eigenvalues are the pairwise sums $\lambda_i + \lambda_j$ of eigenvalues of $\statemat$, so its kernel is trivial whenever no two eigenvalues sum to zero — which holds here because asymptotic stability gives $\Re(\lambda_i + \lambda_j) < 0$ for all $i, j$. ∎
 
 ### Solution to Exercise 2.6
 
