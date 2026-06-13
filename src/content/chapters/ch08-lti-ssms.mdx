@@ -103,13 +103,13 @@ The duality is why S4 is practical: **train as a convolution, deploy as a recurr
 
 ## 8.4 The Cauchy kernel: structure buys speed
 
-The duality leaves one cost open: building the kernel $K$. Naively, $K_i = \outputmat\,\discA^{\,i}\,\discB$ iterates the state vector $\discA^{\,i}\discB$ — one $N\times N$ mat-vec per tap, $O(N^2 L)$ in total. For the teaching regime $N \le 64$ that is exactly what the companion does, and it is plenty fast. S4's published contribution is to compute the *same* kernel in $O(N\log^2 N)$ by using the DPLR structure of §8.2 <Cite key="gu2022s4" />.
+The duality leaves one cost open: building the kernel $K$. Naively, $K_i = \outputmat\,\discA^{\,i}\,\discB$ iterates the state vector $\discA^{\,i}\discB$ — one $N\times N$ mat-vec per tap, $O(N^2 L)$ in total. For the teaching regime $N \le 64$ that is exactly what the companion does, and it is plenty fast. S4's published contribution is to compute the *same* kernel in near-linear time, $\tilde O(N + L)$, by using the DPLR structure of §8.2 <Cite key="gu2022s4" />.
 
 The route is a generating function. Collect the taps into a polynomial and evaluate it on the unit circle: the truncated generating function is
 $$
 \hat K(z) = \sum_{i=0}^{L-1} \outputmat\,\discA^{\,i}\,\discB\; z^{i} \;\approx\; \outputmat\,(I - \discA\, z)^{-1}\,\discB,
 $$
-a geometric series in the matrix $\discA z$. Recovering $K$ from $\hat K$ evaluated at the $L$-th roots of unity is one inverse FFT. The remaining cost is the resolvent $(I - \discA z)^{-1}$, and here DPLR pays off: with $\discA$ built from $\Lambda - PQ^*$ the Woodbury identity turns the resolvent into a **Cauchy matrix–vector product** — entries $1/(\zeta_k - \lambda_n)$ — plus a rank-one correction, computable in $O(N)$ per frequency and $O(N\log^2 N)$ overall. The dense $\discA^{\,i}$ never appears.
+a geometric series in the matrix $\discA z$. Recovering $K$ from $\hat K$ evaluated at the $L$-th roots of unity is one inverse FFT. The remaining cost is the resolvent $(I - \discA z)^{-1}$, and here DPLR pays off: with $\discA$ built from $\Lambda - PQ^*$ the Woodbury identity turns the resolvent into a **Cauchy matrix–vector product** — entries $1/(\zeta_k - \lambda_n)$ — plus a rank-one correction, computable in near-linear $\tilde O(N + L)$ time overall — a Cauchy/Woodbury solve in $N$ plus the inverse FFT in $L$ (the §8.4 figure isolates the $N$-scaling at fixed $L$). The dense $\discA^{\,i}$ never appears.
 
 We present this kernel but do **not** implement it: the companions use the transparent naive kernel throughout (§8.10). The point of §8.4 is the *shape* of the cost, not the engineering — and the shape is what motivates S4D.
 
