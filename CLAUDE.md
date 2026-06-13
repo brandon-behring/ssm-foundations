@@ -2,7 +2,7 @@
 
 A 17-chapter lens-led foundations book for sequence-model architectures, with the dynamical-systems perspective foregrounded. Built with `@brandon_m_behring/book-scaffold-astro` (academic preset, v4.16.0).
 
-**Status**: scaffold landed 2026-05-24 (Plan 3 launch). Chapters 1–14 and 16 are authored (`status: implemented`) — foundations (1–6) + SSM-core (7–10) + beyond-SSM through the delta-rule lineage and the exponential-gate/matrix-memory architectures (11–13) + integration through hybrids and empirical methodology (14, 16 — the pilot-B anchors; **B's book-side prerequisites closed at Ch 16's merge**) shipped and deployed; Ch 15 and 17 are stubbed `planned`. (Status line updated 2026-06-13.)
+**Status**: scaffold landed 2026-05-24 (Plan 3 launch). Chapters 1–16 are authored (`status: implemented`) — foundations (1–6) + SSM-core (7–10) + beyond-SSM through the delta-rule lineage and the exponential-gate/matrix-memory architectures (11–13) + integration through hybrids, empirical methodology, and the counter-evidence/diagnostics file (14, 16 — the pilot-B anchors, **B's book-side prerequisites closed at Ch 16's merge**; 15 — the prosecution's file: cited impossibility theory + Lyapunov/effective-state-size diagnostics validated on constructed systems) shipped and deployed; Ch 17 is stubbed `planned`. (Status line updated 2026-06-13.)
 
 ---
 
@@ -64,7 +64,7 @@ Migrated from `post_transformers/roadmap.md`:
 | `scaffolded` | Skeleton file with frontmatter + outline, no real content |
 | `planned` | No file yet, or a stub with PreReleaseBanner only |
 
-Current state (2026-06-13): Ch 1–14, 16 = `implemented`; Ch 15, 17 = `planned`.
+Current state (2026-06-13): Ch 1–16 = `implemented`; Ch 17 = `planned`.
 
 ---
 

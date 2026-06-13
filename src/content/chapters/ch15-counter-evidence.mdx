@@ -1,15 +1,524 @@
 ---
 week: 15
 part: integration
+status: implemented
 title: 'Counter-evidence and diagnostic tools: where SSMs fail'
-status: planned
-description: TC^0 bounds; copying limitations; Gather-and-Aggregate mechanism; mechanistic evaluation.
+description: The prosecution's file — what fixed-state and SSM-heavy designs provably cannot do (the TC⁰ ceiling, the illusion of state, the copying separation) and the diagnostic toolkit that measures stability and capacity on real systems, from an architecture-agnostic information-counting bound through the Benettin–QR Lyapunov estimator and its resolution limit to effective state size as a regime diagnostic, all validated against known ground truth.
+provenance:
+  ai_tools:
+    - Claude Code
+  citation_backstop: research-kb
 ---
 
-import PreReleaseBanner from '@brandon_m_behring/book-scaffold-astro/components/PreReleaseBanner.astro';
+import NoteBox from '@brandon_m_behring/book-scaffold-astro/components/NoteBox.astro';
+import Theorem from '@brandon_m_behring/book-scaffold-astro/components/Theorem.astro';
+import Cite from '@brandon_m_behring/book-scaffold-astro/components/Cite.astro';
+import MarginNote from '@brandon_m_behring/book-scaffold-astro/components/MarginNote.astro';
+import Figure from '@brandon_m_behring/book-scaffold-astro/components/Figure.astro';
+import XRef from '@brandon_m_behring/book-scaffold-astro/components/XRef.astro';
 
-<PreReleaseBanner state="alpha" message="Chapter 15 is planned; not yet authored. See description above for scope. Authoring sequence: Ch 1–3 (foundations) → Ch 4–6 (discretization thread for C1) → remaining chapters per pilot needs." />
+{/*
+  Math macros (auto-loaded via ssmMacros in astro.config; this chapter uses):
+    \seqlen=L
+  Chapter-local symbols (declared in prose):
+    d, b — state coordinates and bits per coordinate;  |Σ| — alphabet size;
+    s_t — the recurrence's hidden state;  J_t — its per-step Jacobian;
+    λ_i — Lyapunov exponents;  D_eff — effective state size (participation ratio);
+    A = Diag(w) − c a aᵀ — Chapter 13's generalized transition, reused as a
+      constructed diagnostic target;  r — number of marginal/memory modes;
+      w — contractive-mode magnitude.
+*/}
 
 # Counter-evidence and diagnostic tools: where SSMs fail
 
-This chapter is planned. See the [chapter-at-a-glance](https://github.com/brandon-behring/post_transformers/blob/main/notes/foundations_curriculum_design_2026_05_20.md) (foundations §3) for the full design; the [crosswalk](https://github.com/brandon-behring/post_transformers/blob/main/notes/foundations_curriculum_design_2026_05_20.md) (foundations §22) maps this chapter to the relevant post_transformers/roadmap.md weeks.
+<NoteBox title="Chapter 15 — at a glance">
+**Goal**: assemble the prosecution's file. The book has spent fourteen chapters
+building the case *for* state-space and linear-recurrent models; this chapter is
+the counter-evidence — what fixed-state designs **provably cannot do**, and the
+**diagnostic toolkit** that measures, on a concrete system, how close it sits to
+those limits. Two threads: the *impossibility* results (the $\mathsf{TC}^0$
+ceiling, the illusion of state, the copying separation) that we **cite** but do
+not re-prove, and the *diagnostics* (a capacity bound, Lyapunov exponents,
+effective state size) that we build and validate against known ground truth.
+
+**Reading time**: ~45 minutes prose; ~2 hours with the companions.
+
+**Key insight**: **an architecture's promise is an asymptotic ceiling; a
+diagnostic is what tells you where a concrete system sits beneath it.** The deep
+impossibility theorems say what *no* fixed-state recurrence can do as length
+grows; the one bound we can prove ourselves — a pigeonhole count — is their honest,
+weaker shadow. The diagnostics then turn the book's stability thread into
+*measurements*: the Lyapunov spectrum of a trained-like recurrence, and an
+effective state size that counts its memory modes.
+
+**Looking ahead**: Chapter 15 is **not** a pilot anchor (C1 closed at Chapter 10,
+B at Chapter 16), but it builds the instruments pilot B *uses*. Every diagnostic
+here runs on **constructed systems with known spectra** — applying them to actually
+trained networks is B's empirical program, and weighing the prosecution's evidence
+against the defense is **Chapter 17**'s synthesis. The diagnostics are the tools;
+the verdict is deferred.
+</NoteBox>
+
+## 15.1 The prosecution's file
+
+Three earlier chapters filed their counter-evidence here. Chapter 13 closed by
+naming this chapter "the counter-evidence file: it takes the stability questions
+raised here — when does a matrix memory's recurrence stay bounded, and what can it
+provably *not* do — and turns them into diagnostics and impossibility results."
+Chapter 14 cast it as the prosecution to its own defense of hybrids. Chapter 16
+left "the impossibility side of the story — what else fixed state provably cannot
+do" explicitly to "Chapter 15's file." This chapter discharges all three.
+
+The lens the book has used — a sequence layer is a dynamical system, read through
+its state — obliges two kinds of counter-evidence, and they are different in
+character:
+
+1. **Impossibility.** Some tasks are out of reach not for want of tuning but for
+   structural reasons: a fixed-size state is an information bottleneck, and a
+   parallelizable recurrence sits in a circuit-complexity class that excludes
+   genuinely sequential computation. These are theorems about *every* model of a
+   given shape, and the strongest of them — the $\mathsf{TC}^0$ ceiling, the
+   copying separation — are deep results we **cite and attribute**, never re-derive
+   (§15.2). The one impossibility we *can* prove in a page is a counting bound
+   (§15.3); it is deliberately weaker than the cited theorems, and saying exactly
+   how it is weaker is half its value.
+
+2. **Diagnosis.** Impossibility says what *no* such model can do; it does not tell
+   you where *this* trained model sits. For that you need instruments that measure
+   a concrete recurrence: its stability (does the state stay bounded? — Lyapunov
+   exponents, §15.4) and its usable memory (how many modes actually persist? —
+   effective state size, §15.5). These are the numerical-analyst's tools, and the
+   discipline of the chapter is to **validate each against a system whose answer we
+   know by construction** before trusting it on a system we don't.
+
+The boundary between the two threads is the boundary between *cited* and *proven*,
+and the chapter marks it everywhere: a result in a shaded box with an attribution
+is someone else's theorem; a result in a numbered proposition with a proof (or an
+exercise pointing to one) is ours, and every number it claims is measured by a
+companion.
+
+## 15.2 The expressivity ceiling: TC⁰ and the illusion of state
+
+The deepest counter-evidence is complexity-theoretic, and it cuts both ways.
+A transformer with logarithmic-precision arithmetic and a state-space model are,
+to first order, in the **same** computational class — and that class is small.
+
+<NoteBox title="Cited results: the expressivity ceiling (stated, not proven here)">
+These are theorems of others, quoted without proof; our companions measure only
+their self-contained shadow (§15.3).
+
+- **(Log-precision transformers lie in uniform $\mathsf{TC}^0$.)** Of
+  Merrill & Sabharwal <Cite key="merrill2023parallelism" />: a transformer with
+  $O(\log n)$-bit precision on length-$n$ inputs can be simulated by constant-depth,
+  polynomial-size threshold circuits. Under standard assumptions
+  ($\mathsf{TC}^0 \ne \mathsf{NC}^1$) this excludes inherently sequential problems —
+  evaluating arbitrary Boolean formulas, solving linear systems, composing
+  permutations.
+- **(State-space models share the ceiling — the illusion of state.)** Of
+  Merrill, Petty & Sabharwal <Cite key="merrill2024illusion" />: despite carrying a
+  "state," linear/SSM recurrences computable in parallel also fall in
+  $\mathsf{TC}^0$, and provably **cannot** express state-tracking that
+  $\mathsf{TC}^0$ excludes — composing permutations from the symmetric group $S_5$,
+  tracking chess moves, evaluating code. The recurrent state is real, but its
+  *expressive* reach is no larger than the non-recurrent model's.
+</NoteBox>
+
+The phrase "illusion of state" is precise: a recurrence that the associative scan
+of Chapters 8–9 parallelizes is, by that very parallelizability, confined to the
+shallow-circuit class. The state buys linear-time inference and a place to put
+memory; it does not buy sequential expressivity. This is the formal counter-weight
+to a claim Chapter 13 flagged and deferred: RWKV-7's paper reports that it
+"recognizes all regular languages," apparently reaching above the ceiling. The
+reconciliation is in the fine print — that result holds for a *fixed* network with
+precision and depth allowed to grow with the automaton, not within the uniform,
+fixed-precision regime the impossibility theorems assume.<MarginNote>The two
+claims do not contradict: the impossibility results are asymptotic and uniform
+(one fixed-precision network for all lengths), while "recognizes all regular
+languages" allows the construction to depend on the target automaton. A finite
+model can do bounded-length state-tracking; the ceiling bites as length grows.
+Reading either claim outside its regime is the error.</MarginNote>
+
+The copying separation makes the abstract ceiling concrete. Of Jelassi et al.
+<Cite key="jelassi2024repeat" />: a two-layer transformer copies strings of length
+exponential in its size, while a fixed-state recurrence is bounded by what its
+state can hold — "structural, not a tuning issue." That structural bound is the
+one piece of the impossibility story we can prove ourselves, and §15.3 does.
+
+## 15.3 The capacity bound: a counting argument
+
+Chapter 11 proved a rank wall for linear attention (<XRef id="ch11:linattn-capacity" />)
+and Chapter 16 measured a recall cliff for an exact-capacity slot model
+(<XRef id="ch16:discriminative-regime" />). Both are instances of one
+architecture-agnostic fact: a finite state is a finite communication channel, and
+no amount of cleverness lets a channel carry more than its capacity.
+
+<Theorem id="ch15:capacity-bound" type="proposition" title="Information-counting bound on lossless recall">
+Let a deterministic sequence model process inputs by a recurrence carrying a hidden
+state $s_t$ in a set $\mathcal S$ representable in $d$ coordinates at $b$ bits each,
+so $|\mathcal S| \le 2^{db}$. Suppose a task requires the model, after reading a
+prefix, to answer queries whose correct answers differ across a family $\mathcal X$
+of prefixes that must be distinguished. If $|\mathcal X| > 2^{db}$, then two
+distinct prefixes induce the **same** post-prefix state, and the model answers them
+identically — wrong on at least one. In particular, losslessly recalling length-$n$
+sequences over an alphabet $\Sigma$ requires
+$$
+d\,b \;\ge\; n \log_2 |\Sigma| \qquad\Longleftrightarrow\qquad n \;\le\; \frac{d\,b}{\log_2 |\Sigma|} .
+$$
+</Theorem>
+
+The proof is pure pigeonhole (Exercise 15.4): the post-prefix state is a
+deterministic function $\sigma : \mathcal X \to \mathcal S$, every later output
+factors through $\sigma$, and $|\mathcal X| > |\mathcal S|$ forces a collision.
+Specializing to verbatim copy, the $|\Sigma|^n$ length-$n$ strings must all be
+distinguished, giving $2^{db} \ge |\Sigma|^n$.
+
+Two things make this honest rather than impressive. First, it is **weaker** than
+the cited theorems: it bounds *lossless* recall by *counting*, where Jelassi et
+al. exhibit the separation empirically and Merrill et al. place it in a complexity
+hierarchy. A real model also fails *below* this bound — interference, finite
+training, and lossy encodings mean the usable capacity is a fraction of $d\,b$. The
+counting bound is the ceiling of the ceiling. Second, it is **architecture-agnostic**:
+Chapter 11's rank-$d_k$ state ($d = d_k$, with $b$ the bits of a stored coordinate)
+and Chapter 16's $d$-slot store are the two instances where the abstract $\mathcal S$
+becomes concrete, and the chapter derived each separately. Here they are one count.
+
+The companion realizes the bound on Chapter 16's slot model, where each of $d$
+slots holds one token-pair, i.e. $b = \log_2(\text{vocab})$ bits. The abstract
+budget $d\,b$ then meets the lossless requirement $n\log_2(\text{vocab})$ exactly at
+$n^\* = d$, and the measured recall cliff sits there.
+
+<Figure id="ch15:fig:copying-bound" src="/figures/ch15/copying-bound.png" alt="Two panels. Left: recall accuracy versus number of stored pairs N on a log-2 axis, for a d = 16 slot model; the exact curve min(1, d/N) is flat at 1 up to N = 16 then falls as d/N, with measured slot-reader points lying exactly on it and a dashed vertical line at the capacity threshold N = 16. Right: bits versus sequence length n; a rising blue line for the required n log2 of the alphabet size crosses a flat red line for the state budget d times b equal to 96 bits at n = 16, marked with an orange dot." caption="The information-counting bound (§15.3) on Chapter 16's slot model. Left: a $d = 16$ store recalls perfectly up to load $N = d$ and degrades as $\min(1, d/N)$ beyond; the measured slot reader matches the exact closed form to $0$ at every load (8 seeds), and the cliff sits exactly at the capacity threshold $n^\* = d = 16$. Right: with $b = \log_2(\text{vocab}) = 6$ bits per slot the state budget $d\,b = 96$ bits meets the lossless requirement $n\log_2|\Sigma|$ at $n^\* = 16$ — the same load. Produced by companions/ch15/jax/copying_bound.py (which imports Chapter 16's slot model); pinned in tests/test_copying_bound.py." />
+
+## 15.4 Lyapunov diagnostics: measuring stability on a concrete system
+
+Impossibility is about *all* models; the rest of the chapter is about *this* one.
+The first instrument measures stability. Chapter 2 defined a system's Lyapunov
+exponents as the asymptotic log-growth rates of its state
+(<XRef id="ch02:def:lyap" />, <XRef id="ch02:thm:lyap-eig" />) and computed them
+with the Benettin QR algorithm <Cite key="benettin1980lyapunov" />; we reuse that
+engine unchanged and ask what it can and cannot tell us about a recurrence whose
+transition we did not choose — a trained-like SSM layer, the matrix memory of
+Chapter 13, a selective scan.
+
+<Theorem id="ch15:lyapunov-estimator" type="proposition" title="Recovery and resolution of the Lyapunov estimator">
+Let $\{J_t\}$ be the per-step Jacobian sequence of a recurrence, and let
+$\hat\lambda_1 \ge \cdots \ge \hat\lambda_d$ be the Benettin–QR estimate over a
+trace of length $T$.
+
+1. **(Recovery.)** If the system is autonomous with a diagonalizable transition
+   $J$, then $\hat\lambda_i \to \log|\lambda_i(J)|$ as $T \to \infty$; the estimate
+   is a time average, so its error decays like $O(1/T)$, and the top exponent
+   (largest spectral gap) converges fastest.
+2. **(Divergence identity.)** For *any* $\{J_t\}$ and *every* $T$,
+   $\sum_i \hat\lambda_i = \frac1T \sum_t \log|\det J_t|$ exactly, because the QR
+   triangular factors satisfy $\prod_i |R^{(t)}_{ii}| = |\det J_t|$. The sum of the
+   exponents is the robust summary that survives even when the individual exponents
+   do not.
+3. **(Resolution limit.)** When several modes share a modulus in a **non-normal**
+   recurrence, the QR frame cannot isolate the individual exponents — they carry
+   $O(\varepsilon)$ splitting noise — though their mean stays pinned by part 2.
+</Theorem>
+
+Part 1 is the multiplicative-ergodic / QR-convergence theorem specialized to a
+constant map; part 2 is exact each step (Exercise 15.5); part 3 is the subtlety
+that matters in practice, and it is **not** about degeneracy alone. The companion
+makes the distinction sharp. A diagonal-plus-rank-one transition from Chapter 13
+(<XRef id="ch13:generalized-spectrum" />), symmetric with distinct moduli, is
+recovered to a measured $2.1\times10^{-4}$ over $T = 4000$ steps (top exponent to
+$2.3\times10^{-6}$ — fastest, as promised); a diagonal selective/LTV Jacobian
+stream from Chapter 9 is recovered *exactly* (the decoupled coordinates make the QR
+trivial). Even a system that resembles an **S4D-Lin layer at initialization** —
+every mode decaying at the same rate $\Re(\lambda) = -\tfrac12$, a *degenerate*
+spectrum — is recovered exactly, because its modes are decoupled.<MarginNote>The
+resolution limit is about *coupling*, not degeneracy. S4D-Lin's modes share a decay
+rate but are decoupled (normal), so QR resolves each exactly. The ring's modes
+share a rate but oscillate at distinct frequencies in a *non-normal* embedding —
+there QR cannot tell them apart. Symmetric/normal transitions are always safe; the
+caveat is a dense-recurrence warning.</MarginNote>
+
+The resolution limit appears only when degenerate modes are *coupled*: Chapter 2's
+damped ring, a non-normal
+recurrence whose modes share a decay rate but rotate at different frequencies,
+scatters the per-mode estimates by a measured $5.4\times10^{-3}$ while the mean
+rate stays exact to $1.4\times10^{-16}$. The lesson for diagnosing a trained model
+is concrete: trust the top exponent and the sum; distrust an individual interior
+exponent of a coupled system unless its modulus is well separated.
+
+<Figure id="ch15:fig:lyapunov-validation" src="/figures/ch15/lyapunov-validation.png" alt="Two panels. Left: Lyapunov exponent versus mode index. Three systems' QR estimates (filled markers) sit on their closed-form references (thin crosses): a six-mode DPLR transition spread between about minus 0.1 and minus 1.1, a five-mode selective/LTV system, and an S4D-Lin system whose eight exponents lie on a flat line at minus 0.2. Right: per-mode error (estimate minus reference) versus mode index for the non-normal ring; the errors scatter between about plus and minus 0.005 while a dotted line marks the mean error at minus 1.4e-16." caption="The Lyapunov estimator on constructed systems (§15.4). Left: the Benettin–QR estimate recovers the known spectrum of a Chapter 13 DPLR transition (max error $2.1\times10^{-4}$, top exponent $2.3\times10^{-6}$), a Chapter 9 selective/LTV stream (exact, diagonal), and an S4D-Lin-like degenerate-but-decoupled system (exact — uniform decay $-0.2$). Right: on Chapter 2's non-normal ring, degenerate moduli that are *coupled* cannot be resolved mode-by-mode — the per-mode error scatters by $5.4\times10^{-3}$ — yet the mean rate is exact ($1.4\times10^{-16}$), pinned by the divergence identity even where individual modes blur. Produced by companions/ch15/jax/lyapunov_diagnostics.py (reusing Chapter 2's qr_lyapunov); pinned in tests/test_lyapunov_diagnostics.py." />
+
+This is the diagnostic Chapter 7 anticipated — "the structure a stability or
+Lyapunov analysis of a trained S4 layer measures against"
+(<XRef id="ch07:legs-spectrum" />) — and the one Chapter 2 named as the unified
+internal/input–output stability check, since an eigenvalue drifting toward
+$|\lambda| = 1$ shows up as a Lyapunov exponent crossing zero
+(<XRef id="ch02:thm:bibo-tf" />). Running it on an *actually* trained network,
+where the Jacobian varies with the input and the modes are neither known nor
+decoupled, is pilot B's program; the chapter validates the instrument, B points it
+at the data.
+
+## 15.5 Regime detection and effective state size
+
+The Lyapunov spectrum answers "is the state bounded?" The second instrument answers
+"how much of the state is actually doing memory?" A recurrence with $d$ coordinates
+may keep only a few of them near the marginal-stability boundary $|\lambda| = 1$
+(persistent memory) while the rest contract quickly (transient). The count of
+persistent modes is the system's **effective state size**, and it separates a
+memory regime from a forgetting regime.
+
+<Theorem id="ch15:regime-separation" type="proposition" title="Regime separation by effective state size">
+Construct a transition with $r$ marginal modes ($|\lambda| = 1$) and $d - r$
+contractive modes ($|\lambda| = w < 1$). Then:
+
+1. **(Two routes, one count.)** The **algebraic** marginal count
+   $\#\{i : |\lambda_i| \ge 1 - \delta\}$ (from the eigenvalues) and the
+   **dynamical** marginal count $\#\{i : \hat\lambda_i \ge -\delta\}$ (from the
+   Lyapunov spectrum) both equal $r$ for any slack $\delta$ separating the two
+   levels. Independent computations — one algebraic, one dynamical — agree on the
+   memory-mode count.
+2. **(Effective state size.)** With $p_i = |\lambda_i|^2$, the participation ratio
+   $$
+   D_{\mathrm{eff}} \;=\; \frac{\bigl(\sum_i p_i\bigr)^2}{\sum_i p_i^2} \;=\; \frac{\bigl(r + (d-r)w^2\bigr)^2}{r + (d-r)w^4}
+   $$
+   is a continuous soft-count: $D_{\mathrm{eff}} \to r$ as $w \to 0$ and
+   $D_{\mathrm{eff}} \to d$ as $w \to 1$, interpolating between the marginal-mode
+   count and the full dimension.
+</Theorem>
+
+Part 1 is the anti-circularity guard that makes this a diagnostic rather than a
+tautology: an effective-dimension number "validated" by feeding it its own
+spectrum proves nothing, but two *independent* computations — the QR Lyapunov scan
+and the algebraic participation ratio — agreeing on a system whose $r$ is known by
+construction is real corroboration. The companion builds the $(r = 3, d = 8)$
+system and confirms both routes return $3$, with the measured participation ratio
+matching the closed form to $2.7\times10^{-15}$; the effective state size runs from
+$3.025$ at $w = 0.05$ (nearly all memory in the $r = 3$ marginal modes) to $7.980$
+at $w = 0.95$ (all eight modes comparably persistent).<MarginNote>The participation
+ratio $(\sum p)^2/\sum p^2$ is the inverse Simpson index from ecology and the
+"effective rank" of random-matrix theory: a continuous count of how many terms
+carry the mass. Here the mass is squared spectral magnitude, so it counts the modes
+that survive iteration — the recurrence's usable memory dimension.</MarginNote>
+
+<Figure id="ch15:fig:regime-separation" src="/figures/ch15/regime-separation.png" alt="Two panels. Left: Lyapunov exponent versus mode index for a system with three marginal and five contractive modes; three points sit on the marginal line at zero and five sit well below at about minus 0.9, with a dashed line at lambda equals zero. Right: effective state size versus contractive magnitude w from 0.05 to 0.95; a measured curve from eigenvalues rises smoothly from 3 to 8, coinciding with a dotted closed-form curve, with horizontal reference lines at r equals 3 and d equals 8." caption="Effective state size as a regime diagnostic (§15.5). Left: the dynamical route — the Lyapunov spectrum of the constructed $(r = 3, d = 8)$ system places exactly $3$ exponents at zero (marginal/memory) and $5$ below (contractive). Right: the effective state size $D_{\mathrm{eff}}$, measured from the eigenvalues, matches its closed form to $2.7\times10^{-15}$ and interpolates from $r = 3$ (at $w = 0.05$, $D_{\mathrm{eff}} = 3.025$) to $d = 8$ (at $w = 0.95$, $D_{\mathrm{eff}} = 7.980$). The algebraic and dynamical routes agree on the memory-mode count — the cross-check that makes the diagnostic non-circular. Produced by companions/ch15/jax/lyapunov_diagnostics.py; pinned in tests/test_lyapunov_diagnostics.py." />
+
+Effective state size is the diagnostic complement to the capacity bound of §15.3:
+the bound says how many bits a $d$-coordinate state *could* hold; the effective
+size says how many coordinates a *particular* system actually keeps alive. A model
+can satisfy the capacity bound with room to spare and still fail on long-range
+recall because, after training, its $D_{\mathrm{eff}}$ has collapsed to a handful
+of modes. Measuring that collapse on trained checkpoints — across training, across
+layers — is, again, B's empirical program; an independent Julia implementation of
+the same QR-Lyapunov algorithm (matching the JAX spectra on shared anchors — the
+diagonal and DPLR closed-form values — to $<10^{-9}$) guards the numerics the
+program will lean on.
+
+## 15.6 The mechanistic verdict
+
+The impossibility theorems and the diagnostics meet in a mechanistic question: when
+a recurrent model underperforms a transformer on recall, *what* fails? The sharpest
+counter-evidence here comes from the architecture's own side. Of Bick, Xing & Gu
+<Cite key="bick2025understanding" /> — the last author is Mamba's creator — the
+**Gather-and-Aggregate** mechanism: a few attention heads do the heavy lifting of
+in-context retrieval (a "Gather" head extracts the relevant span, an "Aggregate"
+head integrates it), and recurrent models, lacking the sharp content-based
+addressing those heads provide, produce a smoother, lossier read. That the
+sharpest critique of recurrent recall comes from the architecture's own side
+motivates the hybrids of Chapter 14 rather than abandoning the line. This is
+mechanistic *evidence*, not a theorem — we cite it, and offer Chapter 16's
+outer-product reader as the analytic stand-in for the limitation, not a
+reproduction of the finding.
+
+It also bears on why Chapter 14's hybrids win: the recall gap that
+<Cite key="lee2025understanding" /> traces in Mamba–transformer hybrids is the same
+gap G&A localizes to a few heads. A handful of attention layers supply the sharp
+addressing the recurrence cannot, and the diagnostics of this chapter — Lyapunov
+spectrum, effective state size — are how you would *find*, in a trained hybrid,
+which layers carry the persistent memory and which have contracted to transients.
+
+The assembled toolkit is three instruments: the **capacity bound** (an upper limit
+no fixed state escapes), the **Lyapunov spectrum** (is the state stable, and which
+modes persist), and the **effective state size** (how many modes actually do
+memory). Each is validated here against a system with a known answer. None is run
+on a trained network in this chapter — that boundary is deliberate. Probing trained
+SSMs and hybrids with these tools is pilot B's contribution, and deciding what the
+prosecution's file and the defense's together imply for architecture choice is
+Chapter 17's synthesis.
+
+## 15.7 What's next
+
+Chapter 17 integrates the pilots: it takes the diagnostics built here and the
+benchmark protocol of Chapter 16 and turns them on the C1 (symplectic) and B
+(two-timescale) programs, weighing the counter-evidence of this chapter against the
+fourteen chapters of construction that precede it. The instruments of §§15.4–15.5
+are exactly what B carries to trained checkpoints; the impossibility results of
+§15.2 are the ceiling against which Chapter 17 reads any empirical win. Looking
+back, this chapter closes the stability thread Chapter 13 opened: the matrix-memory
+spectrum that chapter computed at the architecture level
+(<XRef id="ch13:generalized-spectrum" />, <XRef id="ch13:rwkv-reduction" />) is now
+a quantity a diagnostic measures on a concrete, possibly trained, system.
+
+## 15.8 Exercises
+
+### Exercise 15.1 (short)
+
+A diagonal SSM carries $d = 64$ complex modes, each stored at $b = 16$ bits, over a
+vocabulary $|\Sigma| = 256$. Use <XRef id="ch15:capacity-bound" /> to give the
+longest sequence $n^\*$ it can losslessly recall. Why is a real model's usable
+length strictly smaller than $n^\*$?
+
+<details>
+<summary>Solution</summary>
+
+The state budget is $d\,b = 64 \times 16 = 1024$ bits, and each token costs
+$\log_2|\Sigma| = \log_2 256 = 8$ bits, so $n^\* = \lfloor 1024 / 8 \rfloor = 128$.
+A real model recalls fewer than $128$ tokens because the counting bound assumes a
+*lossless, injective* encoding of prefixes into states; a trained recurrence
+instead superposes writes (interference, the Chapter 11 rank wall), uses finite
+arithmetic, and never reaches the information-theoretic optimum. The bound is the
+ceiling of the ceiling — necessary, far from sufficient.
+</details>
+
+### Exercise 15.2 (short, code)
+
+Run `companions/ch15/jax/lyapunov_diagnostics.py`. Report the per-mode scatter and
+the mean-rate error for the non-normal ring. What do the two numbers together tell
+you about trusting a Lyapunov diagnostic on a trained (hence non-normal) recurrence?
+
+<details>
+<summary>Solution</summary>
+
+The ring's per-mode error scatters by $5.4\times10^{-3}$ while the mean rate is
+exact to $1.4\times10^{-16}$. Together they say: on a coupled, non-normal recurrence
+with near-degenerate moduli, an **individual** interior Lyapunov exponent is
+unreliable (the QR frame cannot isolate it), but the **sum/mean** — pinned by the
+divergence identity $\sum_i \hat\lambda_i = \langle \log|\det J_t|\rangle$ — is
+trustworthy. On a trained model, read the top exponent (stability) and the sum
+(total contraction) confidently; treat an interior exponent as reliable only when
+its modulus is well separated from its neighbors.
+</details>
+
+### Exercise 15.3 (short, code)
+
+From the same run, report the two marginal-mode counts (algebraic and dynamical)
+and the effective state size at $w = 0.05$ and $w = 0.95$ for the $(r = 3, d = 8)$
+system. Why does reporting *both* counts matter?
+
+<details>
+<summary>Solution</summary>
+
+Both counts return $3$; the effective state size is $3.025$ at $w = 0.05$ and
+$7.980$ at $w = 0.95$. Reporting both routes matters because they are
+**independent**: the algebraic count comes from the eigenvalues, the dynamical
+count from the QR Lyapunov scan. Their agreement on a system whose $r$ is known by
+construction is what certifies the diagnostic is measuring a real property rather
+than re-reporting its own input — the anti-circularity guard. A single route,
+agreeing only with itself, could be measuring an artifact.
+</details>
+
+### Exercise 15.4 (theory) — solution in §15.9
+
+Prove <XRef id="ch15:capacity-bound" />. Model the recurrence's post-prefix state
+as a function $\sigma : \mathcal X \to \mathcal S$, argue every later output factors
+through $\sigma$, and apply the pigeonhole principle when $|\mathcal X| > |\mathcal S|$.
+Then specialize to verbatim copy to obtain $d\,b \ge n\log_2|\Sigma|$.
+
+### Exercise 15.5 (theory) — solution in §15.9
+
+Prove part 2 of <XRef id="ch15:lyapunov-estimator" /> (the divergence identity).
+Using one Benettin step $Q_{t} R_t = J_t Q_{t-1}$ with $Q$ orthogonal, show
+$\prod_i |R^{(t)}_{ii}| = |\det J_t|$, and conclude
+$\sum_i \hat\lambda_i = \frac1T\sum_t \log|\det J_t|$ for every $T$, independent of
+any mode-resolution.
+
+### Exercise 15.6 (theory) — solution in §15.9
+
+Prove part 2 of <XRef id="ch15:regime-separation" />. For the two-level spectrum
+($r$ modes at $|\lambda| = 1$, $d - r$ at $|\lambda| = w$), derive
+$D_{\mathrm{eff}} = (r + (d-r)w^2)^2 / (r + (d-r)w^4)$ from the participation-ratio
+definition, and take the limits $w \to 0$ and $w \to 1$.
+
+## 15.9 Full solutions to theory exercises
+
+### Solution to Exercise 15.4
+
+Fix the suffix that poses the queries; then for each prefix $x \in \mathcal X$ the
+model's answers are a deterministic function of the state $s = \sigma(x)$ it holds
+after reading $x$ (the recurrence is deterministic, and everything downstream sees
+$x$ only through $s$). So the entire answer map factors as
+$x \mapsto \sigma(x) \mapsto \text{answers}$. If $|\mathcal X| > |\mathcal S| \ge 2^{db}$,
+then $\sigma$ cannot be injective (pigeonhole): there exist $x \ne x'$ with
+$\sigma(x) = \sigma(x')$, so the model produces identical answers on $x$ and $x'$.
+The task requires different answers on $x$ and $x'$ (they are in $\mathcal X$,
+distinguished by construction), so the model is wrong on at least one. For verbatim
+copy, $\mathcal X$ is all $|\Sigma|^n$ length-$n$ strings (each must be reproduced,
+hence distinguished), so losslessness forces $2^{db} \ge |\Sigma|^n$, i.e.
+$d\,b \ge n\log_2|\Sigma|$. $\blacksquare$
+
+### Solution to Exercise 15.5
+
+One Benettin step orthonormalizes the propagated frame: $J_t Q_{t-1} = Q_t R_t$ with
+$Q_{t-1}, Q_t$ orthogonal and $R_t$ upper-triangular with the sign convention
+$R^{(t)}_{ii} > 0$. Take determinants: $\det(J_t)\det(Q_{t-1}) = \det(Q_t)\det(R_t)$.
+Orthogonal matrices have $|\det Q| = 1$, and $\det R_t = \prod_i R^{(t)}_{ii}$, so
+$$
+|\det J_t| \;=\; |\det R_t| \;=\; \prod_i |R^{(t)}_{ii}| .
+$$
+The Benettin estimate is $\hat\lambda_i = \frac1T\sum_t \log|R^{(t)}_{ii}|$, so
+summing over $i$ and exchanging the sums,
+$$
+\sum_i \hat\lambda_i = \frac1T \sum_t \sum_i \log|R^{(t)}_{ii}| = \frac1T \sum_t \log\!\prod_i |R^{(t)}_{ii}| = \frac1T \sum_t \log|\det J_t| .
+$$
+This holds for every $T$ and uses nothing about whether the individual
+$\hat\lambda_i$ have converged or whether modes are degenerate — the sum is exact
+even when the per-mode split is not. $\blacksquare$
+
+### Solution to Exercise 15.6
+
+With $p_i = |\lambda_i|^2$, the two-level spectrum has $r$ entries with $p_i = 1$ and
+$d - r$ entries with $p_i = w^2$. Then
+$$
+\sum_i p_i = r + (d-r)w^2, \qquad \sum_i p_i^2 = r\cdot 1 + (d-r)\,w^4 ,
+$$
+so by definition
+$$
+D_{\mathrm{eff}} = \frac{\bigl(\sum_i p_i\bigr)^2}{\sum_i p_i^2} = \frac{\bigl(r + (d-r)w^2\bigr)^2}{r + (d-r)w^4} .
+$$
+As $w \to 0$ the contractive terms vanish: $D_{\mathrm{eff}} \to r^2 / r = r$, the
+marginal-mode count. As $w \to 1$ every $p_i \to 1$:
+$D_{\mathrm{eff}} \to d^2 / d = d$, the full dimension. For $0 < w < 1$ it lies
+strictly between $r$ and $d$, a continuous interpolation — the soft count of usable
+memory modes. $\blacksquare$
+
+## 15.10 Companion code
+
+The companions live in `companions/ch15/{jax,torch,julia}` and are float64
+throughout; the JAX modules are canonical, the torch module mirrors the diagnostic
+core with cross-framework parity pinned $<10^{-9}$, and the Julia module is an
+independent-language Lyapunov cross-check.
+
+- **`jax/copying_bound.py`** — the information-counting bound
+  (<XRef id="ch15:capacity-bound" />): the state-capacity and lossless-requirement
+  bits, the recall-cliff threshold, and the demonstration that Chapter 16's slot
+  model (imported, not re-implemented) cliffs exactly at $n^\* = d$. Produces
+  `copying-bound.png`.
+- **`jax/lyapunov_diagnostics.py`** — the Lyapunov estimator
+  (<XRef id="ch15:lyapunov-estimator" />) reusing Chapter 2's `qr_lyapunov`, the
+  constructed systems (DPLR from Chapter 13, selective/LTV from Chapter 9, an
+  S4D-Lin-like degenerate system, and Chapter 2's ring for the resolution limit),
+  the divergence identity, and the regime/effective-state-size diagnostic with its
+  two-route cross-check (<XRef id="ch15:regime-separation" />). Produces
+  `lyapunov-validation.png` and `regime-separation.png`.
+- **`torch/lyapunov_diagnostics.py`** — an eager mirror of the diagnostic core
+  (QR Lyapunov, closed form, effective state size), pinned to the JAX outputs in
+  `torch/tests/test_ch15_torch.py`; the instrument is framework-agnostic because
+  pilot B runs it on trained torch models.
+- **`julia/lyapunov_crosscheck.jl`** — a stdlib-only independent QR-Lyapunov and
+  eigendecomposition, matching the JAX spectra (diagonal recovery, the DPLR closed
+  form) and the effective-state-size closed form to $<10^{-9}$.
+
+```bash
+PYTHONPATH=. python companions/ch15/jax/copying_bound.py
+PYTHONPATH=. python companions/ch15/jax/lyapunov_diagnostics.py
+make companion-jax-tests          # all chapters' JAX suites
+make companion-torch-tests        # JAX↔torch parity
+julia --project=companions/ch15/julia companions/ch15/julia/runtests.jl
+```
