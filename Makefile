@@ -24,7 +24,7 @@ help:
 	@echo "  check-bibkeys     - validate bibliography.bib + chapter citations (audit F6)"
 	@echo "  check-xrefs       - validate <Theorem id=...>  + <Figure id=...> (audit F7)"
 	@echo "  companion-julia-tests"
-	@echo "                    - run julia runtests.jl in ch05, ch06, ch07 (ch04 manual; needs Pkg.instantiate)"
+	@echo "                    - run julia runtests.jl (ch05/06/07/10/11/12/13/15/17; ch04 manual, needs Pkg.instantiate)"
 	@echo "  companion-jax-tests   - run JAX companion pytest suites (.venv; excludes torch)"
 	@echo "  companion-torch-tests - run PyTorch companion pytest suites (.venv [torch] extra)"
 	@echo ""

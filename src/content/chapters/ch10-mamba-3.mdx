@@ -28,9 +28,10 @@ import Figure from '@brandon_m_behring/book-scaffold-astro/components/Figure.ast
 
 <NoteBox title="Chapter 10 — at a glance">
 **Goal**: see how Mamba-3 keeps the selectivity of Chapter 9 and changes exactly
-two things — the *integrator* (zero-order hold becomes the second-order
-exponential-trapezoidal scheme of Chapter 4) and the *state* (real diagonal
-becomes complex, so one head can both decay and oscillate). This is where the
+two things *of dynamical-systems substance* — the *integrator* (zero-order hold
+becomes a second-order exponential-trapezoidal scheme; §10.2's trapezoidal-quadrature
+member of the Chapter 4 family) and the *state* (real diagonal becomes complex, so
+one head can both decay and oscillate). This is where the
 numerical-analysis machinery of Chapters 4-6 meets a production architecture.
 
 **Reading time**: ~45 minutes prose; 2 hours with the companions.
@@ -102,9 +103,9 @@ symmetric trapezoidal rule (globally second-order); at $\lambda = 1$ it collapse
 to a shifted ZOH (first order). Mamba-3 makes $\lambda$ itself input-dependent (a
 sigmoid of a learned projection), one more selective knob.
 
-<MarginNote>Chapter 4 §4.5 derives a *different* second-order exponential
-integrator — the $\varphi_1, \varphi_2$ family, which integrates the linear
-interpolant of $u$ *exactly*. Mamba-3 instead applies the trapezoidal *quadrature*
+<MarginNote>Chapter 4 §4.5 derives the *classical* exponential-trapezoidal rule — the
+$\varphi_1, \varphi_2$ family, which integrates the linear interpolant of $u$
+*exactly*. Mamba-3 uses a *sibling* member of the family: the trapezoidal *quadrature*
 rule to the forcing integral (the form above); the two agree to $O(\stepsize^2)$
 and differ at $O(\stepsize^3)$, so both are globally second-order. The quadrature
 form is what keeps the SSD pass of §10.5 a sum of two clean streams.</MarginNote>

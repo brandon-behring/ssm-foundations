@@ -122,7 +122,7 @@ and a single `expm` call extracts both $\discA$ (top-left block) and $\discB$ (t
 
 The proof is one line: $\abs{e^{\lambda_i \stepsize}} = e^{\operatorname{Re}(\lambda_i) \stepsize} < 1$ when $\operatorname{Re}(\lambda_i) < 0$ and $\stepsize > 0$. Stability is preserved for *every* positive step size, which is what A-stability means.
 
-Two further properties are worth highlighting. First, for the **autonomous** ODE ($u \equiv 0$), ZOH is *exact*: the recurrence $\statevec_{k+1} = e^{\statemat \stepsize} \statevec_k$ matches $\statevec(t_{k+1}) = e^{\statemat \stepsize} \statevec(t_k)$ without any error at all. This is unusual — most discretizations have nonzero error even on autonomous systems. Second, for *forced* systems with smooth $u$, ZOH is **first-order accurate**: the per-step error in the forcing integral is $O(\stepsize^2)$ (because the integrand $e^{\statemat (t_{k+1} - s)} \inputmat (u(s) - u_k)$ is $O(\stepsize)$ over an interval of length $\stepsize$), and after $T/\stepsize$ steps the cumulative error is $O(\stepsize)$. The empirical convergence rate plotted in the companion log-log error figure confirms slope $\approx 1$.
+Two further properties are worth highlighting. First, for the **autonomous** ODE ($u \equiv 0$), ZOH is *exact*: the recurrence $\statevec_{k+1} = e^{\statemat \stepsize} \statevec_k$ matches $\statevec(t_{k+1}) = e^{\statemat \stepsize} \statevec(t_k)$ without any error at all. This is unusual — most discretizations have nonzero error even on autonomous systems. Second, for *forced* systems with $u \in C^1$, ZOH is **first-order accurate**: the per-step error in the forcing integral is $O(\stepsize^2)$ (because the integrand $e^{\statemat (t_{k+1} - s)} \inputmat (u(s) - u_k)$ is $O(\stepsize)$ over an interval of length $\stepsize$), and after $T/\stepsize$ steps the cumulative error is $O(\stepsize)$. The empirical convergence rate plotted in the companion log-log error figure confirms slope $\approx 1$.
 
 <Figure id="ch04:fig:eigenvalue-migration" src="/figures/ch04/eigenvalue_migration.png" alt="Continuous eigenvalues in the complex plane (left half-plane) map to discrete eigenvalues inside the unit disk after ZOH discretization." caption="ZOH preserves stability: continuous eigenvalues in the open left half-plane (left panel) map to discrete eigenvalues strictly inside the unit disk (right panel) via $\mu_i = e^{\lambda_i \Delta}$. The mapping is bijective and depends on the step size $\Delta$. Produced by companions/ch04/jax/discretization_comparison.py." />
 
@@ -211,7 +211,7 @@ The hierarchy is not strict: ZOH's autonomous-exactness can outweigh its first-o
 
 This chapter introduced three schemes and proved each preserves Lyapunov stability. **Chapter 5** zooms in on the *stability region* of each scheme — the set of $\statemat \stepsize$ values for which $\rho(\discA) \le 1$ — and develops the Butcher-tableau machinery for systematically constructing higher-order Runge–Kutta methods. **Chapter 6** then asks what to do when even A-stability is not enough — when the system is stiff or Hamiltonian and you need *L-stable* implicit methods, or *symplectic* methods that preserve geometric invariants. The exp-trapezoidal scheme of §4.5 turns out to be a member of a much larger family of exponential integrators, all of which deserve a place in your numerical-analysis toolkit.
 
-Forward-looking SSM connections: ZOH is this book's default in Chapters 7–9, and natively the choice of S5 and Mamba-1/2; the original S4 and S4D papers used bilinear, with the S4D ablations finding the two interchangeable. Exp-trapezoidal is the Mamba-3 scheme, treated in Chapter 10.
+Forward-looking SSM connections: ZOH is this book's default in Chapters 7–9, and natively the choice of S5 and Mamba-1/2; the original S4 and S4D papers used bilinear, with the S4D ablations finding the two interchangeable. Mamba-3 uses a scheme from this exponential-trapezoidal family, treated in Chapter 10 — §10.2 derives the specific trapezoidal-*quadrature* variant it adopts, a second-order cousin of the $\varphi$-interpolant form above.
 
 ## 4.8 Exercises
 
@@ -234,7 +234,7 @@ Compute $\discA$ for the bilinear transform on the same 1-D problem ($\statemat 
 <details>
 <summary>Solution</summary>
 
-$\discA_{\text{bilinear}} = (1 + (0.1/2)(-2))/(1 - (0.1/2)(-2)) = 0.9/1.1 \approx 0.8182$. ZOH gives $e^{-0.2} \approx 0.8187$. The bilinear value is slightly smaller, meaning bilinear *overdamps* slightly relative to the true exponential. This is the second-order Padé approximation underestimating $e^{-0.2}$: bilinear's $\discA$ is the $(1,1)$-Padé approximant $(1 + z/2)/(1 - z/2)$ of $e^z$ (the §4.4 margin note), which matches $e^z$ only through $z^2$ and so drops the $+z^3/6$ term the exact exponential keeps. For small $\stepsize \cdot \abs{\lambda}$ the gap is $O(\stepsize^3)$; here the difference is about $5 \cdot 10^{-4}$.
+$\discA_{\text{bilinear}} = (1 + (0.1/2)(-2))/(1 - (0.1/2)(-2)) = 0.9/1.1 \approx 0.8182$. ZOH gives $e^{-0.2} \approx 0.8187$. The bilinear value is slightly smaller, meaning bilinear *overdamps* slightly relative to the true exponential. This is the second-order Padé approximation underestimating $e^{-0.2}$: bilinear's $\discA$ is the $(1,1)$-Padé approximant $(1 + z/2)/(1 - z/2)$ of $e^z$ (the §4.4 margin note), which matches $e^z$ through $z^2$ but carries $z^3/4$ at third order against the exact $z^3/6$, so the leading gap is $z^3/12 \approx -6.7 \times 10^{-4}$ at $z = -0.2$. For small $\stepsize \cdot \abs{\lambda}$ the gap is $O(\stepsize^3)$; here the net difference (after the higher-order terms) is about $5 \cdot 10^{-4}$.
 </details>
 
 ### Exercise 4.3 (computation + code)
@@ -320,7 +320,7 @@ $$
 \statevec_{k+1} = e^{\statemat \stepsize} \statevec_k + \stepsize \, \varphi_1(\statemat \stepsize) \, \inputmat \, u_k + \stepsize \, \varphi_2(\statemat \stepsize) \, \inputmat \, (u_{k+1} - u_k). \qquad \square
 $$
 
-The local truncation error is $O(\stepsize^3)$ for $C^1$ inputs (the linear interpolation has error $O(\stepsize^2)$ over an interval of length $\stepsize$, and the integral picks up an additional $\stepsize$ factor). Global error is therefore $O(\stepsize^2)$ — second-order, as advertised.
+The local truncation error is $O(\stepsize^3)$ for $C^2$ inputs (the linear-interpolation error is $O(\stepsize^2)$ — governed by $u''$ — over an interval of length $\stepsize$, and the integral picks up an additional $\stepsize$ factor). Global error is therefore $O(\stepsize^2)$ — second-order, as advertised.
 
 ## 4.10 Companion code
 
