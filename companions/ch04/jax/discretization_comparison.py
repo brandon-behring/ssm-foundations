@@ -67,7 +67,7 @@ _OUT_DIR = _REPO_ROOT / "public" / "figures" / "ch04"
 #   \ddot q + c \dot q + k q = u(t),   u(t) = sin(2 t),
 # lifted to h = (q, \dot q)^T with
 #   A = [[0, 1], [-k, -c]],   B = [0, 1]^T,   C = [1, 0].
-# Constants are picked so that the eigenvalues -0.25 \pm i \sqrt{15}/4
+# Constants are picked so that the eigenvalues -0.25 \pm i \sqrt{15.75}/2 \approx -0.25 \pm 1.984 i
 # place the system firmly in the open left half-plane.
 # ---------------------------------------------------------------------------
 

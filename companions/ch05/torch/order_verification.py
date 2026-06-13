@@ -44,7 +44,7 @@ _DTYPE = torch.float64
 # Test problem: same forced damped oscillator as Chapter 4.
 #   d/dt [q, q̇] = [[0, 1], [-4, -0.5]] [q, q̇] + [0, 1] · sin(2t)
 #   y = [1, 0] · [q, q̇]
-# Eigenvalues -0.25 ± i·√(15)/4 — firmly in the LHP, so RK methods with
+# Eigenvalues -0.25 ± i·√(15.75)/2 ≈ -0.25 ± 1.984i — firmly in the LHP, so RK methods with
 # stability regions covering the eigenvalue × dt point are stable.
 # ---------------------------------------------------------------------------
 

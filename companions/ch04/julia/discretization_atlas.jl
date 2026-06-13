@@ -12,7 +12,7 @@
 # The test system is the same forced damped oscillator as the JAX companions:
 #     d/dt [q, q̇]ᵀ = [[0, 1], [-4, -0.5]] [q, q̇]ᵀ + [0, 1]ᵀ · sin(2t),
 #     y = [1, 0] · [q, q̇]ᵀ.
-# Eigenvalues of A: -0.25 ± i·√(15)/4 (firmly in the open left half-plane).
+# Eigenvalues of A: -0.25 ± i·√(15.75)/2 ≈ -0.25 ± 1.984i (firmly in the open left half-plane).
 #
 # Usage:
 #     julia --project=. companions/ch04/julia/discretization_atlas.jl
@@ -227,7 +227,7 @@ if abspath(PROGRAM_FILE) == @__FILE__
     println("=" ^ 70)
     println("System: 2-state forced damped oscillator")
     println("        d/dt [q, q̇] = [[0, 1], [-4, -0.5]] [q, q̇] + [0, 1] sin(2t)")
-    println("Eigenvalues of A: -0.25 ± i·√(15)/4 ≈ -0.25 ± 0.968i")
+    println("Eigenvalues of A: -0.25 ± i·√(15.75)/2 ≈ -0.25 ± 1.984i")
     println("Reference: Tsit5 with reltol=1e-11, abstol=1e-13")
     println()
     results = error_sweep()
