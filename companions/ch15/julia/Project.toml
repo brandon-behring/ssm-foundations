@@ -1,0 +1,9 @@
+name = "Ch15CounterEvidence"
+description = "Chapter 15 Julia companion — independent QR-Lyapunov cross-check (stdlib only)."
+
+[deps]
+LinearAlgebra = "37e2e46d-f89d-539d-b4ee-838fcccc9c8e"
+Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
+
+[compat]
+julia = "1.9"
