@@ -43,7 +43,7 @@ _DTYPE = torch.float64
 # Test system: forced damped oscillator (identical float64 constants to the JAX module)
 #   \ddot q + c \dot q + k q = u(t),   u(t) = sin(2 t),
 # lifted to h = (q, \dot q)^T with A = [[0, 1], [-k, -c]], B = [0, 1]^T, C = [1, 0].
-# Eigenvalues -0.25 ± i sqrt(15)/4 sit firmly in the open left half-plane.
+# Eigenvalues -0.25 ± i sqrt(15.75)/2 ≈ -0.25 ± 1.984i sit firmly in the open left half-plane.
 # ---------------------------------------------------------------------------
 
 _K_STIFF: float = 4.0  # spring constant

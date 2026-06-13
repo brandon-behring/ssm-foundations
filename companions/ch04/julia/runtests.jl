@@ -39,7 +39,7 @@ end
     end
 
     @testset "Bilinear preserves stability (eigenvalues of Ad inside unit disk)" begin
-        # A has eigenvalues -0.25 ± i√15/4 (open left half-plane). The bilinear
+        # A has eigenvalues -0.25 ± i√15.75/2 ≈ -0.25 ± 1.984i (open left half-plane). The bilinear
         # transform maps the open LHP to the open unit disk, so |λ(Ad)| < 1
         # at any dt > 0.
         for dt in (0.01, 0.1, 0.5, 1.0)
