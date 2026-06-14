@@ -3,24 +3,26 @@
 One-screen resume context (the `sessions.md` §1 pattern). Update on context switch / session end.
 For the durable index, see the Claude Code project-memory `MEMORY.md`.
 
-**Right now:** **R38 shipping — the last beta-gate content fact-check; the book-side roadmap is
-otherwise in steady state.** Stages 1 (Ch 1–10 hardening, PRs #32–#36) and 2 (tooling/CI + the toolkit
-re-bump to 4.23.0, PRs #37–#38) are COMPLETE + deployed. **R38** (`fix/r38-mamba3-mimo-factcheck`)
-verified ch10's three Mamba-3 attributions against the paper (`2603.15569.pdf`): **λ = σ(u_t)** (App. A.3
-+ Table 8) and **RoPE on B,C** (§3.2 Prop 2/3, §3.4 "RoPE trick") are exactly correct — no change;
-**MIMO** (§10.6) was reframed — the paper presents it as a model-quality/expressivity lever (a +1.2-pt
-avg downstream gain over SISO, §4.1.1; abstract "for better model performance"), not "engineering rather
-than dynamics," while keeping the correct "orthogonal to the discretization/stability story" point. One
-prose edit + a STATUS regen (ch10 Lines 450→453); `npm run build` + `make check` green.
+**Right now:** **M7 — stage 1 (staging the pilot-results fold-in).** Everything before M7 is done +
+deployed: Stages 1 (Ch 1–10 hardening, #32–#36), 2 (tooling/CI + toolkit 4.23.0, #37–#38), 3/R38 (the
+ch10 Mamba-3 fact-check, #39). M7 (fold C1/B *trained-model* results into Ch 14–17, flip alpha→beta) is
+readiness-gated on the pilots executing in `post_transformers` — so stage 1 is **the prep doable now**:
+a book-side spec doc (`docs/m7-pilot-integration-plan.md`) with the **fold-in catalog** (the ~23 hedged
+passages M7 updates, concentrated in ch17 §17.2→§17.2b / §17.3→§17.3b / §17.5 rewrite) + the **C1/B data
+contracts** (idealized→trained-model inputs the pilots must produce, so the fold-in is mechanical) + the
+**flip mechanism**, PLUS a cross-repo `tracked` issue in post_transformers surfacing that contract to the
+pilots. **Recon finding:** the toolkit's `PreReleaseBanner` is unwired and README:5's "banner is live" is
+stale — so the alpha→beta "flip" is currently a doc-status change, not a live banner toggle (recorded in
+the spec for M7 completion). No `src/` change → no deploy impact.
 
 **Why:** the six-chapter campaign (approved 2026-06-10, order **12 → 14 → 16 → 13 → 15 → 17**) is
 **COMPLETE — 6/6.** The 17-chapter book is content-complete; cadence proven **11×** (Ch 7–17).
 
-**Next step:** **Steady state.** The book is content-complete (M6), beta-gate-hardened (Stages 1–2),
-and now R38-fact-checked. Only low-priority Track-C housekeeping remains (F10 dep bumps, F37 dep pins,
-F21/F22/F25 bib hygiene — do-when-triggered, not scheduled). The next real milestone is the
-readiness-gated **M7** (fold C1/B pilot results into Ch 15/16/17, flip `alpha→beta`), gated on pilot
-execution in `post_transformers`. **Hold `alpha` until M7.**
+**Next step:** **M7 completion** — readiness-gated on the C1/B pilots producing trained-model results in
+`post_transformers` (per the data contract in `docs/m7-pilot-integration-plan.md`). When results land,
+the fold-in is turnkey (that doc's execution checklist): fill §17.2b/§17.3b, rewrite §17.5, update
+ch14/15/16 cross-refs, flip alpha→beta + the doc-status sweep. Otherwise only low-priority Track-C
+housekeeping remains (F10/F37/F21/F22/F25 — do-when-triggered). **Hold `alpha` until M7.**
 
 Deferred-with-notes in `audits/2026-06-13_post-m6_recheck.md` (accepted, not bugs): R23 (ch08
 resolvent — a self-flagged non-implemented sketch), R24 (ch09 residual magnitudes — prose already says
