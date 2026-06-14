@@ -23,7 +23,7 @@
     "@astrojs/mdx": "^5.0.3",
     "@astrojs/preact": "^5.1.1",
     "@brandon_m_behring/book-scaffold-astro": "^4.23.0",
-    "astro": "^6.1.7",
+    "astro": "^6.4.6",
     "katex": "^0.16.11",
     "preact": "^10.29.1",
     "rehype-katex": "^7.0.1",
