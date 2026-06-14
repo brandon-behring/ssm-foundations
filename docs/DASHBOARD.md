@@ -67,8 +67,11 @@ data. All 17 chapters now `implemented` + deployed).
   remediation + a STYLE §8 refresh) — is **complete**. **Stage 2** (tooling/CI + the toolkit re-bump):
   **PR A landed the tooling items** — #26 (content-validating `status-check`, which on its first run
   caught a real Stage-1 `STATUS.md` drift), ch04-Julia folded into the default loop (F7/#4), and ch01–03
-  torch↔jax parity (F27) — leaving the v4.16.0→4.23.0 toolkit re-bump (+ the #14 subtitle). Then the
-  readiness-gated **M7** (fold C1/B pilot results into Ch 15/16/17 and flip `alpha → beta`).
+  torch↔jax parity (F27) — and **PR B** re-bumped the toolkit v4.16.0 → 4.23.0, landing **#126**
+  (theorem headings auto-number to match `<XRef>`) + **#135** (the sidebar subtitle, closing **#14**);
+  the open #140/#141 base-link bugs are confirmed not to affect this root-deployed book. **Stage 2 is
+  complete.** Remaining post-M6 work is the readiness-gated **M7** (fold C1/B pilot results into
+  Ch 15/16/17 and flip `alpha → beta`).
 
 ## Refresh the artifact columns
 
