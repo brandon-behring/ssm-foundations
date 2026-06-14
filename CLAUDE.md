@@ -1,6 +1,6 @@
 # ssm-foundations — AI authoring guide
 
-A 17-chapter lens-led foundations book for sequence-model architectures, with the dynamical-systems perspective foregrounded. Built with `@brandon_m_behring/book-scaffold-astro` (academic preset, v4.16.0).
+A 17-chapter lens-led foundations book for sequence-model architectures, with the dynamical-systems perspective foregrounded. Built with `@brandon_m_behring/book-scaffold-astro` (academic preset, v4.23.0).
 
 **Status**: scaffold landed 2026-05-24 (Plan 3 launch). **Chapters 1–17 are authored (`status: implemented`) — the book is content-complete (M6 reached 2026-06-13).** Foundations (1–6) + SSM-core (7–10) + beyond-SSM through the delta-rule lineage and the exponential-gate/matrix-memory architectures (11–13) + integration through hybrids, empirical methodology, and the counter-evidence/diagnostics file (14, 16 — the pilot-B anchors, **B's book-side prerequisites closed at Ch 16's merge**; 15 — the prosecution's file) + the synthesis crown-jewel (17 — niche-pilot integration: the C1/B pilots' integrated templates and the 13-niche decision rubric) all shipped and deployed. (Status line updated 2026-06-13.)
 
@@ -151,4 +151,4 @@ Substantive adoption of `testing.md` is tracked via [audit F8](audits/2026-05-25
 ## Toolkit reference
 
 - v4 API: see [PACKAGE_DESIGN.md](https://github.com/brandon-behring/book-scaffold-astro/blob/main/PACKAGE_DESIGN.md) for the canonical contract.
-- v3→v4 migration: [`MIGRATION-v3-to-v4.md`](https://github.com/brandon-behring/book-scaffold-astro/blob/main/package/MIGRATION-v3-to-v4.md). (Not needed for this book — scaffolded fresh on v4.2.0, now tracking v4.16.0.)
+- v3→v4 migration: [`MIGRATION-v3-to-v4.md`](https://github.com/brandon-behring/book-scaffold-astro/blob/main/package/MIGRATION-v3-to-v4.md). (Not needed for this book — scaffolded fresh on v4.2.0, now tracking v4.23.0 — the re-bump that landed #126 auto-numbered theorem headings + #135 sidebar subtitle.)

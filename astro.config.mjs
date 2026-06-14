@@ -37,6 +37,9 @@ export default await defineBookConfig({
   site: 'https://ssm-foundations.brandon-behring.dev',
   title: 'ssm-foundations',
   description: '17-chapter lens-led foundations book bridging numerical analysis and dynamical systems to modern sequence-model architectures (SSMs, Mamba, S4, Hyena, DeltaNet).',
+  // subtitle (v4.23.0+, #135): the sidebar brand's second line. Replaces the
+  // scaffold placeholder 'A scaffold-astro book' (ssm-foundations #14).
+  subtitle: 'A dynamical-systems lens on sequence-model architectures',
   styles: [academicStyle],
   output: 'static',
   routes: { chapters: true },
