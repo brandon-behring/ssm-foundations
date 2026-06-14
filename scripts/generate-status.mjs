@@ -17,7 +17,7 @@
 import { readFile, readdir, writeFile, mkdir } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
 import path from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = path.resolve(__dirname, '..');
@@ -198,6 +198,20 @@ function sumExercisesValue(chapters) {
     return chapters.reduce((s, c) => s + c.exerciseHeadings, 0);
 }
 
+// Return the first line where two markdown strings diverge, or null if equal.
+// Used by both --check and the script test to point at the exact drift.
+function firstDivergence(expected, actual) {
+    const exp = expected.split('\n');
+    const got = actual.split('\n');
+    const n = Math.max(exp.length, got.length);
+    for (let i = 0; i < n; i++) {
+        if (exp[i] !== got[i]) {
+            return { line: i + 1, expected: exp[i] ?? null, got: got[i] ?? null };
+        }
+    }
+    return null;
+}
+
 async function check() {
     if (!existsSync(STATUS_PATH)) {
         console.error('docs/STATUS.md does not exist; run `node scripts/generate-status.mjs` to create it.');
@@ -209,18 +223,42 @@ async function check() {
         console.error('docs/STATUS.md missing a `**Verified:** YYYY-MM-DD` line.');
         process.exit(1);
     }
-    // Local midnight — must match the local-date stamp written by main()
-    // (PR #21 review fix).
-    const verified = new Date(m[1] + 'T00:00:00');
+    const verifiedDate = m[1];
+
+    // Content check (audit #26): regenerate the snapshot from current chapter
+    // state, reusing the committed verified date so the `**Verified:**` line
+    // also matches, then require a byte-identical result. Any divergence is a
+    // genuine content drift — a stale `status` column, a missing/orphan row, a
+    // changed count, or a rollup mismatch. Because the same regex runs on both
+    // sides, count edge-cases (e.g. a `<Theorem` inside a `{/* */}` comment)
+    // can't produce a false diff: they're counted identically either way.
+    const chapters = await collectChapters();
+    const expected = renderStatusMd(chapters, verifiedDate);
+    const div = firstDivergence(expected, content);
+    if (div) {
+        console.error('docs/STATUS.md content is stale — it no longer matches src/content/chapters/.');
+        console.error(`  first divergence at line ${div.line}:`);
+        console.error(`    committed: ${JSON.stringify(div.got)}`);
+        console.error(`    expected:  ${JSON.stringify(div.expected)}`);
+        console.error('Re-run `node scripts/generate-status.mjs` to regenerate docs/STATUS.md.');
+        process.exit(1);
+    }
+
+    // Staleness check (original behaviour): even a content-fresh snapshot is
+    // flagged if its verified date is too old. Local midnight — must match the
+    // local-date stamp written by main() (PR #21 review fix).
+    const verified = new Date(verifiedDate + 'T00:00:00');
     const ageDays = (Date.now() - verified.getTime()) / (1000 * 60 * 60 * 24);
     if (ageDays > STALENESS_DAYS) {
         console.error(
-            `docs/STATUS.md is ${ageDays.toFixed(1)} days stale (verified ${m[1]}, limit ${STALENESS_DAYS}).`,
+            `docs/STATUS.md is ${ageDays.toFixed(1)} days stale (verified ${verifiedDate}, limit ${STALENESS_DAYS}).`,
         );
         console.error('Re-run `node scripts/generate-status.mjs` to refresh.');
         process.exit(1);
     }
-    console.log(`status-check: ok (verified ${m[1]}, age ${ageDays.toFixed(1)}d ≤ ${STALENESS_DAYS}d)`);
+    console.log(
+        `status-check: ok (content matches; verified ${verifiedDate}, age ${ageDays.toFixed(1)}d ≤ ${STALENESS_DAYS}d)`,
+    );
 }
 
 async function main() {
@@ -239,7 +277,14 @@ async function main() {
     console.log(`generate-status: wrote docs/STATUS.md (${chapters.length} chapters, verified ${today})`);
 }
 
-main().catch((e) => {
-    console.error(e);
-    process.exit(1);
-});
+// Only auto-run when invoked directly (node scripts/generate-status.mjs);
+// stay side-effect-free when imported by scripts/generate-status.test.mjs.
+const isEntryPoint = import.meta.url === pathToFileURL(process.argv[1] ?? '').href;
+if (isEntryPoint) {
+    main().catch((e) => {
+        console.error(e);
+        process.exit(1);
+    });
+}
+
+export { collectChapters, renderStatusMd, firstDivergence, STATUS_PATH, STALENESS_DAYS };
