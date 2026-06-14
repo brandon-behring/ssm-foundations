@@ -257,13 +257,16 @@ integrator upgrade intact: same matrix, two schedules, now order 2.
 
 ## 10.6 MIMO and the production block
 
-Two further Mamba-3 changes are engineering rather than dynamics, and we treat
-them briefly. **MIMO rank-$R$ state mixing** ($R > 1$ output channels mixed per
-step) is a hardware-utilization improvement that does not change the
-discretization or stability story. The **full production block** — SwiGLU gating,
-QK-normalization, the $\inputmat\outputmat$ bias — wraps the layer studied here;
-those are orthogonal to the integrator-and-state question and we point to the
-reference implementation rather than reproduce them <Cite key="lahoti2026mamba3" />.
+Two further Mamba-3 changes sit outside the integrator-and-state story this chapter
+develops, and we treat them briefly. **MIMO rank-$R$ state mixing** (the input and
+output projections each gain a rank-$R$ dimension) raises decode-time arithmetic
+intensity at fixed state size and, Mamba-3 reports, also lifts model quality through
+the added expressivity (a $\sim 1.2$-point average downstream gain over the SISO
+variant) — but neither effect changes the discretization or stability story. The
+**full production block** — SwiGLU gating, QK-normalization, the $\inputmat\outputmat$
+bias — wraps the layer studied here; those too are orthogonal to the
+integrator-and-state question, and we point to the reference implementation rather
+than reproduce them <Cite key="lahoti2026mamba3" />.
 
 What this chapter isolates is the dynamical-systems substance: a selective SSM
 (Chapter 9) run with a second-order exponential integrator (Chapters 4-5) and a
