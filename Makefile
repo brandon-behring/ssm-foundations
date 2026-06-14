@@ -7,7 +7,7 @@
 #
 # Audit reference: audits/2026-05-25_standards_vs_post_transformers.md#F10
 
-.PHONY: help validate build-bib build-labels build status-snapshot status-check check-bibkeys check-xrefs test-scripts lint check companion-julia-tests companion-jax-tests companion-torch-tests check-local check-local-torch
+.PHONY: help validate build-bib build-labels build status-snapshot status-check check-bibkeys check-xrefs test-scripts lint check companion-julia-instantiate companion-julia-tests companion-jax-tests companion-torch-tests check-local check-local-torch
 
 # Default — print available targets.
 help:
@@ -23,8 +23,10 @@ help:
 	@echo ""
 	@echo "  check-bibkeys     - validate bibliography.bib + chapter citations (audit F6)"
 	@echo "  check-xrefs       - validate <Theorem id=...>  + <Figure id=...> (audit F7)"
+	@echo "  companion-julia-instantiate"
+	@echo "                    - one-time Pkg.instantiate for ch04 (DifferentialEquations.jl)"
 	@echo "  companion-julia-tests"
-	@echo "                    - run julia runtests.jl (ch04/05/06/07/10/11/12/13/15/17; ch04 needs a one-time Pkg.instantiate)"
+	@echo "                    - run julia runtests.jl (ch04/05/06/07/10/11/12/13/15/17; ch04 needs companion-julia-instantiate once)"
 	@echo "  companion-jax-tests   - run JAX companion pytest suites (.venv; excludes torch)"
 	@echo "  companion-torch-tests - run PyTorch companion pytest suites (.venv [torch] extra)"
 	@echo ""
@@ -80,11 +82,13 @@ test-scripts:
 #
 # ch05–ch17 use only stdlib (LinearAlgebra etc.), so they run with no setup.
 # ch04 additionally pulls DifferentialEquations.jl (the Tsit5 reference solve),
-# so on a fresh checkout it needs a one-time instantiate before this loop will
-# pass:
-#   julia --project=companions/ch04/julia -e 'using Pkg; Pkg.instantiate()'
-# The committed Manifest.toml pins the full dependency tree, so that step is
-# reproducible; after it, ch04 runs in the loop like any other chapter.
+# so on a fresh checkout it needs a one-time `make companion-julia-instantiate`
+# before this loop will pass. The committed Manifest.toml pins the full
+# dependency tree, so that step is reproducible; after it, ch04 runs in the
+# loop like any other chapter.
+
+companion-julia-instantiate:
+	julia --project=companions/ch04/julia -e 'using Pkg; Pkg.instantiate()'
 
 companion-julia-tests:
 	@for ch in ch04 ch05 ch06 ch07 ch10 ch11 ch12 ch13 ch15 ch17; do \
