@@ -22,13 +22,26 @@
 
 ---
 
+## Stage 2 resolution (2026-06-13, PR A — tooling/CI)
+
+The tooling/CI residuals are closed in one PR (no chapter-content change):
+
+- **#26 — content-validating `status-check`.** `scripts/generate-status.mjs --check` now regenerates the snapshot from chapter frontmatter and byte-compares it to `docs/STATUS.md` (modulo the verified date), keeping the ≤14-day staleness check. A `node --test` suite (`scripts/generate-status.test.mjs`, wired into `make check` via the new `test-scripts` target) guards the logic. **On its first run it caught a real Stage-1 drift** the old date-only check missed: ch03 `Cites` 7→9 (the R3 DeltaNet/Longhorn cites), ch06 5→4 (the R6 `hairer2006geometric` cite-key swap), ch10 `Lines` 449→450 — `docs/STATUS.md` regenerated to match.
+- **F7/#4 — ch04 Julia folded into the default loop.** `Makefile` `companion-julia-tests` now runs `ch04 ch05 …`; the comment + help text document the one-time `Pkg.instantiate()` (DifferentialEquations.jl). Verified locally: ch04 10/10 green, full julia loop green. **F36 subsumed** — the help text is now ch04-inclusive.
+- **F26 — confirmed.** JAX pytest assert suites are real across ch01–10 (40 tests in ch01–03 alone; `companion-verifier` clean).
+- **F27 — completed for ch01–03.** A1 recorded "torch parity ch01–06", but ch01–03 only validated against analytic/library oracles (scipy `expm`, `torch.linalg.matrix_exp`) — not a literal torch↔jax cross-check. Stage 2 backfilled `companions/ch0{1,2,3}/torch/tests/test_*_parity.py` (9 tests; `companion-verifier` confirmed genuine cross-framework, no stubs). Torch↔jax parity is now real ch01–16.
+
+F7 flips to `[done]` below. (F9/F15/F17/F36 were closed in Stage 1 PR #36; F16/F14 and the R-numbered findings shipped in PRs #32–#36.)
+
+---
+
 ## A1 — 2026-05-27 audit residuals (the 7 still-open)
 
 | F# | Sev | Track | Site | Residual | Status |
 |---|---|---|---|---|---|
 | F16 | IMPORTANT | A (pilot) | `ch06:148` | "the *unique* $s$-stage RK method of order $2s$" — missing **implicit** qualifier | `[open]` |
 | F14 | IMPORTANT | A (pilot) | `ch03:127` | HiPPO-LegS κ "∼N²" has no `<Cite>`; matrix-κ vs eigenvector-basis-κ not distinguished (= A2 ch03:S3) | `[open]` |
-| F7 | IMPORTANT | B | `Makefile`/`companions/ch04/julia` | ch04 Julia excluded from default `companion-julia-tests`; `Manifest.toml` now exists → can fold in (old #4) | `[open]` |
+| F7 | IMPORTANT | B | `Makefile`/`companions/ch04/julia` | ch04 Julia excluded from default `companion-julia-tests`; `Manifest.toml` now exists → can fold in (old #4) | `[done — Stage 2 PR A]` |
 | F9 | MINOR | A | `public/figures/ch01/matrix_exponential_convergence.png` | orphaned (unused). NB `ch06/stiff_blowup.png` **is** used — audit was wrong on that one | `[open]` |
 | F36 | MINOR | A | `Makefile:27` | help text "ch05, ch06, ch07" ≠ actual loop (ch05/06/07/10/11/12/13/15/17) | `[open]` |
 | F15 | MINOR | A | `ch04:185`-area | exp-trap "$u$ is $C^1$" + ZOH "smooth $u$" — regularity hypothesis loose (see R-regularity cluster) | `[open]` |

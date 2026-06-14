@@ -42,8 +42,10 @@ data. All 17 chapters now `implemented` + deployed).
 
 - **Ch 1–17** are `implemented`: prose + exercises + companions authored, `make check` (content gates +
   bibkey/xref lint) green, companion suites green, deployed. JAX is the canonical reference for every
-  chapter; **torch parity is complete for ch01–16** (ch01–10 backfilled via the Ch-11 runway, closing
-  0527-F27; ch11–16 authored with parity from the start). **Ch 17 ships JAX + Julia only — no torch by
+  chapter; **torch parity is complete for ch01–16** (ch04–10 backfilled via the Ch-11 runway; **ch01–03's
+  literal torch↔jax cross-checks added in Stage 2 PR A** — the runway had left them validated against
+  analytic/library oracles, scipy `expm` / `torch.linalg.matrix_exp` — closing 0527-F27; ch11–16
+  authored with parity from the start). **Ch 17 ships JAX + Julia only — no torch by
   design** (a synthesis chapter that *composes* existing JAX instruments introduces no new kernel to port).
 - **Julia is a selective track, not a universal gate** — present where the chapter's numerical core
   warrants a cross-language check (ch04 via `DifferentialEquations.jl`; ch05–07, ch10–13, ch15, and ch17 stdlib-only —
@@ -62,9 +64,11 @@ data. All 17 chapters now `implemented` + deployed).
   rows now reflect a claim-skeptic review.**
 - **All 17 chapters are `implemented` and deployed — the book is content-complete (M6).** The post-M6
   **Stage 1 beta gate** — Ch 1–10 hardening (the retroactive `claim-skeptic` sweep + 2026-05-27-audit
-  remediation + a STYLE §8 refresh) — is **complete**; remaining post-M6 work is **Stage 2** (tooling +
-  toolkit re-bumps, tracked in the repo's issues) and the readiness-gated **M7** (fold C1/B pilot results
-  into Ch 15/16/17 and flip `alpha → beta`).
+  remediation + a STYLE §8 refresh) — is **complete**. **Stage 2** (tooling/CI + the toolkit re-bump):
+  **PR A landed the tooling items** — #26 (content-validating `status-check`, which on its first run
+  caught a real Stage-1 `STATUS.md` drift), ch04-Julia folded into the default loop (F7/#4), and ch01–03
+  torch↔jax parity (F27) — leaving the v4.16.0→4.23.0 toolkit re-bump (+ the #14 subtitle). Then the
+  readiness-gated **M7** (fold C1/B pilot results into Ch 15/16/17 and flip `alpha → beta`).
 
 ## Refresh the artifact columns
 

@@ -7,7 +7,7 @@
 #
 # Audit reference: audits/2026-05-25_standards_vs_post_transformers.md#F10
 
-.PHONY: help validate build-bib build-labels build status-snapshot status-check check-bibkeys check-xrefs lint check companion-julia-tests companion-jax-tests companion-torch-tests check-local check-local-torch
+.PHONY: help validate build-bib build-labels build status-snapshot status-check check-bibkeys check-xrefs test-scripts lint check companion-julia-instantiate companion-julia-tests companion-jax-tests companion-torch-tests check-local check-local-torch
 
 # Default — print available targets.
 help:
@@ -19,17 +19,20 @@ help:
 	@echo "  build             - full Astro build (chained via package.json prebuild hook)"
 	@echo ""
 	@echo "  status-snapshot   - regenerate docs/STATUS.md"
-	@echo "  status-check      - exit 1 if docs/STATUS.md is >14 days stale"
+	@echo "  status-check      - exit 1 if docs/STATUS.md content drifted or is >14 days stale"
 	@echo ""
 	@echo "  check-bibkeys     - validate bibliography.bib + chapter citations (audit F6)"
 	@echo "  check-xrefs       - validate <Theorem id=...>  + <Figure id=...> (audit F7)"
+	@echo "  companion-julia-instantiate"
+	@echo "                    - one-time Pkg.instantiate for ch04 (DifferentialEquations.jl)"
 	@echo "  companion-julia-tests"
-	@echo "                    - run julia runtests.jl (ch05/06/07/10/11/12/13/15/17; ch04 manual, needs Pkg.instantiate)"
+	@echo "                    - run julia runtests.jl (ch04/05/06/07/10/11/12/13/15/17; ch04 needs companion-julia-instantiate once)"
 	@echo "  companion-jax-tests   - run JAX companion pytest suites (.venv; excludes torch)"
 	@echo "  companion-torch-tests - run PyTorch companion pytest suites (.venv [torch] extra)"
 	@echo ""
+	@echo "  test-scripts      - node --test for scripts/ (audit #26 status-check content guard)"
 	@echo "  lint              - check-bibkeys + check-xrefs (fast)"
-	@echo "  check             - validate + lint + status-check (full gate)"
+	@echo "  check             - validate + lint + test-scripts + status-check (full gate)"
 
 # Build / content pipeline.
 #
@@ -69,16 +72,26 @@ check-bibkeys:
 check-xrefs:
 	node scripts/check-xref-labels.mjs
 
-# Companion testing (audit F8 — Julia track).
+# Script unit tests (audit #26 — exercises the content-validating status-check:
+# committed docs/STATUS.md must be a faithful render of src/content/chapters/).
+# node-only, so it runs in CI inside `make check` (no jax/torch/julia needed).
+test-scripts:
+	node --test scripts/*.test.mjs
+
+# Companion testing (audit F8 — Julia track; audit #4/F7 folded ch04 in).
 #
-# Runs in ch05 + ch06 + ch07 (no DifferentialEquations.jl dependency, so quick).
-# ch04 requires Pkg.instantiate first; we don't include it in the default
-# loop. To run ch04: julia --project=companions/ch04/julia -e 'using Pkg;
-# Pkg.instantiate()' first, then julia --project=companions/ch04/julia
-# companions/ch04/julia/runtests.jl.
+# ch05–ch17 use only stdlib (LinearAlgebra etc.), so they run with no setup.
+# ch04 additionally pulls DifferentialEquations.jl (the Tsit5 reference solve),
+# so on a fresh checkout it needs a one-time `make companion-julia-instantiate`
+# before this loop will pass. The committed Manifest.toml pins the full
+# dependency tree, so that step is reproducible; after it, ch04 runs in the
+# loop like any other chapter.
+
+companion-julia-instantiate:
+	julia --project=companions/ch04/julia -e 'using Pkg; Pkg.instantiate()'
 
 companion-julia-tests:
-	@for ch in ch05 ch06 ch07 ch10 ch11 ch12 ch13 ch15 ch17; do \
+	@for ch in ch04 ch05 ch06 ch07 ch10 ch11 ch12 ch13 ch15 ch17; do \
 		echo "==> $$ch julia tests"; \
 		julia --project=companions/$$ch/julia companions/$$ch/julia/runtests.jl || exit 1; \
 	done
@@ -100,7 +113,7 @@ companion-torch-tests:
 
 lint: check-bibkeys check-xrefs
 
-check: validate lint status-check
+check: validate lint test-scripts status-check
 	@echo ""
 	@echo "make check: all gates passed"
 
