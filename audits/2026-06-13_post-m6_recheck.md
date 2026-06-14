@@ -113,7 +113,7 @@ F7 flips to `[done]` below. (F9/F15/F17/F36 were closed in Stage 1 PR #36; F16/F
 | R35 | ch05:S5 | Minor | `ch05:107` | "over 200 order conditions" for 8th-order — cumulative through order 8 is exactly 200. "about 200" / "exactly 200". |
 | R36 | ch08:S3 | Minor | `ch08:160` | "∼$3\times10^{-15}$" prefactor not emitted by committed code (only `<1e-12` pinned). Soften or print. |
 | R37 | ch10:S5 | Minor | `ch10:132,220` | "∼$2/3\times10^{-15}$" not pinned (only `<1e-12`). Soften or pin. |
-| R38 | ch10:S6 | Moderate | `ch10:102,206,260` | Mamba-3 paper attributions (input-dependent λ sigmoid; RoPE on B,C; rank-R MIMO) unverifiable from repo artifacts. **Beta-gate fact-check vs local `lever_of_archimedes/2603.15569.pdf`.** |
+| R38 | ch10:S6 | Moderate | `ch10:102,206,260` | **`[done 2026-06-14]`** Fact-checked vs `lever_of_archimedes/2603.15569.pdf`: **λ = σ(u_t)** (App. A.3 + Table 8) and **RoPE on B,C** (§3.2 Prop 2/3, §3.4 "RoPE trick") verified **correct** — no change. **MIMO** (`ch10:260`) reframed: the paper presents it as a model-quality/expressivity lever (+1.2-pt avg downstream over SISO, §4.1.1; abstract "for better model performance"), not "engineering rather than dynamics" — kept the correct "orthogonal to the discretization/stability story" point. |
 
 ### NO-ACTION — confirmed correct (recorded for the trail)
 
