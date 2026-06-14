@@ -3,17 +3,21 @@
 One-screen resume context (the `sessions.md` §1 pattern). Update on context switch / session end.
 For the durable index, see the Claude Code project-memory `MEMORY.md`.
 
-**Right now:** **M7 — stage 1 (staging the pilot-results fold-in).** Everything before M7 is done +
-deployed: Stages 1 (Ch 1–10 hardening, #32–#36), 2 (tooling/CI + toolkit 4.23.0, #37–#38), 3/R38 (the
-ch10 Mamba-3 fact-check, #39). M7 (fold C1/B *trained-model* results into Ch 14–17, flip alpha→beta) is
-readiness-gated on the pilots executing in `post_transformers` — so stage 1 is **the prep doable now**:
-a book-side spec doc (`docs/m7-pilot-integration-plan.md`) with the **fold-in catalog** (the ~23 hedged
-passages M7 updates, concentrated in ch17 §17.2→§17.2b / §17.3→§17.3b / §17.5 rewrite) + the **C1/B data
-contracts** (idealized→trained-model inputs the pilots must produce, so the fold-in is mechanical) + the
-**flip mechanism**, PLUS a cross-repo `tracked` issue in post_transformers surfacing that contract to the
-pilots. **Recon finding:** the toolkit's `PreReleaseBanner` is unwired and README:5's "banner is live" is
-stale — so the alpha→beta "flip" is currently a doc-status change, not a live banner toggle (recorded in
-the spec for M7 completion). No `src/` change → no deploy impact.
+**Right now:** **Post-M7-staging cleanup PR** (`chore/repo-cleanup-banner-bib-astro`) — (1) closed the
+stale 2026-05-25 audit-umbrella **#1** (its punch list was long since resolved); (2) corrected **README:5**'s
+false "pre-release banner is live site-wide" claim (the toolkit's `PreReleaseBanner` is unwired here — this
+book uses the toolkit's auto-injected layouts, so a real banner needs a toolkit `releaseStatus` feature,
+requested separately); (3) **de-anonymized the F21 bib entry** — `anonymous2025lyapunov` was not only
+Anonymous but carried a *wrong title*; now Halloran, Gulati & Roysdon, "Mamba State-Space Models Are
+Lyapunov-Stable Learners", TMLR 2025 (arXiv 2406.00209), bibkey kept for cite stability; (4) bumped **astro
+`^6.1.7`→`^6.4.6`** (katex 0.16→0.17 deferred — shared with the toolkit's rehype-katex). `npm run build`
++ `make check` + check-bibkeys green; the astro rebuild is the only deploy-affecting change (content-identical).
+
+Before this, **M7 stage 1 (staging the pilot-results fold-in) shipped** (PR #40 + post_transformers #55):
+`docs/m7-pilot-integration-plan.md` = the fold-in catalog (ch17 §17.2→§17.2b / §17.3→§17.3b / §17.5
+rewrite) + the C1/B data contracts (idealized→trained-model inputs) + the flip mechanism. M7 itself (fold
+C1/B trained-model results into Ch 14–17, flip alpha→beta) stays readiness-gated on the pilots in
+post_transformers. Stages 1 (#32–#36), 2 (#37–#38), 3/R38 (#39) before it are all done + deployed.
 
 **Why:** the six-chapter campaign (approved 2026-06-10, order **12 → 14 → 16 → 13 → 15 → 17**) is
 **COMPLETE — 6/6.** The 17-chapter book is content-complete; cadence proven **11×** (Ch 7–17).

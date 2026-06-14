@@ -2,7 +2,7 @@
 
 A lens-led 17-chapter foundations book for post-transformer sequence-model architectures, foregrounding the dynamical-systems perspective: continuous-time math first, then discretization theory, then the SSM family and its delta-rule / gating / hybrid cousins.
 
-> **Status — alpha (updated 2026-06-13)**: Chapters 1–17 are authored (`status: implemented`) — **the book is content-complete**. The foundations (1–6) and SSM-core (7–10) lines, the beyond-SSM chapters (11, linear attention + Hyena; 12, the delta-rule lineage; 13, exponential gates and matrix memory — xLSTM and RWKV-7), the integration trio (14, hybrid architectures and gating; 15, counter-evidence and diagnostic tools; 16, empirical methodology — with 14 and 16 anchoring pilot B, whose book-side prerequisites are complete), and the synthesis chapter (17, niche-pilot integration — the C1/B pilots and the broader 13-niche portfolio). Expect breaking changes to structure and prose. Pre-release banner is live site-wide. Substantive feedback welcome via issues.
+> **Status — alpha (updated 2026-06-13)**: Chapters 1–17 are authored (`status: implemented`) — **the book is content-complete**. The foundations (1–6) and SSM-core (7–10) lines, the beyond-SSM chapters (11, linear attention + Hyena; 12, the delta-rule lineage; 13, exponential gates and matrix memory — xLSTM and RWKV-7), the integration trio (14, hybrid architectures and gating; 15, counter-evidence and diagnostic tools; 16, empirical methodology — with 14 and 16 anchoring pilot B, whose book-side prerequisites are complete), and the synthesis chapter (17, niche-pilot integration — the C1/B pilots and the broader 13-niche portfolio). Expect breaking changes to structure and prose; substantive feedback welcome via issues.
 
 ---
 
