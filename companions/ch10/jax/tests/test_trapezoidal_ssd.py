@@ -22,7 +22,7 @@ import numpy as np  # noqa: E402
 import pytest  # noqa: E402
 from numpy.testing import assert_allclose  # noqa: E402
 
-from companions.ch09.jax.selective_ssm import selection_from_input, stable_A
+from companions.ch09.jax.selective_ssm import selection_from_input, stable_A  # noqa: E402
 from companions.ch10.jax.discretization import forced_exact  # noqa: E402
 from companions.ch10.jax.trapezoidal_ssd import (  # noqa: E402
     decay_operator,
