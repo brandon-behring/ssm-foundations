@@ -3,14 +3,18 @@
 One-screen resume context (the `sessions.md` §1 pattern). Update on context switch / session end.
 For the durable index, see the Claude Code project-memory `MEMORY.md`.
 
-**Right now:** **Polish campaign — Part 4 (integration, ch 14–16) shipping** as PR `polish/part4-integration`.
-Deep per-part refinement: **8 genuine fixes** (the fan-out surfaced 10 worth_it; 1 deduped, 1 deferred — the
-debatable ch15 §15.4 margin-note trim). Two reading-order recasts: ch14 §14.7 + ch16 §16.7 "What's next" both
-forward-framed chapters that actually *precede* them (leftover from out-of-order authoring) — recast to
-past/sibling, Ch17 left as the lone forward pointer. ch15 `n^\*`→`n^\star` (7×, matches ch16) + `\seqlen` macro
-trim; ch14 companion per-token term align; ch15 dead `jnp` import + double-build dedupe; ch16 dead `value_ids`
-property. **Repo ruff now: only the ch17 F541 remains** (Part 5 closes it; ch15 F401 cleared). Gate green
-(build + `make check-local-torch` + ruff); re-sweep all-clean. **Touch-only formatting.**
+**Right now:** **Polish campaign — Part 5 (synthesis, ch 17 — the LAST chapter) shipping** as PR `polish/part5-synthesis`.
+Deep per-part refinement: **4 genuine fixes** (all 4 worth_it; ch17 is the clean recent synthesis chapter). The
+subtlest: a cross-reference mislabel at §17.1 + §17.5 attached `<XRef ch15:capacity-bound />` (the *counting* bound)
+to a "circuit-class / TC⁰" claim — recast so the counting bound is described/attributed correctly and the TC⁰
+impossibility is cited to Merrill (matches ch15 §15.3's own cited-vs-demonstrated distinction; the claim-skeptic
+re-sweep confirmed the corrected attribution). Plus a macro-comment over-declaration trim (T(ε)/M(λ), companion-only
+symbols) and the **last repo ruff finding** (ch17 F541 dead f-prefix) — **the companions tree is now fully ruff-clean (0)**.
+Gate green; re-sweep all-clean. **Touch-only formatting.**
+
+Before this, **Part 4 (integration, ch 14–16) shipped + deployed + live-verified** (PR #45, merge `8988960`): 8
+fixes — two reading-order "What's next" recasts (ch14/ch16 forward-framed already-read chapters), ch15 `n^\star`
+notation + `\seqlen` trim, ch14/15/16 companion nits (incl. clearing the ch15 F401).
 
 Before this, **Part 3 (beyond-ssm, ch 11–13) shipped + deployed + live-verified** (PR #44, merge `e7ca009`): 6
 fixes; the verify-before-fix discipline **rejected 2 of 8** findings — a would-be numerical error in a ch13
@@ -37,9 +41,10 @@ post_transformers. Stages 1 (#32–#36), 2 (#37–#38), 3/R38 (#39) before it ar
 **Why:** the six-chapter campaign (approved 2026-06-10, order **12 → 14 → 16 → 13 → 15 → 17**) is
 **COMPLETE — 6/6.** The 17-chapter book is content-complete; cadence proven **11×** (Ch 7–17).
 
-**Next step:** **Polish campaign — Part 5 + capstone.** Parts 1–4 (foundations + ssm-core + beyond-ssm + integration) shipped (above);
-remaining: **17 (synthesis)**, then a
-cross-book consistency capstone. Per-batch method (proven on Parts 1–4): review-fan-out Workflow (prose-pedagogy
+**Next step:** **Polish campaign — cross-book consistency capstone** (#78, the final step). All five per-part
+batches (foundations / ssm-core / beyond-ssm / integration / synthesis) are shipped + deployed + live-verified; one
+light cross-book pass remains — notation uniformity + cross-ref integrity across all 17 chapters, a final small PR
+only if it surfaces genuine fixes (else record "clean" and the campaign closes). Per-batch method (proven 5×): review-fan-out Workflow (prose-pedagogy
 + chapter-auditor + code-idiom per chapter) → triage to genuine `worth_it` findings (reject churn) → fix +
 **verify-every-edit re-sweep** (claim-skeptic + chapter-auditor on the diff) → one PR through the gate. Scope
 confirmed 2026-06-14: **deep per-part refinement** (Workflow opt-in) + **touch-only formatting**. Durable
