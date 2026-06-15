@@ -14,7 +14,7 @@ latent *regime* moves slowly while the visible *tokens* move fast,
 The bigrams interpolate between a shared table and regime-specific ones,
 $B_j = (1 - \eta)\, C + \eta\, D_j$ (``overlap`` $= \eta$): the dial that
 controls how *hard the regimes are to tell apart locally*, i.e. the
-**identification timescale** $\tau_{\mathrm{id}}$, which shrinks as the mean per-observation
+**identification timescale** $\tau_{\mathrm{id}}$, which shrinks as the mean per-token
 discrimination $\bar{\imath}$ grows
 (:func:`mean_pairwise_discrimination`). The task therefore has **three**
 timescales — window $w$, identification $\tau_{\mathrm{id}}$, dwell
@@ -255,7 +255,7 @@ def make_hmm(
 
 
 def mean_pairwise_discrimination(hmm: TwoTimescaleHMM) -> float:
-    r"""Mean per-observation discrimination $\bar{\imath}$ between regimes, in nats.
+    r"""Mean per-token discrimination $\bar{\imath}$ between regimes, in nats.
 
     The average over ordered regime pairs $z \ne z'$, with uniform weight on
     the source symbol $a$, of $\mathrm{KL}(B_z[a, \cdot] \,\|\, B_{z'}[a,

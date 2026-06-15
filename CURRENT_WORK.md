@@ -3,15 +3,18 @@
 One-screen resume context (the `sessions.md` §1 pattern). Update on context switch / session end.
 For the durable index, see the Claude Code project-memory `MEMORY.md`.
 
-**Right now:** **Polish campaign — Part 3 (beyond-ssm, ch 11–13) shipping** as PR `polish/part3-beyond-ssm`.
-Deep per-part refinement: **6 genuine fixes** (the fan-out surfaced 8 worth_it; **2 rejected after verification** —
-the verify-before-fix discipline: running the ch13 overflow code showed the "~710" caption is *correct* (the
-reviewer's "→730" was a miscalc that would have introduced an error), and a ch11 §11.10 "missing PyTorch
-subsection" would have *broken* Part-3's consistent folded §X.10 format). Shipped: ch11 `gated_masked`
-shape-validation guards (jax+torch, fail-loud parity with siblings); ch12 Fig 12.1 `Theorem 11.4`→**`Proposition
-11.4`** (matches labels.json + the body XRef); ch13 trigger gloss "data stream"→"fixed layer schedule" (matches
-ch14) + `\seqlen` macro trim + 2 dead figure constants removed. Gate green (build + `make check-local-torch` +
-ruff, E402 still 0); re-sweep all-clean. **Touch-only formatting.**
+**Right now:** **Polish campaign — Part 4 (integration, ch 14–16) shipping** as PR `polish/part4-integration`.
+Deep per-part refinement: **8 genuine fixes** (the fan-out surfaced 10 worth_it; 1 deduped, 1 deferred — the
+debatable ch15 §15.4 margin-note trim). Two reading-order recasts: ch14 §14.7 + ch16 §16.7 "What's next" both
+forward-framed chapters that actually *precede* them (leftover from out-of-order authoring) — recast to
+past/sibling, Ch17 left as the lone forward pointer. ch15 `n^\*`→`n^\star` (7×, matches ch16) + `\seqlen` macro
+trim; ch14 companion per-token term align; ch15 dead `jnp` import + double-build dedupe; ch16 dead `value_ids`
+property. **Repo ruff now: only the ch17 F541 remains** (Part 5 closes it; ch15 F401 cleared). Gate green
+(build + `make check-local-torch` + ruff); re-sweep all-clean. **Touch-only formatting.**
+
+Before this, **Part 3 (beyond-ssm, ch 11–13) shipped + deployed + live-verified** (PR #44, merge `e7ca009`): 6
+fixes; the verify-before-fix discipline **rejected 2 of 8** findings — a would-be numerical error in a ch13
+caption (caught by running the figure code) + a Part-3 §X.10-consistency break.
 
 Before this, **Part 2 (ssm-core, ch 7–10) shipped + deployed + live-verified** (PR #43, merge `066d85b`): 13
 fixes — ch10's 8 raw inline-code theorem IDs → `<XRef>`, §4.7→§4.5, §10.10 PyTorch block; ch07/08/09 factual +
@@ -34,9 +37,9 @@ post_transformers. Stages 1 (#32–#36), 2 (#37–#38), 3/R38 (#39) before it ar
 **Why:** the six-chapter campaign (approved 2026-06-10, order **12 → 14 → 16 → 13 → 15 → 17**) is
 **COMPLETE — 6/6.** The 17-chapter book is content-complete; cadence proven **11×** (Ch 7–17).
 
-**Next step:** **Polish campaign — Parts 4–5 + capstone.** Parts 1–3 (foundations + ssm-core + beyond-ssm) shipped (above);
-remaining batches: **14–16 (integration) / 17 (synthesis)**, then a
-cross-book consistency capstone. Per-batch method (proven on Parts 1–3): review-fan-out Workflow (prose-pedagogy
+**Next step:** **Polish campaign — Part 5 + capstone.** Parts 1–4 (foundations + ssm-core + beyond-ssm + integration) shipped (above);
+remaining: **17 (synthesis)**, then a
+cross-book consistency capstone. Per-batch method (proven on Parts 1–4): review-fan-out Workflow (prose-pedagogy
 + chapter-auditor + code-idiom per chapter) → triage to genuine `worth_it` findings (reject churn) → fix +
 **verify-every-edit re-sweep** (claim-skeptic + chapter-auditor on the diff) → one PR through the gate. Scope
 confirmed 2026-06-14: **deep per-part refinement** (Workflow opt-in) + **touch-only formatting**. Durable

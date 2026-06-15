@@ -18,8 +18,7 @@ import Figure from '@brandon_m_behring/book-scaffold-astro/components/Figure.ast
 import XRef from '@brandon_m_behring/book-scaffold-astro/components/XRef.astro';
 
 {/*
-  Math macros (auto-loaded via ssmMacros in astro.config; this chapter uses):
-    \seqlen=L
+  Math macros (auto-loaded via ssmMacros in astro.config): none used in this chapter.
   Chapter-local symbols (declared in prose):
     d, b — state coordinates and bits per coordinate;  |Σ| — alphabet size;
     s_t — the recurrence's hidden state;  J_t — its per-step Jacobian;
@@ -185,9 +184,9 @@ becomes concrete, and the chapter derived each separately. Here they are one cou
 The companion realizes the bound on Chapter 16's slot model, where each of $d$
 slots holds one token-pair, i.e. $b = \log_2(\text{vocab})$ bits. The abstract
 budget $d\,b$ then meets the lossless requirement $n\log_2(\text{vocab})$ exactly at
-$n^\* = d$, and the measured recall cliff sits there.
+$n^\star = d$, and the measured recall cliff sits there.
 
-<Figure id="ch15:fig:copying-bound" src="/figures/ch15/copying-bound.png" alt="Two panels. Left: recall accuracy versus number of stored pairs N on a log-2 axis, for a d = 16 slot model; the exact curve min(1, d/N) is flat at 1 up to N = 16 then falls as d/N, with measured slot-reader points lying exactly on it and a dashed vertical line at the capacity threshold N = 16. Right: bits versus sequence length n; a rising blue line for the required n log2 of the alphabet size crosses a flat red line for the state budget d times b equal to 96 bits at n = 16, marked with an orange dot." caption="The information-counting bound (§15.3) on Chapter 16's slot model. Left: a $d = 16$ store recalls perfectly up to load $N = d$ and degrades as $\min(1, d/N)$ beyond; the measured slot reader matches the exact closed form to $0$ at every load (8 seeds), and the cliff sits exactly at the capacity threshold $n^\* = d = 16$. Right: with $b = \log_2(\text{vocab}) = 6$ bits per slot the state budget $d\,b = 96$ bits meets the lossless requirement $n\log_2|\Sigma|$ at $n^\* = 16$ — the same load. Produced by companions/ch15/jax/copying_bound.py (which imports Chapter 16's slot model); pinned in tests/test_copying_bound.py." />
+<Figure id="ch15:fig:copying-bound" src="/figures/ch15/copying-bound.png" alt="Two panels. Left: recall accuracy versus number of stored pairs N on a log-2 axis, for a d = 16 slot model; the exact curve min(1, d/N) is flat at 1 up to N = 16 then falls as d/N, with measured slot-reader points lying exactly on it and a dashed vertical line at the capacity threshold N = 16. Right: bits versus sequence length n; a rising blue line for the required n log2 of the alphabet size crosses a flat red line for the state budget d times b equal to 96 bits at n = 16, marked with an orange dot." caption="The information-counting bound (§15.3) on Chapter 16's slot model. Left: a $d = 16$ store recalls perfectly up to load $N = d$ and degrades as $\min(1, d/N)$ beyond; the measured slot reader matches the exact closed form to $0$ at every load (8 seeds), and the cliff sits exactly at the capacity threshold $n^\star = d = 16$. Right: with $b = \log_2(\text{vocab}) = 6$ bits per slot the state budget $d\,b = 96$ bits meets the lossless requirement $n\log_2|\Sigma|$ at $n^\star = 16$ — the same load. Produced by companions/ch15/jax/copying_bound.py (which imports Chapter 16's slot model); pinned in tests/test_copying_bound.py." />
 
 ## 15.4 Lyapunov diagnostics: measuring stability on a concrete system
 
@@ -362,14 +361,14 @@ a quantity a diagnostic measures on a concrete, possibly trained, system.
 
 A diagonal SSM carries $d = 64$ complex modes, each stored at $b = 16$ bits, over a
 vocabulary $|\Sigma| = 256$. Use <XRef id="ch15:capacity-bound" /> to give the
-longest sequence $n^\*$ it can losslessly recall. Why is a real model's usable
-length strictly smaller than $n^\*$?
+longest sequence $n^\star$ it can losslessly recall. Why is a real model's usable
+length strictly smaller than $n^\star$?
 
 <details>
 <summary>Solution</summary>
 
 The state budget is $d\,b = 64 \times 16 = 1024$ bits, and each token costs
-$\log_2|\Sigma| = \log_2 256 = 8$ bits, so $n^\* = \lfloor 1024 / 8 \rfloor = 128$.
+$\log_2|\Sigma| = \log_2 256 = 8$ bits, so $n^\star = \lfloor 1024 / 8 \rfloor = 128$.
 A real model recalls fewer than $128$ tokens because the counting bound assumes a
 *lossless, injective* encoding of prefixes into states; a trained recurrence
 instead superposes writes (interference, the Chapter 11 rank wall), uses finite
@@ -498,7 +497,7 @@ independent-language Lyapunov cross-check.
 - **`jax/copying_bound.py`** — the information-counting bound
   (<XRef id="ch15:capacity-bound" />): the state-capacity and lossless-requirement
   bits, the recall-cliff threshold, and the demonstration that Chapter 16's slot
-  model (imported, not re-implemented) cliffs exactly at $n^\* = d$. Produces
+  model (imported, not re-implemented) cliffs exactly at $n^\star = d$. Produces
   `copying-bound.png`.
 - **`jax/lyapunov_diagnostics.py`** — the Lyapunov estimator
   (<XRef id="ch15:lyapunov-estimator" />) reusing Chapter 2's `qr_lyapunov`, the
