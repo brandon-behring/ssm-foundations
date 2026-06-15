@@ -20,7 +20,7 @@ import XRef from '@brandon_m_behring/book-scaffold-astro/components/XRef.astro';
   Math macros (auto-loaded via ssmMacros). Chapter-local symbols (declared in prose):
     H = 0.5(q^2 + p^2) — harmonic-oscillator energy (a Mamba-3 imaginary mode);
     z = q + ip — the complex-mode state, z' = -i z;  dt — step size;
-    D_eff — effective state size (Chapter 15);  T(eps), M(lambda) — regime-propagation operators;
+    D_eff — effective state size (Chapter 15);
     C1 — symplectic-integrators pilot;  B — two-timescale-benchmarks pilot.
   This is a synthesis chapter: no new Theorem blocks (it composes prior results); ~5 content
   sections under the STYLE §13 positional rule (the Ch 5 precedent).
@@ -57,7 +57,7 @@ The book's thesis has been a single sentence applied sixteen times: **a sequence
 dynamical system, and you understand it by reading its state.** A linear recurrence is a discretized
 ODE (<XRef id="ch01:def:matexp" />); its stability is the spectrum of its transition
 (<XRef id="ch02:def:lyap" />); its capacity is the rank of its state
-(<XRef id="ch11:linattn-capacity" />); its expressive ceiling is a circuit class
+(<XRef id="ch11:linattn-capacity" />); what it can losslessly recall is set by its state's bit budget
 (<XRef id="ch15:capacity-bound" />). The claim was never that this lens is the only one — it is that
 it *earns its keep* as a research instrument, letting a numerical analyst ask questions about
 sequence models in their native vocabulary.
@@ -214,7 +214,7 @@ Lyapunov exponents (<XRef id="ch15:lyapunov-estimator" />), effective state size
 What it has **not** earned, and cannot from this chapter, is an empirical verdict. Every number here
 is from an *idealized* system; the trained-model evidence is the pilots' forthcoming work. And two
 limits bound even that future evidence. The first is the cited ceiling: the $\mathsf{TC}^0$
-impossibility (<XRef id="ch15:capacity-bound" />, <Cite key="merrill2024illusion" />) means no amount
+circuit-class impossibility (<Cite key="merrill2024illusion" />; the book's own counting bound, <XRef id="ch15:capacity-bound" />, is its weaker, architecture-agnostic shadow) means no amount
 of clever discretization or benchmarking lets a fixed-state recurrence do what the complexity class
 forbids — the pilots can measure *where a model sits beneath* the ceiling, never move it. The second
 is mechanistic: the Gather-and-Aggregate finding (<Cite key="bick2025understanding" />) says the

@@ -211,7 +211,7 @@ def _make_figure() -> None:
           f"{ch06_rk4:.6e}  (|diff| {abs(my_rk4_endpoint - ch06_rk4):.1e})")
 
     # dt-sweep (the atlas's second axis): secular drift vs step size.
-    print(f"  dt-sweep secular drift/period:")
+    print("  dt-sweep secular drift/period:")
     sweep = {dt: atlas_cell(dt, _FIG_PERIODS) for dt in _FIG_DT_SWEEP}
     for dt in _FIG_DT_SWEEP:
         c = sweep[dt]
