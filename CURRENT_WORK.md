@@ -3,15 +3,19 @@
 One-screen resume context (the `sessions.md` §1 pattern). Update on context switch / session end.
 For the durable index, see the Claude Code project-memory `MEMORY.md`.
 
-**Right now:** **Polish campaign — Part 2 (ssm-core, ch 7–10) shipping** as PR `polish/part2-ssm-core`.
-Deep per-part refinement (review-fan-out Workflow → triage → fix → re-sweep): **13 genuine fixes** across the
-4 chapters + 4 companions. **ch10** (the bulk): 8 raw inline-code theorem IDs → `<XRef>` (clickable,
-auto-numbered — ch10 was the lone chapter embedding raw IDs), §4.7→**§4.5** cross-ref (verified vs the Part-1
-ch04 edit), §10.10 over-attribution fixed (no torch `trapezoidal_ssd`) + PyTorch run block, double `order_sweep`
-collapsed. ch07 §7.11 factual error ("first chapter with all three tracks" — ch04–06 precede it); ch08 §8.4
-de-dup + torch s4d_kernel `jnp.sum`-not-einsum doc fix; ch09 §9.4 pointer + `\C`/`\N` macro trim. Repo-wide
-**ruff E402 now 0** (ch10's 3 test noqas). Gate green (build + `make check-local-torch` + ruff); re-sweep
-**all-clean** (no self-introduced errors this batch). **Touch-only formatting.**
+**Right now:** **Polish campaign — Part 3 (beyond-ssm, ch 11–13) shipping** as PR `polish/part3-beyond-ssm`.
+Deep per-part refinement: **6 genuine fixes** (the fan-out surfaced 8 worth_it; **2 rejected after verification** —
+the verify-before-fix discipline: running the ch13 overflow code showed the "~710" caption is *correct* (the
+reviewer's "→730" was a miscalc that would have introduced an error), and a ch11 §11.10 "missing PyTorch
+subsection" would have *broken* Part-3's consistent folded §X.10 format). Shipped: ch11 `gated_masked`
+shape-validation guards (jax+torch, fail-loud parity with siblings); ch12 Fig 12.1 `Theorem 11.4`→**`Proposition
+11.4`** (matches labels.json + the body XRef); ch13 trigger gloss "data stream"→"fixed layer schedule" (matches
+ch14) + `\seqlen` macro trim + 2 dead figure constants removed. Gate green (build + `make check-local-torch` +
+ruff, E402 still 0); re-sweep all-clean. **Touch-only formatting.**
+
+Before this, **Part 2 (ssm-core, ch 7–10) shipped + deployed + live-verified** (PR #43, merge `066d85b`): 13
+fixes — ch10's 8 raw inline-code theorem IDs → `<XRef>`, §4.7→§4.5, §10.10 PyTorch block; ch07/08/09 factual +
+doc + macro nits.
 
 Before this, **Part 1 (foundations, ch 1–6) shipped + deployed + live-verified** (PR #42, merge `00c0f9b`):
 ~30 fixes (wrong cross-ref/theorem numbers, consistency, the STYLE §8 torch-listing gap, prose, code/bib);
@@ -30,9 +34,9 @@ post_transformers. Stages 1 (#32–#36), 2 (#37–#38), 3/R38 (#39) before it ar
 **Why:** the six-chapter campaign (approved 2026-06-10, order **12 → 14 → 16 → 13 → 15 → 17**) is
 **COMPLETE — 6/6.** The 17-chapter book is content-complete; cadence proven **11×** (Ch 7–17).
 
-**Next step:** **Polish campaign — Parts 3–5 + capstone.** Parts 1–2 (foundations + ssm-core) shipped (above);
-remaining batches: **11–13 (beyond-ssm) / 14–16 (integration) / 17 (synthesis)**, then a
-cross-book consistency capstone. Per-batch method (proven on Parts 1–2): review-fan-out Workflow (prose-pedagogy
+**Next step:** **Polish campaign — Parts 4–5 + capstone.** Parts 1–3 (foundations + ssm-core + beyond-ssm) shipped (above);
+remaining batches: **14–16 (integration) / 17 (synthesis)**, then a
+cross-book consistency capstone. Per-batch method (proven on Parts 1–3): review-fan-out Workflow (prose-pedagogy
 + chapter-auditor + code-idiom per chapter) → triage to genuine `worth_it` findings (reject churn) → fix +
 **verify-every-edit re-sweep** (claim-skeptic + chapter-auditor on the diff) → one PR through the gate. Scope
 confirmed 2026-06-14: **deep per-part refinement** (Workflow opt-in) + **touch-only formatting**. Durable

@@ -60,6 +60,10 @@ def gated_recurrent(q: Tensor, k: Tensor, v: Tensor, log_gamma: Tensor, feature_
 
 def gated_masked(q: Tensor, k: Tensor, v: Tensor, log_gamma: Tensor, feature_map="elu") -> Tensor:
     r"""Masked-parallel gated form via the $e^{\pm g_t}$ rescaling (equals the recurrence)."""
+    if q.ndim != 2 or k.ndim != 2 or v.ndim != 2:
+        raise ValueError(f"q, k, v must be 2D; got {q.shape}, {k.shape}, {v.shape}")
+    if q.shape != k.shape or v.shape[0] != q.shape[0]:
+        raise ValueError(f"need q.shape==k.shape and matching L; got {q.shape}, {k.shape}, {v.shape}")
     phi = resolve_phi(feature_map)
     qf, kf = phi(q), phi(k)
     length, d_k = qf.shape
