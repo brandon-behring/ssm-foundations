@@ -109,7 +109,7 @@ def rk4_step(h: jnp.ndarray, dt: float) -> jnp.ndarray:
 
 
 # ---------------------------------------------------------------------------
-# Backward Euler — Newton on g(x) = x - h - dt f(x) = 0, fixed iteration count
+# Backward Euler — damped Newton on g(x) = x - h - dt f(x) = 0, iterated to tol
 # ---------------------------------------------------------------------------
 
 

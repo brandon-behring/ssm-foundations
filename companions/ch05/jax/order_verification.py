@@ -42,7 +42,7 @@ from pathlib import Path
 
 import jax
 
-# Enable float64 before any jnp array exists; the RK4 error reaches ~1e-9 at the
+# Enable float64 before any jnp array exists; the RK4 error reaches ~1e-7 at the
 # finest dt and the order slopes need precision well below float32.
 jax.config.update("jax_enable_x64", True)
 

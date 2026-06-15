@@ -37,7 +37,7 @@ def test_hippo_matches_numpy() -> None:
         np.testing.assert_allclose(np.asarray(cn.hippo_legs(N)), _hippo_numpy(N), atol=1e-12)
 
 
-def test_hippo_grows_subquadratically() -> None:
+def test_hippo_grows_quadratically() -> None:
     """F14 guard: κ(HiPPO-LegS) log-log slope ≈ 2 (polynomial, not bounded)."""
     sizes = np.array([8, 16, 32, 64, 128])
     kappa = np.array([float(jnp.linalg.cond(cn.hippo_legs(int(N)))) for N in sizes])

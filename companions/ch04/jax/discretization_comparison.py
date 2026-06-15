@@ -48,7 +48,7 @@ import matplotlib.pyplot as plt  # noqa: E402
 import numpy as np  # noqa: E402
 from scipy.integrate import solve_ivp  # noqa: E402
 
-from companions._shared.plot_utils import (
+from companions._shared.plot_utils import (  # noqa: E402
     SSM_COLORS,
     apply_style,
     create_tufte_figure,

@@ -30,7 +30,7 @@ def test_hippo_matches_numpy() -> None:
         np.testing.assert_allclose(cn.hippo_legs(N).numpy(), _hippo_numpy(N), atol=1e-12)
 
 
-def test_hippo_grows_subquadratically() -> None:
+def test_hippo_grows_quadratically() -> None:
     """F14 guard (torch): κ(HiPPO-LegS) log-log slope ≈ 2, not bounded."""
     sizes = [8, 16, 32, 64, 128]
     kappa = np.array([float(torch.linalg.cond(cn.hippo_legs(N))) for N in sizes])

@@ -126,7 +126,7 @@ def simulate_exp_trap(dt: float, t_end: float) -> tuple[np.ndarray, np.ndarray]:
     Ad, B0, B1 = discretize_exp_trap(_A_MAT, _B_VEC, dt)
     n_steps = int(round(t_end / dt)) + 1
     h = torch.zeros(2, dtype=_DTYPE)
-    ts = np.array([k * dt for k in range(n_steps)])
+    ts = np.arange(n_steps) * dt
     u_vals = drive(ts)
     ys = np.zeros(n_steps)
     for k in range(n_steps - 1):
@@ -152,7 +152,7 @@ def simulate_zoh(dt: float, t_end: float) -> tuple[np.ndarray, np.ndarray]:
     Bd = EX[:n, n]
     n_steps = int(round(t_end / dt)) + 1
     h = torch.zeros(2, dtype=_DTYPE)
-    ts = np.array([k * dt for k in range(n_steps)])
+    ts = np.arange(n_steps) * dt
     u_vals = drive(ts)
     ys = np.zeros(n_steps)
     for k in range(n_steps - 1):
@@ -174,7 +174,7 @@ def simulate_bilinear(dt: float, t_end: float) -> tuple[np.ndarray, np.ndarray]:
     Bd = torch.linalg.solve(L, dt * _B_VEC)
     n_steps = int(round(t_end / dt)) + 1
     h = torch.zeros(2, dtype=_DTYPE)
-    ts = np.array([k * dt for k in range(n_steps)])
+    ts = np.arange(n_steps) * dt
     u_vals = drive(ts)
     ys = np.zeros(n_steps)
     for k in range(n_steps - 1):
