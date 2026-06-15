@@ -132,10 +132,6 @@ class MQARInstance(NamedTuple):
     def vocab(self) -> int:
         return self.n_keys + self.n_values + 1
 
-    @property
-    def value_ids(self) -> jnp.ndarray:
-        return jnp.arange(self.n_keys, self.n_keys + self.n_values)
-
 
 # ---------------------------------------------------------------------------
 # Generator + oracle.

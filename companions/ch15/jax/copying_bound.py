@@ -55,7 +55,6 @@ import jax
 # and before importing ch16's mqar, which imports jnp at module load.
 jax.config.update("jax_enable_x64", True)
 
-import jax.numpy as jnp  # noqa: E402
 import numpy as np  # noqa: E402
 
 from companions.ch16.jax import mqar  # noqa: E402
@@ -176,10 +175,10 @@ def _slot_instance(n_pairs: int, seed_offset: int = 0) -> mqar.MQARInstance:
 def _measured_slot_accuracy(loads: tuple[int, ...]) -> np.ndarray:
     out = []
     for n in loads:
-        accs = [
-            mqar.accuracy(mqar.slot_reader(_slot_instance(n, 7919 * s), _FIG_D), _slot_instance(n, 7919 * s).answers)
-            for s in range(_FIG_N_SEEDS)
-        ]
+        accs = []
+        for s in range(_FIG_N_SEEDS):
+            inst = _slot_instance(n, 7919 * s)
+            accs.append(mqar.accuracy(mqar.slot_reader(inst, _FIG_D), inst.answers))
         out.append(float(np.mean(accs)))
     return np.asarray(out)
 
