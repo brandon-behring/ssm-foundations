@@ -19,7 +19,7 @@ provenance:
     \stepsize  = Δ     (step size / selective timescale)
     \discA     = Ā     (discrete state matrix)
     \discB     = B̄
-    \R, \C, \N — number sets
+    \R — number set
     \norm{·}, \abs{·}, \Re, \diag — operators
   Chapter-specific symbols written inline: input-dependent subscripts
   \stepsize_t, \inputmat_t, \outputmat_t, \discA_t; the state-transition operator
@@ -111,7 +111,7 @@ The proof (Exercise 9.5, §9.9) is the §8.6 argument with one observation added
 
 ## 9.4 The hardware-aware fused kernel
 
-Making the scan the *only* route raises the stakes on computing it efficiently, and the obstacle is memory, not arithmetic. The selective scan's state is $\statevec_t \in \R^N$ *per channel*: for a batch of $B$ sequences of length $L$ with $D$ channels and state size $N$, materializing every intermediate state — which the naive backward pass needs — costs $O(B L D N)$, an $N\times$ blow-up over the $O(B L D)$ inputs and outputs. At $B = 8$, $L = 2048$, $D = 1024$, $N = 16$ that is 1.1 GB of fp32 state against 0.067 GB of output (§9.4 figure) — at Mamba's working dimensions, the difference between fitting in memory and not.
+Making the scan the *only* route raises the stakes on computing it efficiently, and the obstacle is memory, not arithmetic. The selective scan's state is $\statevec_t \in \R^N$ *per channel*: for a batch of $B$ sequences of length $L$ with $D$ channels and state size $N$, materializing every intermediate state — which the naive backward pass needs — costs $O(B L D N)$, an $N\times$ blow-up over the $O(B L D)$ inputs and outputs. At $B = 8$, $L = 2048$, $D = 1024$, $N = 16$ that is 1.1 GB of fp32 state against 0.067 GB of output (figure below) — at Mamba's working dimensions, the difference between fitting in memory and not.
 
 <Figure id="ch09:fig:memory-cost" src="/figures/ch09/memory-cost.png" alt="Two panels. Left: log-log memory in gigabytes versus state dimension N, the materialized line B·L·D·N rising linearly while the fused line B·L·D stays flat. Right: the ratio materialized-over-fused versus N, a straight line equal to N." caption="Why the selective scan needs a fused kernel. For $B=8$, $L=2048$, $D=1024$, materializing all states costs $B L D N$ — at $N=16$ that is 1.1 GB of fp32 against 0.067 GB for the $B L D$ outputs, a $16\times$ ($=N$) gap. Mamba avoids it by keeping the expanded state in SRAM and recomputing it in the backward pass. Produced by companions/ch09/jax/selective_scan_demo.py." />
 

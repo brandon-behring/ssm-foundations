@@ -3,17 +3,19 @@
 One-screen resume context (the `sessions.md` §1 pattern). Update on context switch / session end.
 For the durable index, see the Claude Code project-memory `MEMORY.md`.
 
-**Right now:** **Polish campaign — Part 1 (foundations, ch 1–6) shipping** as PR `polish/part1-foundations`.
-The deep per-part refinement (review-fan-out Workflow → triage → fix → re-sweep): **~30 genuine fixes** across
-the 6 chapters + 9 companions + bib. Correctness cross-refs: ch02 BIBO Thm 2.3→**2.4**, ch05 dangling Thm
-5.3→**5.2**, ch03 Mamba-1/2/3→**1/2** (Mamba-3 is Ch10), ch04 §1.6→**§1.2**. Consistency: ch01 non-defective
-imaginary-eigenvalue caveat, ch04 exp-trapezoidal-*family* softening (aligns R38/Ch10), ch05 NoteBox no longer
-puts exponential integrators "in Butcher-tableau space", ch06 BDF7 *zero-stability*, Störmer–Verlet en-dash,
-macro-comment accuracy (ch01–04). **STYLE §8** gap closed: PyTorch subsections added to §1.10/§2.10/§3.10.
-Code: ch03 test misnomer, ch04 `np.arange` time grids + 2 E402 noqas, ch05 `~1e-9`→`~1e-7`, ch06 stale banner
-+ 2 docstrings. Bib: `zheng2026amor` `and others` removed (arXiv-confirmed 2 authors). **Touch-only formatting**
-(no `ruff format` reflow — preserves teaching layout; `ruff check`-clean). Gate green (build + `make
-check-local-torch` + ruff); the **re-sweep caught + fixed 1 self-introduced ch06 error** (verify-every-edit working).
+**Right now:** **Polish campaign — Part 2 (ssm-core, ch 7–10) shipping** as PR `polish/part2-ssm-core`.
+Deep per-part refinement (review-fan-out Workflow → triage → fix → re-sweep): **13 genuine fixes** across the
+4 chapters + 4 companions. **ch10** (the bulk): 8 raw inline-code theorem IDs → `<XRef>` (clickable,
+auto-numbered — ch10 was the lone chapter embedding raw IDs), §4.7→**§4.5** cross-ref (verified vs the Part-1
+ch04 edit), §10.10 over-attribution fixed (no torch `trapezoidal_ssd`) + PyTorch run block, double `order_sweep`
+collapsed. ch07 §7.11 factual error ("first chapter with all three tracks" — ch04–06 precede it); ch08 §8.4
+de-dup + torch s4d_kernel `jnp.sum`-not-einsum doc fix; ch09 §9.4 pointer + `\C`/`\N` macro trim. Repo-wide
+**ruff E402 now 0** (ch10's 3 test noqas). Gate green (build + `make check-local-torch` + ruff); re-sweep
+**all-clean** (no self-introduced errors this batch). **Touch-only formatting.**
+
+Before this, **Part 1 (foundations, ch 1–6) shipped + deployed + live-verified** (PR #42, merge `00c0f9b`):
+~30 fixes (wrong cross-ref/theorem numbers, consistency, the STYLE §8 torch-listing gap, prose, code/bib);
+the re-sweep there caught + fixed 1 self-introduced ch06 error.
 
 Before this, the **post-M7-staging cleanup PR** (`chore/repo-cleanup-banner-bib-astro`) shipped: closed stale
 audit-umbrella **#1**, corrected README:5's banner claim, de-anonymized the F21 bib entry (Halloran et al.,
@@ -28,9 +30,9 @@ post_transformers. Stages 1 (#32–#36), 2 (#37–#38), 3/R38 (#39) before it ar
 **Why:** the six-chapter campaign (approved 2026-06-10, order **12 → 14 → 16 → 13 → 15 → 17**) is
 **COMPLETE — 6/6.** The 17-chapter book is content-complete; cadence proven **11×** (Ch 7–17).
 
-**Next step:** **Polish campaign — Parts 2–5 + capstone.** Part 1 (foundations) is shipping (above);
-remaining batches: **7–10 (ssm-core) / 11–13 (beyond-ssm) / 14–16 (integration) / 17 (synthesis)**, then a
-cross-book consistency capstone. Per-batch method (proven on Part 1): review-fan-out Workflow (prose-pedagogy
+**Next step:** **Polish campaign — Parts 3–5 + capstone.** Parts 1–2 (foundations + ssm-core) shipped (above);
+remaining batches: **11–13 (beyond-ssm) / 14–16 (integration) / 17 (synthesis)**, then a
+cross-book consistency capstone. Per-batch method (proven on Parts 1–2): review-fan-out Workflow (prose-pedagogy
 + chapter-auditor + code-idiom per chapter) → triage to genuine `worth_it` findings (reject churn) → fix +
 **verify-every-edit re-sweep** (claim-skeptic + chapter-auditor on the diff) → one PR through the gate. Scope
 confirmed 2026-06-14: **deep per-part refinement** (Workflow opt-in) + **touch-only formatting**. Durable

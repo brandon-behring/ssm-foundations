@@ -15,6 +15,7 @@ import Theorem from '@brandon_m_behring/book-scaffold-astro/components/Theorem.a
 import Cite from '@brandon_m_behring/book-scaffold-astro/components/Cite.astro';
 import MarginNote from '@brandon_m_behring/book-scaffold-astro/components/MarginNote.astro';
 import Figure from '@brandon_m_behring/book-scaffold-astro/components/Figure.astro';
+import XRef from '@brandon_m_behring/book-scaffold-astro/components/XRef.astro';
 
 {/*
   Math macros (auto-loaded via ssmMacros in astro.config):
@@ -59,8 +60,8 @@ the computation. Mamba-1 and Mamba-2 both discretize with **zero-order hold**
 (ZOH) and keep a **real** diagonal state matrix $\statemat$.
 
 Mamba-3 <Cite key="lahoti2026mamba3" /> changes two things of dynamical-systems substance and leaves
-the rest of the SSD scaffold (the semiseparable structure of `ch09:ssd-semiseparable`,
-the scan, the attention duality of `ch09:ssd-duality`) intact:
+the rest of the SSD scaffold (the semiseparable structure of <XRef id="ch09:ssd-semiseparable" />,
+the scan, the attention duality of <XRef id="ch09:ssd-duality" />) intact:
 
 1. **A second-order integrator.** ZOH is first-order accurate; Mamba-3 adopts a
    second-order **exponential-trapezoidal** scheme — the exponential-integrator
@@ -165,7 +166,7 @@ at a stiff $\statemat\stepsize = -30$, the exponential schemes give $|\alpha|
 \approx 9.4 \times 10^{-14}$ (fully damped) while bilinear gives $|\alpha| =
 0.875$ (still ringing). This is why an exponential integrator is the right tool
 when the input-dependent $\statemat(u_t)$ of a selective SSM produces stiff
-dynamics, as Chapter 4 §4.7 anticipated for exactly this chapter. One caveat
+dynamics, as Chapter 4 §4.5 anticipated for exactly this chapter. One caveat
 matters for §10.4: the theorem bounds the *magnitude* $|\alpha|$ only. For a
 complex mode it says nothing about how faithfully the discrete rotation tracks the
 continuous phase $\theta\stepsize$ — phase fidelity is a separate question, and the
@@ -236,7 +237,7 @@ semiseparable matrix that lets the layer run as a parallel matmul or a linear-ti
 scan. It does, because only the *injection stencil* changes. Unrolling the
 trapezoidal recurrence with the state-transition operator $\Phi(k,j) =
 \prod_{i=j+1}^{k} \alpha_i = \exp(\statemat \sum_{i=j+1}^{k}\stepsize_i)$ (the same
-$\Phi$ as `ch09:ltv-transition`) splits the output into **two semiseparable streams
+$\Phi$ as <XRef id="ch09:ltv-transition" />) splits the output into **two semiseparable streams
 that share the one decay $\Phi$**: a right-endpoint stream weighting source $j$ by
 $\lambda\stepsize_j$, and a left-endpoint stream weighting source $j$ by
 $(1-\lambda)\stepsize_{j+1}$ across the strictly-lower triangle. Both reuse the
@@ -286,7 +287,7 @@ core SSM line — HiPPO (Chapter 7) to LTI S4/S4D/S5 (Chapter 8) to selective Ma
 
 **Chapter 11** opens the "beyond SSM" part by taking the SSD duality of §9.6 the
 other way: linear attention and the Hyena long-convolution lineage enter from the
-attention side of `ch09:ssd-duality`, where the structured contractions of these
+attention side of <XRef id="ch09:ssd-duality" />, where the structured contractions of these
 four chapters reappear wearing transformer clothing.
 
 ## 10.8 Exercises
@@ -326,7 +327,7 @@ The script prints ZOH slope $1.00$ and exp-trapezoidal slope $2.00$ on the force
 mode. On the homogeneous mode the transition $\alpha = e^{\statemat\stepsize}$ is
 exact for both schemes, so both reproduce $\statevec_0 e^{\statemat t_k}$ to
 floating-point roundoff and the order difference — which lives entirely in the
-forcing coefficients $\beta, \gamma$ — never enters (`ch10:exp-trap-order`).
+forcing coefficients $\beta, \gamma$ — never enters (<XRef id="ch10:exp-trap-order" />).
 
 </details>
 
@@ -350,19 +351,19 @@ step. The symmetric $\lambda = \tfrac12$ is the only second-order member.
 
 ### Exercise 10.4 (theory) — solution in §10.9
 
-Prove `ch10:exp-trap-order`: for $\lambda = \tfrac12$ the exponential-trapezoidal
+Prove <XRef id="ch10:exp-trap-order" />: for $\lambda = \tfrac12$ the exponential-trapezoidal
 scheme has local truncation error $O(\stepsize^3)$ on a forced system, and show
 that on the homogeneous system both ZOH and exp-trapezoidal are exact.
 
 ### Exercise 10.5 (theory) — solution in §10.9
 
-Prove `ch10:rope-complex-equivalence`: that a 2-D rotation by $\theta$ on
+Prove <XRef id="ch10:rope-complex-equivalence" />: that a 2-D rotation by $\theta$ on
 $[\operatorname{Re} z, \operatorname{Im} z]$ equals multiplication of $z$ by
 $e^{i\theta}$, and conclude the complex and real-RoPE recurrences coincide.
 
 ### Exercise 10.6 (theory) — solution in §10.9
 
-Prove `ch10:exp-trap-stability`: that the exponential schemes are A-stable with
+Prove <XRef id="ch10:exp-trap-stability" />: that the exponential schemes are A-stable with
 $|\alpha| \to 0$ on stiff modes, and contrast the bilinear Padé factor, showing
 $|\alpha| \to 1$ as $\statemat\stepsize \to -\infty$.
 
@@ -423,10 +424,11 @@ qualitative gap the exponential transition closes. $\blacksquare$
 
 ## 10.10 Companion code
 
-The companions live in `companions/ch10/{jax,julia,torch}/`. The JAX and torch
-modules cover the integrator, the complex state, and the trapezoidal SSD pass; the
-Julia module is the discretization atlas only — the numerical-analysis core — and
-joins the Chapter 4-6 Julia family that the C1 pilot's stability atlas builds on.
+The companions live in `companions/ch10/{jax,julia,torch}/`. The JAX module covers
+the integrator, the complex state, and the trapezoidal SSD pass; the PyTorch module
+mirrors the integrator and complex state (cross-framework parity); the Julia module
+is the discretization atlas only — the numerical-analysis core — and joins the
+Chapter 4-6 Julia family that the C1 pilot's stability atlas builds on.
 
 The discretization study (order slopes, homogeneous-blindness, stability regions):
 ```bash
@@ -442,6 +444,12 @@ PYTHONPATH=. python companions/ch10/jax/complex_state.py
 The trapezoidal SSD pass (matmul equals the sequential oracle):
 ```bash
 PYTHONPATH=. python companions/ch10/jax/trapezoidal_ssd.py
+```
+
+The PyTorch mirror (integrator and complex state, parity-checked against JAX):
+```bash
+PYTHONPATH=. python companions/ch10/torch/discretization.py
+PYTHONPATH=. python companions/ch10/torch/complex_state.py
 ```
 
 Run the suites — JAX and Julia in the fast loop, torch separately:

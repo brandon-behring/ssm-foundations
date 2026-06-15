@@ -8,9 +8,10 @@ frameworks compute the same object bit-for-bit (pinned in
 
 JAX <-> PyTorch contrast
 ------------------------
-* **Kernel build.** Both spell the Vandermonde sum with broadcasting; JAX uses
-  ``jnp.exp``/``jnp.einsum``-style reductions, torch uses ``torch.exp`` and
-  ``torch.einsum`` over ``cdouble`` tensors. No control flow — it is a closed form.
+* **Kernel build.** Both spell the Vandermonde sum with broadcasting; JAX reduces
+  with a broadcast-multiply and ``jnp.sum``, while torch writes the same contraction
+  as ``torch.einsum`` over ``cdouble`` tensors. Same math, two idiomatic spellings;
+  no control flow — it is a closed form.
 * **Parameterization as a module.** :class:`S4DKernel` registers ``log_A_real``,
   ``A_imag`` and the complex ``C`` as **buffers** (fixed init for this companion;
   the reference S4D makes them learnable ``Parameter``s with per-group learning

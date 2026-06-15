@@ -468,10 +468,10 @@ def make_order_figure() -> Figure:
 
     apply_style()
     dts = np.asarray(_DTS)
-    err_zoh, s_zoh = (np.asarray(order_sweep("zoh", _A_FORCED, _DTS, _T, _OMEGA, x0=_X0)[0]),
-                      order_sweep("zoh", _A_FORCED, _DTS, _T, _OMEGA, x0=_X0)[1])
-    err_trap, s_trap = (np.asarray(order_sweep("exp_trapezoidal", _A_FORCED, _DTS, _T, _OMEGA, x0=_X0)[0]),
-                        order_sweep("exp_trapezoidal", _A_FORCED, _DTS, _T, _OMEGA, x0=_X0)[1])
+    err_zoh_raw, s_zoh = order_sweep("zoh", _A_FORCED, _DTS, _T, _OMEGA, x0=_X0)
+    err_zoh = np.asarray(err_zoh_raw)
+    err_trap_raw, s_trap = order_sweep("exp_trapezoidal", _A_FORCED, _DTS, _T, _OMEGA, x0=_X0)
+    err_trap = np.asarray(err_trap_raw)
 
     fig, ax = create_tufte_figure(figsize=(6.5, 4.2))
     ax.loglog(dts, err_zoh, "o-", color=SSM_COLORS["accent"], label=f"ZOH (slope {s_zoh:.2f})")

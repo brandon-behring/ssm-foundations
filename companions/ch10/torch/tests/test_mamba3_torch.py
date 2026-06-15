@@ -19,13 +19,13 @@ torch.set_default_dtype(torch.float64)
 import numpy as np  # noqa: E402
 import pytest  # noqa: E402
 
-from companions.ch10.torch.complex_state import (
+from companions.ch10.torch.complex_state import (  # noqa: E402
     complex_scalar_recurrence,
     decay_rate,
     rope_equivalence_residual,
     rope_matrix,
 )
-from companions.ch10.torch.discretization import (
+from companions.ch10.torch.discretization import (  # noqa: E402
     amplification,
     discretize_exp_trapezoidal,
     discretize_zoh,
