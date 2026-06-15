@@ -24,6 +24,7 @@ provenance:
     \statemat  = A     (dynamics matrix)
     \inputmat  = B     (input matrix)
     \outputmat = C     (output matrix)
+    \feedmat   = D     (feedthrough matrix)
     \stepsize  = Δ     (discretization step)
     \lyapexp   = λ     (Lyapunov exponent — used in Ch 2)
     \jacobian  = J     (Jacobian)
@@ -41,7 +42,7 @@ import Figure from '@brandon_m_behring/book-scaffold-astro/components/Figure.ast
 # Linear ODEs as state-space systems
 
 <NoteBox title="Chapter 1 — at a glance">
-**Goal**: introduce the continuous-time linear system $\ddt \statevec(t) = \statemat \statevec(t) + \inputmat u(t)$ as the mathematical object every later chapter discretizes, analyses, or generalizes. By the end you can write a state-space model from an ODE, compute its fundamental solution, classify its qualitative behavior from $\statemat$'s eigenvalues, and read a phase portrait.
+**Goal**: introduce the continuous-time linear system $\ddt \statevec(t) = \statemat \statevec(t) + \inputmat u(t)$ as the mathematical object every later chapter discretizes, analyzes, or generalizes. By the end you can write a state-space model from an ODE, compute its fundamental solution, classify its qualitative behavior from $\statemat$'s eigenvalues, and read a phase portrait.
 
 **Reading time**: ~30 minutes prose; 60–90 minutes with the companions and exercises.
 
@@ -118,7 +119,7 @@ So $e^{\statemat t}$ acts on the eigenbasis as independent scalar exponentials. 
 
 1. **All eigenvalues with negative real part** — the system is **asymptotically stable**: every trajectory $\statevec(t) \to 0$ as $t \to \infty$. This is the regime in which a recurrence "forgets" its initial state, and it is the design target for the $\statemat$ matrices of S4, Mamba, and friends.
 2. **At least one eigenvalue with positive real part** — the system is **unstable**: some initial conditions blow up. A trained SSM whose $\statemat$ drifts into this regime is the dominant numerical failure mode (Chapter 5).
-3. **Purely imaginary eigenvalues** — the system is **marginally stable** and oscillates without decay. These are the energy-preserving modes of Hamiltonian systems and are the natural home of symplectic discretization (Chapter 6).
+3. **Purely imaginary eigenvalues** — provided they are non-defective, the system is **marginally stable** and oscillates without decay; a *defective* imaginary eigenvalue instead picks up polynomial-in-$t$ growth and is unstable (Chapter 2 makes this precise). The non-defective modes are the energy-preserving modes of Hamiltonian systems and the natural home of symplectic discretization (Chapter 6).
 
 When $\statemat$ is not diagonalizable — when it has repeated eigenvalues with deficient eigenspaces — the matrix exponential picks up polynomial-in-$t$ factors on top of the $e^{\lambda_i t}$ terms. The Jordan normal form (Chapter 3, §3.1) gives the precise statement. For *generic* dense random $\statemat$, non-diagonalizability is a measure-zero, codimension-one event. But it is not merely pathological: it appears *by design* in structured systems — the critically-damped oscillator of §1.3 (a repeated real eigenvalue), and the structured/learned $\statemat$ of HiPPO-LegS and S4 (Chapter 3). Where it occurs, those polynomial-in-$t$ factors are the whole story, not an edge case.
 
@@ -360,18 +361,26 @@ Uniqueness follows from the classical Picard–Lindelöf theorem applied to the 
 
 ## 1.10 Companion code
 
-Three runnable companions in `companions/ch01/jax/`:
+Three JAX companions and one PyTorch companion for Chapter 1.
+
+**JAX** (`companions/ch01/jax/`):
 
 - `damped_oscillator.py` — simulates the underdamped oscillator, plots energy decay (Figure 1.1)
 - `coupled_oscillators.py` — constructs the ring-Laplacian state matrix, plots eigenvalue spectrum (Figure 1.2)
 - `matrix_exponential.py` — compares `scipy.linalg.expm` against truncated series sums; the truncated series catastrophically diverges for matrices with large spectral radius (auxiliary, used by Exercise 1.5)
 
-All companions import their plotting style from `companions/_shared/plot_utils.py`. To run from the repo root:
+**PyTorch** (`companions/ch01/torch/`):
+
+- `matrix_exponential.py` — the truncated-series-vs-`torch.linalg.matrix_exp` comparison, making the idiomatic-JAX vs idiomatic-PyTorch contrast concrete (compute-and-parity only; the JAX companions produce the figures).
+- `tests/` — cross-framework parity: the torch partial sums and convergence curves match their JAX counterparts.
+
+JAX companions import their plotting style from `companions/_shared/plot_utils.py`. To run from the repo root:
 
 ```bash
 PYTHONPATH=. python companions/ch01/jax/damped_oscillator.py
 PYTHONPATH=. python companions/ch01/jax/coupled_oscillators.py
 PYTHONPATH=. python companions/ch01/jax/matrix_exponential.py
+PYTHONPATH=. python companions/ch01/torch/matrix_exponential.py
 ```
 
 Figures are written to `public/figures/ch01/` and referenced from the `<Figure>` components above.

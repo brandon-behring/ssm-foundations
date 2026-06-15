@@ -23,6 +23,14 @@ Output
 showing exp-trapezoidal achieves slope 2 alongside the bilinear-trapezoidal
 scheme and beats ZOH's slope 1.
 
+Notes
+-----
+The ``simulate_*`` helpers below keep an eager Python loop for the linear
+recurrence, rather than the ``jax.lax.scan`` spelling used in
+``discretization_comparison.py``. This is deliberate: the loop maps verbatim
+onto the PyTorch companion (``companions/ch04/torch/exp_trapezoidal.py``),
+keeping the two ports line-for-line comparable for the §4.5 teaching contrast.
+
 Usage
 -----
 ::
@@ -45,7 +53,7 @@ import matplotlib.pyplot as plt  # noqa: E402
 import numpy as np  # noqa: E402
 from scipy.integrate import solve_ivp  # noqa: E402
 
-from companions._shared.plot_utils import (
+from companions._shared.plot_utils import (  # noqa: E402
     SSM_COLORS,
     apply_style,
     create_tufte_figure,
@@ -127,7 +135,7 @@ def simulate_exp_trap(dt: float, t_end: float) -> tuple[np.ndarray, np.ndarray]:
     Ad, B0, B1 = discretize_exp_trap(_A_MAT, _B_VEC, dt)
     n_steps = int(round(t_end / dt)) + 1
     h = jnp.zeros(2, dtype=_A_MAT.dtype)
-    ts = np.array([k * dt for k in range(n_steps)])
+    ts = np.arange(n_steps) * dt
     u_vals = drive(ts)
     ys = np.zeros(n_steps)
     for k in range(n_steps - 1):
@@ -150,7 +158,7 @@ def simulate_zoh(dt: float, t_end: float) -> tuple[np.ndarray, np.ndarray]:
     Bd = EX[:n, n]
     n_steps = int(round(t_end / dt)) + 1
     h = jnp.zeros(2, dtype=_A_MAT.dtype)
-    ts = np.array([k * dt for k in range(n_steps)])
+    ts = np.arange(n_steps) * dt
     u_vals = drive(ts)
     ys = np.zeros(n_steps)
     for k in range(n_steps - 1):
@@ -172,7 +180,7 @@ def simulate_bilinear(dt: float, t_end: float) -> tuple[np.ndarray, np.ndarray]:
     Bd = jnp.linalg.solve(L, dt * _B_VEC)
     n_steps = int(round(t_end / dt)) + 1
     h = jnp.zeros(2, dtype=_A_MAT.dtype)
-    ts = np.array([k * dt for k in range(n_steps)])
+    ts = np.arange(n_steps) * dt
     u_vals = drive(ts)
     ys = np.zeros(n_steps)
     for k in range(n_steps - 1):

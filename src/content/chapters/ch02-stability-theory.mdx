@@ -22,8 +22,8 @@ provenance:
     \statevec, \statemat, \inputmat, \outputmat — system matrices
     \stepsize  = Δ
     \lyapexp   = λ — Lyapunov exponent
-    \spectralradius = ρ
     \jacobian  = J
+    \ddt       = d/dt
     \norm{x}, \abs{x}, \tr — operators
 */}
 
@@ -59,8 +59,8 @@ with $\statemat \in \R^{N \times N}$. The three notions:
 
 When $\statemat$ has all eigenvalues in the open left half-plane (LHP), all three coincide for the LTI case. But:
 
-- Lyapunov-stable systems can be Lyapunov-stable but not asymptotically stable (centers: pure imaginary eigenvalues, oscillations don't decay).
-- A-stability is a *integrator* property; the explicit Euler method is *not* A-stable, while the implicit Euler method *is*. The same continuous system therefore may need a stable integrator to preserve its stability.
+- A system can be Lyapunov-stable but not asymptotically stable (centers: pure imaginary eigenvalues, oscillations don't decay).
+- A-stability is an *integrator* property; the explicit Euler method is *not* A-stable, while the implicit Euler method *is*. The same continuous system therefore may need a stable integrator to preserve its stability.
 - BIBO depends on the **transfer function** $H(s) = \outputmat (sI - \statemat)^{-1} \inputmat$ and on the choice of $(\statemat, \inputmat, \outputmat)$ realization. Two systems with the same $\statemat$ can have different BIBO properties if their $\outputmat$ "hides" unstable modes.
 
 The rest of the chapter develops each notion in turn.
@@ -267,7 +267,7 @@ State and prove the **Lyapunov equation characterization** of asymptotic stabili
 
 ### Exercise 2.6 (theory) — solution in §2.9
 
-Prove the **BIBO criterion** of Theorem 2.3: a causal LTI system is BIBO-stable iff all poles of its transfer function lie in the open left half-plane. (Hint: Use the Laplace-transform / convolution duality, and exploit the representation of the impulse response as a sum of exponentials.)
+Prove the **BIBO criterion** of Theorem 2.4: a causal LTI system is BIBO-stable iff all poles of its transfer function lie in the open left half-plane. (Hint: Use the Laplace-transform / convolution duality, and exploit the representation of the impulse response as a sum of exponentials.)
 
 ## 2.9 Full solutions to theory exercises
 
@@ -305,16 +305,24 @@ using the decay of $e^{\statemat t}$ at $\infty$. Uniqueness of $P$ follows from
 
 ## 2.10 Companion code
 
-Two runnable companions in `companions/ch02/jax/`:
+Two JAX companions and one PyTorch companion for Chapter 2.
+
+**JAX** (`companions/ch02/jax/`):
 
 - `lyapunov_qr.py` — implements the QR-based Lyapunov-exponent algorithm and applies it to the ring-of-oscillators system from Chapter 1
 - `stability_regions.py` — plots the regions of absolute stability for forward Euler, backward Euler, bilinear (trapezoidal), and ZOH in the complex plane
+
+**PyTorch** (`companions/ch02/torch/`):
+
+- `lyapunov_qr.py` — the QR-based Lyapunov spectrum in idiomatic PyTorch (the `jax.lax.scan`-vs-eager-loop contrast with the JAX companion; compute-and-parity only, the JAX companion produces the figure).
+- `tests/` — cross-framework parity: the torch Lyapunov spectra match their JAX counterparts.
 
 To run from the repo root:
 
 ```bash
 PYTHONPATH=. python companions/ch02/jax/lyapunov_qr.py
 PYTHONPATH=. python companions/ch02/jax/stability_regions.py
+PYTHONPATH=. python companions/ch02/torch/lyapunov_qr.py
 ```
 
 Figures land in `public/figures/ch02/` (referenced from §2.3 and §2.4 above).

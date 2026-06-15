@@ -13,9 +13,10 @@ JAX↔PyTorch contrast
   here: ``torch.linalg.solve`` is natively batched, so we stack the per-point matrices
   $(I - z A)$ along a leading axis and solve them all in one call. (The NumPy original
   ran a Python ``for z_val in z.ravel()`` loop; both frameworks vectorise it.)
-* **Complex grid.** JAX builds ``RE + 1j*IM`` from a NumPy meshgrid. PyTorch complex
-  tensors are assembled with ``torch.complex(re, im)`` and ``1j`` is spelled as a
-  ``complex128`` scalar; ``jnp.abs`` on a complex array becomes ``torch.abs``.
+* **Complex inputs.** The complex grid itself is built only in the JAX figure module;
+  this compute-and-parity port coerces whatever real/complex array it is handed to
+  ``complex128`` (vs JAX's ``jnp.asarray`` on the precomputed ``RE + 1j*IM`` meshgrid).
+  ``jnp.abs`` on a complex array becomes ``torch.abs``.
 * **Closed forms.** ``zoh_stab_fn`` ($e^z$) and ``bilinear_stab_fn`` already vectorise;
   only ``jnp`` → ``torch`` changes.
 * **Precision.** JAX enables float64 globally (``jax_enable_x64``); PyTorch sets

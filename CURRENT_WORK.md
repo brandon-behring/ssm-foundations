@@ -3,15 +3,21 @@
 One-screen resume context (the `sessions.md` §1 pattern). Update on context switch / session end.
 For the durable index, see the Claude Code project-memory `MEMORY.md`.
 
-**Right now:** **Post-M7-staging cleanup PR** (`chore/repo-cleanup-banner-bib-astro`) — (1) closed the
-stale 2026-05-25 audit-umbrella **#1** (its punch list was long since resolved); (2) corrected **README:5**'s
-false "pre-release banner is live site-wide" claim (the toolkit's `PreReleaseBanner` is unwired here — this
-book uses the toolkit's auto-injected layouts, so a real banner needs a toolkit `releaseStatus` feature,
-requested separately); (3) **de-anonymized the F21 bib entry** — `anonymous2025lyapunov` was not only
-Anonymous but carried a *wrong title*; now Halloran, Gulati & Roysdon, "Mamba State-Space Models Are
-Lyapunov-Stable Learners", TMLR 2025 (arXiv 2406.00209), bibkey kept for cite stability; (4) bumped **astro
-`^6.1.7`→`^6.4.6`** (katex 0.16→0.17 deferred — shared with the toolkit's rehype-katex). `npm run build`
-+ `make check` + check-bibkeys green; the astro rebuild is the only deploy-affecting change (content-identical).
+**Right now:** **Polish campaign — Part 1 (foundations, ch 1–6) shipping** as PR `polish/part1-foundations`.
+The deep per-part refinement (review-fan-out Workflow → triage → fix → re-sweep): **~30 genuine fixes** across
+the 6 chapters + 9 companions + bib. Correctness cross-refs: ch02 BIBO Thm 2.3→**2.4**, ch05 dangling Thm
+5.3→**5.2**, ch03 Mamba-1/2/3→**1/2** (Mamba-3 is Ch10), ch04 §1.6→**§1.2**. Consistency: ch01 non-defective
+imaginary-eigenvalue caveat, ch04 exp-trapezoidal-*family* softening (aligns R38/Ch10), ch05 NoteBox no longer
+puts exponential integrators "in Butcher-tableau space", ch06 BDF7 *zero-stability*, Störmer–Verlet en-dash,
+macro-comment accuracy (ch01–04). **STYLE §8** gap closed: PyTorch subsections added to §1.10/§2.10/§3.10.
+Code: ch03 test misnomer, ch04 `np.arange` time grids + 2 E402 noqas, ch05 `~1e-9`→`~1e-7`, ch06 stale banner
++ 2 docstrings. Bib: `zheng2026amor` `and others` removed (arXiv-confirmed 2 authors). **Touch-only formatting**
+(no `ruff format` reflow — preserves teaching layout; `ruff check`-clean). Gate green (build + `make
+check-local-torch` + ruff); the **re-sweep caught + fixed 1 self-introduced ch06 error** (verify-every-edit working).
+
+Before this, the **post-M7-staging cleanup PR** (`chore/repo-cleanup-banner-bib-astro`) shipped: closed stale
+audit-umbrella **#1**, corrected README:5's banner claim, de-anonymized the F21 bib entry (Halloran et al.,
+TMLR 2025), bumped **astro `^6.1.7`→`^6.4.6`**.
 
 Before this, **M7 stage 1 (staging the pilot-results fold-in) shipped** (PR #40 + post_transformers #55):
 `docs/m7-pilot-integration-plan.md` = the fold-in catalog (ch17 §17.2→§17.2b / §17.3→§17.3b / §17.5
@@ -22,11 +28,18 @@ post_transformers. Stages 1 (#32–#36), 2 (#37–#38), 3/R38 (#39) before it ar
 **Why:** the six-chapter campaign (approved 2026-06-10, order **12 → 14 → 16 → 13 → 15 → 17**) is
 **COMPLETE — 6/6.** The 17-chapter book is content-complete; cadence proven **11×** (Ch 7–17).
 
-**Next step:** **M7 completion** — readiness-gated on the C1/B pilots producing trained-model results in
-`post_transformers` (per the data contract in `docs/m7-pilot-integration-plan.md`). When results land,
-the fold-in is turnkey (that doc's execution checklist): fill §17.2b/§17.3b, rewrite §17.5, update
-ch14/15/16 cross-refs, flip alpha→beta + the doc-status sweep. Otherwise only low-priority Track-C
-housekeeping remains (F10/F37/F21/F22/F25 — do-when-triggered). **Hold `alpha` until M7.**
+**Next step:** **Polish campaign — Parts 2–5 + capstone.** Part 1 (foundations) is shipping (above);
+remaining batches: **7–10 (ssm-core) / 11–13 (beyond-ssm) / 14–16 (integration) / 17 (synthesis)**, then a
+cross-book consistency capstone. Per-batch method (proven on Part 1): review-fan-out Workflow (prose-pedagogy
++ chapter-auditor + code-idiom per chapter) → triage to genuine `worth_it` findings (reject churn) → fix +
+**verify-every-edit re-sweep** (claim-skeptic + chapter-auditor on the diff) → one PR through the gate. Scope
+confirmed 2026-06-14: **deep per-part refinement** (Workflow opt-in) + **touch-only formatting**. Durable
+definition: the `polish-campaign` project memory.
+
+Separately, **M7 completion** stays readiness-gated on the C1/B pilots producing trained-model results in
+`post_transformers` (turnkey via `docs/m7-pilot-integration-plan.md` + post_transformers #55). Otherwise
+only low-priority Track-C housekeeping (katex 0.17 bump, F37 dep pins, F22/F25 bib — F10-astro + F21 now
+done). **Hold `alpha` until M7.**
 
 Deferred-with-notes in `audits/2026-06-13_post-m6_recheck.md` (accepted, not bugs): R23 (ch08
 resolvent — a self-flagged non-implemented sketch), R24 (ch09 residual magnitudes — prose already says

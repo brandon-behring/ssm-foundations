@@ -77,6 +77,7 @@ def harmonic_V_grad(q: jnp.ndarray) -> jnp.ndarray:
 
 
 def harmonic_H(q: jnp.ndarray, p: jnp.ndarray) -> jnp.ndarray:
+    """Harmonic-oscillator energy $H = (p^2 + q^2)/2$."""
     return 0.5 * (p * p + q * q)
 
 
@@ -91,6 +92,7 @@ def pendulum_V_grad(q: jnp.ndarray) -> jnp.ndarray:
 
 
 def pendulum_H(q: jnp.ndarray, p: jnp.ndarray) -> jnp.ndarray:
+    """Pendulum energy $H = p^2/2 - \\cos q$."""
     return 0.5 * p * p - jnp.cos(q)
 
 

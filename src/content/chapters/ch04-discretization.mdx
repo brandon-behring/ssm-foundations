@@ -23,11 +23,9 @@ provenance:
     \statemat  = A     (continuous dynamics matrix)
     \inputmat  = B
     \outputmat = C
-    \feedmat   = D
     \stepsize  = Δ     (step size)
     \discA     = Ā     (discrete state matrix)
     \discB     = B̄
-    \seqlen    = L
     \R, \C, \N — number sets
     \norm{·}, \abs{·}, \tr, \diag — operators
 */}
@@ -110,7 +108,7 @@ A practical wrinkle: writing $\discB$ as $\statemat^{-1}(e^{\statemat \stepsize}
 $$
 M = \begin{pmatrix} \statemat \stepsize & \inputmat \stepsize \\ 0 & 0 \end{pmatrix} \in \R^{(N+P) \times (N+P)},
 $$
-where $P$ is the input dimension. Then
+where $P$ is the input dimension ($D$ in Chapter 1's notation). Then
 $$
 \exp(M) = \begin{pmatrix} e^{\statemat \stepsize} & \statemat^{-1}(e^{\statemat \stepsize} - I) \inputmat \\ 0 & I \end{pmatrix},
 $$
@@ -162,7 +160,7 @@ Bilinear is **second-order accurate** for smooth forcing — the trapezoidal-rul
 
 The third family takes a different approach: rather than approximating $e^{\statemat \stepsize}$ by a low-order Padé form (as bilinear does) or by the identity-plus-linear truncation $I + \stepsize \statemat$ (as forward Euler does), it computes $e^{\statemat \stepsize}$ *exactly* and approximates only the forcing integral. This is the philosophy of **exponential integrators** <Cite key="hochbruck2010exponential" />.
 
-The exact one-step formula from variation of parameters (Chapter 1, §1.6) is
+The exact one-step formula from variation of parameters (Chapter 1, §1.2) is
 $$
 \statevec(t_{k+1}) = e^{\statemat \stepsize} \statevec_k + \int_0^{\stepsize} e^{\statemat (\stepsize - s)} \inputmat u(t_k + s) \, ds.
 $$
@@ -184,7 +182,7 @@ $$
 $$
 Notice that $\discA$ is the same as ZOH, so **exp-trapezoidal preserves stability identically to ZOH**: A-stable, exact for autonomous systems, eigenvalues in the unit disk for any $\stepsize > 0$. The improvement is in the *order of accuracy*: by interpolating $u$ linearly rather than holding it constant, exp-trapezoidal becomes second-order accurate (provided $u$ is $C^2$ — the linear-interpolation error is governed by $u''$).
 
-Exp-trapezoidal is the discretization of choice when the continuous dynamics are stiff — when $\statemat$ has eigenvalues with very different magnitudes, so the linear part is *the* hard part of the problem. By treating $e^{\statemat \stepsize}$ exactly the scheme sidesteps the step-size restriction that explicit methods inherit from the stiff eigenvalues, and the matrix exponential is computed once per layer in practice. Chapter 10 returns to this story for Mamba-3, which adopts exp-trapezoidal precisely because the input-dependent $\statemat(u_t)$ in selective SSMs produces stiff dynamics that ZOH and bilinear handle poorly.
+Exp-trapezoidal is the discretization of choice when the continuous dynamics are stiff — when $\statemat$ has eigenvalues with very different magnitudes, so the linear part is *the* hard part of the problem. By treating $e^{\statemat \stepsize}$ exactly the scheme sidesteps the step-size restriction that explicit methods inherit from the stiff eigenvalues, and the matrix exponential is computed once per layer in practice. Chapter 10 returns to this story for Mamba-3, which adopts a scheme from this exponential-trapezoidal family precisely because the input-dependent $\statemat(u_t)$ in selective SSMs produces stiff dynamics that ZOH and bilinear handle poorly.
 
 A subtle implementation point: $\varphi_2(\statemat \stepsize)$ is *not* numerically equal to $(e^{\statemat \stepsize} - I - \statemat \stepsize)/(\statemat \stepsize)^2$ when this formula is computed naively, because catastrophic cancellation in the numerator destroys precision for small $\stepsize$. The standard remedy is to compute all $\varphi$-functions simultaneously from one augmented matrix exponential <Cite key="almohy2011computing" />, again using the trick that produced $\discB$ for ZOH. Both companions (`exp_trapezoidal.py` in JAX and `discretization_atlas.jl` in Julia) implement the augmented form.
 

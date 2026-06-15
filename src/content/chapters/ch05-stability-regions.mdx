@@ -39,7 +39,7 @@ import Figure from '@brandon_m_behring/book-scaffold-astro/components/Figure.ast
 
 **Reading time**: ~45 minutes prose; 60–90 minutes with the JAX and Julia companions.
 
-**Key insight**: the choice of discretization for an SSM is a choice of *point in Butcher-tableau space*. ZOH and exp-trapezoidal sit in the exponential-integrator corner of that space; bilinear is the trapezoidal-rule corner; the Mamba-3 paper <Cite key="lahoti2026mamba3" /> effectively shops for tableau-space points that combine A-stability with second-order accuracy. The **Dahlquist barrier** (§5.4) says you cannot have everything at once: no explicit Runge–Kutta method is A-stable *at all* — at any order. This is the structural reason the next chapter switches to implicit methods.
+**Key insight**: the choice of discretization for an SSM is a choice of *point in discretization-design space*. Bilinear sits at the trapezoidal-rule corner of the Runge–Kutta tableau interior (a rational stability function); ZOH and exp-trapezoidal sit just *outside* that interior, in the exponential-integrator region whose stability functions are neither polynomial nor rational (§5.4); the Mamba-3 paper <Cite key="lahoti2026mamba3" /> effectively shops this space for points that combine A-stability with second-order accuracy. The **Dahlquist barrier** (§5.4) says you cannot have everything at once: no explicit Runge–Kutta method is A-stable *at all* — at any order. This is the structural reason the next chapter switches to implicit methods.
 </NoteBox>
 
 ## 5.1 Runge–Kutta methods and the Butcher tableau
@@ -174,7 +174,7 @@ The implicit case is more subtle: there exists an A-stable Runge–Kutta method 
 
 <MarginNote>Dahlquist's original 1963 paper established this for linear multistep methods; the RK analogue was developed by Butcher in the 1960s. See <Cite key="hairer1996ordinary" /> Chapter IV for the full historical treatment.</MarginNote>
 
-The practical consequence for SSM discretization: by Theorem 5.3, **explicit and A-stable are mutually exclusive** — at *any* order — so A-stability forces you out of the explicit-RK family, into an implicit method or a non-polynomial (exponential) stability function. (The separate order-$\le 2$ ceiling — "A-stable *and* order $> 2$ is impossible" — is the *second* Dahlquist barrier, and it binds A-stable **linear multistep** methods, not RK; Chapter 6 §6.2 states it. The two are easy to conflate: explicit RK fails A-stability outright, regardless of order.) The Chapter 4 schemes all give up explicitness:
+The practical consequence for SSM discretization: by Theorem 5.2, **explicit and A-stable are mutually exclusive** — at *any* order — so A-stability forces you out of the explicit-RK family, into an implicit method or a non-polynomial (exponential) stability function. (The separate order-$\le 2$ ceiling — "A-stable *and* order $> 2$ is impossible" — is the *second* Dahlquist barrier, and it binds A-stable **linear multistep** methods, not RK; Chapter 6 §6.2 states it. The two are easy to conflate: explicit RK fails A-stability outright, regardless of order.) The Chapter 4 schemes all give up explicitness:
 
 - **Forward Euler**: explicit, order 1, *not* A-stable.
 - **ZOH and exp-trapezoidal**: A-stable *and* of arbitrary order on autonomous problems, by virtue of using the matrix exponential — but they sit *outside* the explicit-RK family (they have non-polynomial stability functions).

@@ -19,10 +19,10 @@ provenance:
 
 {/*
   Math notation (auto-loaded via ssmMacros):
-    \statemat, \inputmat, \outputmat — system matrices
-    \norm{x}, \abs{x}, \tr, \rank, \diag — operators
+    \statevec, \statemat, \inputmat, \outputmat — system matrices
+    \stepsize  = Δ     (discretization step)
+    \norm{x}, \tr, \rank, \diag — operators
     \R, \C — number sets
-    \spectralradius = ρ
 */}
 
 import NoteBox from '@brandon_m_behring/book-scaffold-astro/components/NoteBox.astro';
@@ -79,7 +79,7 @@ $$
 
 which is the source of the polynomial-in-$t$ factors mentioned in Chapter 1, §1.2 — they appear exactly when there are Jordan blocks of size $> 1$.
 
-For SSM analysis, the diagonalizable case dominates. Almost every $\statemat$ arising from random initialization or from training is diagonalizable; the non-diagonalizable case is a codimension-one subset of parameter space and shows up only at carefully-tuned boundaries. **For generic random $\statemat$ the diagonalizable assumption holds (non-diagonalizability is measure-zero); but structured or learned $\statemat$ — HiPPO-LegS, S4's DPLR parametrization, the critically-damped regime of §1.3 — can carry Jordan structure by design, and Chapter 2's Lyapunov theorem explicitly handles the defective case.**
+For SSM analysis, the diagonalizable case dominates. Almost every $\statemat$ arising from random initialization or from training is diagonalizable; the non-diagonalizable case is a measure-zero, codimension-one subset of parameter space and shows up only at carefully-tuned boundaries. **But structured or learned $\statemat$ — HiPPO-LegS, S4's DPLR parametrization, the critically-damped regime of §1.3 — can carry Jordan structure by design**, and Chapter 2's Lyapunov theorem explicitly handles the defective case.
 
 <MarginNote>The polynomial-factor blow-up in defective Jordan blocks is the reason Chapter 2's Lyapunov stability theorem includes the caveat about defective imaginary eigenvalues — a defective $\lambda = 0$ produces $t^{k-1}$ growth.</MarginNote>
 
@@ -150,7 +150,7 @@ $$
 
 Parameterized by $2n - 1$ values $(t_{-(n-1)}, \ldots, t_{n-1})$. **Toeplitz matrices are the matrix form of convolutions**: if $T$ is Toeplitz with first column $(t_0, t_1, \ldots, t_{n-1})$ and first row $(t_0, 0, \ldots, 0)$ (lower-triangular Toeplitz), then $T \statevec$ is the discrete convolution of the kernel $(t_0, t_1, \ldots)$ with $\statevec$. The FFT-based convolution algorithm computes $T \statevec$ in $O(n \log n)$ time.
 
-LTI SSM convolutional view (Chapter 8) is exactly this: the operator that maps the input sequence $u$ to the output sequence $y$ via $y(t) = \int_0^t h(t-s) u(s) ds$ is a Toeplitz matrix at the discretization level, with first column equal to the discretized impulse response $h(0), h(\stepsize), h(2\stepsize), \ldots$.
+The LTI SSM convolutional view (Chapter 8) is exactly this: the operator that maps the input sequence $u$ to the output sequence $y$ via $y(t) = \int_0^t h(t-s) u(s) ds$ is a Toeplitz matrix at the discretization level, with first column equal to the discretized impulse response $h(0), h(\stepsize), h(2\stepsize), \ldots$.
 
 ### Vandermonde matrices
 
@@ -247,7 +247,7 @@ For a textbook coverage of Krylov-subspace methods, Trefethen–Bau <Cite key="t
 
 You now have the linear-algebra vocabulary the rest of the book assumes. Chapter 4 picks up the discretization thread (started in Chapter 2, §2.4) and develops it systematically: order conditions, accuracy classes, the Butcher tableau, the bilinear and ZOH derivations in detail. Chapter 7 introduces the HiPPO theory that connects orthogonal-basis approximation theory to the $\statemat$ matrix structure of S4. Chapter 8 then shows how all four structured-matrix families combine in the S4 / S4D / S5 family.
 
-If you're impatient, **Chapter 9's Mamba-1/2/3 presentation is the payoff for the SSD discussion of §3.4** — the selective scan's matmul-friendly chunkwise algorithm is exactly the 1-semiseparable matrix product algorithm.
+If you're impatient, **Chapter 9's Mamba-1/2 presentation is the payoff for the SSD discussion of §3.4** — the selective scan's matmul-friendly chunkwise algorithm is exactly the 1-semiseparable matrix product algorithm.
 
 ## 3.8 Exercises
 
@@ -316,7 +316,7 @@ Prove the **Eckart–Young theorem**: the best rank-$k$ approximation to a matri
 
 ### Exercise 3.6 (theory) — solution in §3.9
 
-Prove that a Toeplitz matrix $T \in \R^{n \times n}$ with $\norm{T \statevec}_2 \le C \norm{\statevec}_2$ for all $\statevec$ (operator-norm-bounded $T$) admits a matrix-vector product in $O(n \log n)$ time via the FFT. Specifically, show that any $n \times n$ Toeplitz $T$ can be embedded in a $2n \times 2n$ **circulant** matrix, whose matvec is exactly the FFT-IFFT pair applied to the kernel and input.
+Prove that any Toeplitz matrix $T \in \R^{n \times n}$ admits a matrix-vector product in $O(n \log n)$ time via the FFT. Specifically, show that any $n \times n$ Toeplitz $T$ can be embedded in a $2n \times 2n$ **circulant** matrix, whose matvec is exactly the FFT-IFFT pair applied to the kernel and input.
 
 ## 3.9 Full solutions to theory exercises
 
@@ -372,16 +372,24 @@ This is the *exact* algorithm used to compute LTI SSM convolutions in S4-family 
 
 ## 3.10 Companion code
 
-Two runnable companions in `companions/ch03/jax/`:
+Two JAX companions and one PyTorch companion for Chapter 3.
+
+**JAX** (`companions/ch03/jax/`):
 
 - `condition_number.py` — plots κ(A) growth for random Gaussian, Hilbert, and HiPPO-LegS matrices as N grows; produces Figure 3.1
 - `structured_matrices.py` — constructs Toeplitz / Vandermonde / Cauchy / 1-semiseparable matrices for N=8 and visualizes structural patterns; produces Figure 3.2
+
+**PyTorch** (`companions/ch03/torch/`):
+
+- `condition_number.py` — the same κ(A) conditioning sweep (HiPPO-LegS / Hilbert / Gaussian) in idiomatic PyTorch (compute-and-parity only; the JAX companion produces Figure 3.1).
+- `tests/` — cross-framework parity: the torch condition numbers match their JAX counterparts.
 
 To run from the repo root:
 
 ```bash
 PYTHONPATH=. python companions/ch03/jax/condition_number.py
 PYTHONPATH=. python companions/ch03/jax/structured_matrices.py
+PYTHONPATH=. python companions/ch03/torch/condition_number.py
 ```
 
 Figures land in `public/figures/ch03/`.
