@@ -3,14 +3,19 @@
 One-screen resume context (the `sessions.md` §1 pattern). Update on context switch / session end.
 For the durable index, see the Claude Code project-memory `MEMORY.md`.
 
-**Right now:** **Polish campaign — Part 5 (synthesis, ch 17 — the LAST chapter) shipping** as PR `polish/part5-synthesis`.
-Deep per-part refinement: **4 genuine fixes** (all 4 worth_it; ch17 is the clean recent synthesis chapter). The
-subtlest: a cross-reference mislabel at §17.1 + §17.5 attached `<XRef ch15:capacity-bound />` (the *counting* bound)
-to a "circuit-class / TC⁰" claim — recast so the counting bound is described/attributed correctly and the TC⁰
-impossibility is cited to Merrill (matches ch15 §15.3's own cited-vs-demonstrated distinction; the claim-skeptic
-re-sweep confirmed the corrected attribution). Plus a macro-comment over-declaration trim (T(ε)/M(λ), companion-only
-symbols) and the **last repo ruff finding** (ch17 F541 dead f-prefix) — **the companions tree is now fully ruff-clean (0)**.
-Gate green; re-sweep all-clean. **Touch-only formatting.**
+**Right now:** **Polish campaign — COMPLETE (2026-06-14).** Final step: the cross-book consistency capstone shipped
+as PR `polish/capstone-crossbook` — a cross-cutting notation + cross-reference sweep over all 17 chapters found
+**one** genuine fix: ch06 Exercise 6.4 said "Theorem 6.1" but the backward-Euler L-stability result is
+**Proposition 6.1** (`ch06:be-a-stable` is a proposition; labels.json has Proposition 6.1 + Theorem 6.2, never 6.1);
+the other 7 hard-coded result refs all resolve, notation + ruff clean. **Across all six PRs (#42–#46 + the capstone),
+~60 genuine fixes polished every one of the 17 chapters + companions** — repo now **fully ruff-clean (0)**, every
+cross-ref resolves, touch-only formatting preserved the teaching layout. The discipline paid for itself: the Part-1
+re-sweep caught a self-introduced ch06 error, and **verify-before-fix rejected findings that would have introduced
+errors** (notably the ch13 "~710" caption, proven correct by *running the figure code*).
+
+Before this, **Part 5 (synthesis, ch 17) shipped + deployed + live-verified** (PR #46, merge `21b7472`): 4 fixes —
+the §17.1/§17.5 capacity-bound vs TC⁰-Merrill cross-ref recast (claim-skeptic-confirmed), a macro-comment trim, and
+the last ruff finding (ch17 F541).
 
 Before this, **Part 4 (integration, ch 14–16) shipped + deployed + live-verified** (PR #45, merge `8988960`): 8
 fixes — two reading-order "What's next" recasts (ch14/ch16 forward-framed already-read chapters), ch15 `n^\star`
@@ -41,14 +46,10 @@ post_transformers. Stages 1 (#32–#36), 2 (#37–#38), 3/R38 (#39) before it ar
 **Why:** the six-chapter campaign (approved 2026-06-10, order **12 → 14 → 16 → 13 → 15 → 17**) is
 **COMPLETE — 6/6.** The 17-chapter book is content-complete; cadence proven **11×** (Ch 7–17).
 
-**Next step:** **Polish campaign — cross-book consistency capstone** (#78, the final step). All five per-part
-batches (foundations / ssm-core / beyond-ssm / integration / synthesis) are shipped + deployed + live-verified; one
-light cross-book pass remains — notation uniformity + cross-ref integrity across all 17 chapters, a final small PR
-only if it surfaces genuine fixes (else record "clean" and the campaign closes). Per-batch method (proven 5×): review-fan-out Workflow (prose-pedagogy
-+ chapter-auditor + code-idiom per chapter) → triage to genuine `worth_it` findings (reject churn) → fix +
-**verify-every-edit re-sweep** (claim-skeptic + chapter-auditor on the diff) → one PR through the gate. Scope
-confirmed 2026-06-14: **deep per-part refinement** (Workflow opt-in) + **touch-only formatting**. Durable
-definition: the `polish-campaign` project memory.
+**Next step:** **The polish campaign is COMPLETE** — all 17 chapters + companions polished across PR #42–#46 + the
+capstone (tasks #73–#78 all done); the repeatable per-part method (review-fan-out → triage to `worth_it` → fix →
+verify-every-edit re-sweep → gated PR → deploy → live check) is preserved in the `polish-campaign` project memory.
+Remaining open work is externally gated or low-priority (below).
 
 Separately, **M7 completion** stays readiness-gated on the C1/B pilots producing trained-model results in
 `post_transformers` (turnkey via `docs/m7-pilot-integration-plan.md` + post_transformers #55). Otherwise
