@@ -18,8 +18,7 @@ import Figure from '@brandon_m_behring/book-scaffold-astro/components/Figure.ast
 import XRef from '@brandon_m_behring/book-scaffold-astro/components/XRef.astro';
 
 {/*
-  Math macros (auto-loaded via ssmMacros in astro.config; this chapter uses):
-    \seqlen=L
+  Math macros (auto-loaded via ssmMacros in astro.config): none used in this chapter.
   Chapter-local symbols (declared in prose):
     S_t — matrix state ℝ^{d_v×d_k}, retrieval S q (Chapter 12's convention);
     A_t — the transition Diag(w_t) − c_t a_t a_t^⊤ acting on the right, S_{t-1} A_t;
@@ -329,8 +328,8 @@ stabilities on *trained* networks rather than asserting them at the architecture
 level.
 
 There is a taxonomy worth closing here. Chapter 14 organized gates by *what
-triggers a memory write* — the input (content), the output, the position in the
-data stream (<XRef id="ch14:gate-granularity" />). xLSTM's exponential input gate
+triggers a memory write* — the input (content), the output, or a fixed layer schedule
+(<XRef id="ch14:gate-granularity" />). xLSTM's exponential input gate
 is the sharpest *input*-triggered write in production. The remaining class is
 triggered by neither input nor position but by the model's own **loss**: the
 Titans line <Cite key="behrouz2025titans" /> writes to a neural long-term memory

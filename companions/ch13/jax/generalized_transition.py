@@ -441,9 +441,7 @@ def decoupled_eviction(
 
 _SPEC_W0 = 1.0
 _SPEC_D = 6
-_SPEC_C_GRID = (0.0, 0.5, 1.0, 1.5, 2.0, 2.5)
 _EVICT_C = 0.1
-_EVICT_TS = (0, 5, 10, 20, 30, 40, 60, 90)
 
 
 def make_spectrum_figure() -> "Figure":
