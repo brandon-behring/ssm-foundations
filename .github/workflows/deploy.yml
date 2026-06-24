@@ -32,7 +32,7 @@ permissions:
 jobs:
   deploy-production:
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-    uses: brandon-behring/deploy-workflows/.github/workflows/deploy-astro-worker.yml@v1
+    uses: brandon-behring/deploy-workflows/.github/workflows/deploy-astro-worker.yml@v2.0.2
     secrets: inherit
     with:
       # v4.6.0 migration (2026-05-27): reverted ci:validate → validate.
