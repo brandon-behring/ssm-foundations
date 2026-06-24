@@ -28,6 +28,7 @@ permissions:
   contents: read
   deployments: write
   actions: read
+  pull-requests: write   # required by the deploy-workflows reusable @v2.0.2 (preview-comment step)
 
 jobs:
   deploy-production:
